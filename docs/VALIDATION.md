@@ -1,4 +1,4 @@
-# Validation status for v0.1 handoff
+# Validation status for v1.0.0 handoff
 
 This records what was actually executed while building the first archive. It intentionally separates checks that were run here from real OTP/Omarchy acceptance that must run on the target workstation.
 

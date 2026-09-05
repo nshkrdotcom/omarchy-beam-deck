@@ -33,6 +33,12 @@ printf '%s\n' "$remsh_out" | grep -Fx -- 'worker@omen' >/dev/null
 # Simulate an Omarchy shell whose PATH has not refreshed after `mise use -g`.
 # No erl/elixir/mix binaries exist, but `mise exec` reports a usable selected
 # toolchain and receives both Mix invocations.
+clean_path="$(printf '%s' "$PATH" | tr ':' '\n' | while IFS= read -r dir; do
+  [[ -x "$dir/erl" || -x "$dir/elixir" || -x "$dir/mix" ]] && continue
+  printf '%s:' "$dir"
+done)"
+clean_path="${clean_path%:}"
+
 cat > "$tmp/bin/mise" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -48,7 +54,7 @@ STUB
 chmod +x "$tmp/bin/mise"
 
 mise_log="$tmp/mise.log"
-PATH="$tmp/bin:$PATH" HOME="$tmp/home" BEAM_DECK_MISE_TEST_LOG="$mise_log" "$ROOT/bin/beam-deckd" >/dev/null 2>&1 || true
+PATH="$tmp/bin:${clean_path:-/usr/bin:/bin}" HOME="$tmp/home" BEAM_DECK_MISE_TEST_LOG="$mise_log" "$ROOT/bin/beam-deckd" >/dev/null 2>&1 || true
 grep -F 'exec -- sh -c command -v erl' "$mise_log" >/dev/null
 grep -F 'exec -- mix compile' "$mise_log" >/dev/null
 grep -F 'exec -- mix run --no-compile --no-halt' "$mise_log" >/dev/null

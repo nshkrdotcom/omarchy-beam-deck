@@ -5,6 +5,10 @@ import qs.Ui
 BarWidget {
   id: root
   moduleName: "nshkr.beam-deck"
+  property string omarchyPath: ""
+  property var shell: null
+  property var manifest: null
+  property var bar: null
 
   readonly property var beamService:
     bar?.shell?.serviceFor("nshkr.beam-deck")

@@ -61,7 +61,7 @@ A configured node may specify:
 
 The secret itself is not stored in plugin configuration.
 
-Short-name mode is the default. `BEAM_DECK_LONGNAMES=1` switches the helper to long-name mode; a single v0.1 helper intentionally does not bridge unrelated short- and long-name universes simultaneously.
+Short-name mode is the default. `BEAM_DECK_LONGNAMES=1` switches the helper to long-name mode; a single v1.0.0 helper intentionally does not bridge unrelated short- and long-name universes simultaneously.
 
 ## Deep inspection
 

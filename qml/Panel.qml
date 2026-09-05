@@ -14,7 +14,7 @@ Item {
   property var pluginRegistry: null
   property bool opened: false
   property string selectedNode: ""
-  property var service: null
+  property var service: shell ? shell.serviceFor("nshkr.beam-deck") : (pluginRegistry ? pluginRegistry.serviceFor("nshkr.beam-deck") : null)
   readonly property var snapshotData: service ? service.snapshot : ({})
   readonly property var summary: snapshotData.summary || ({})
   readonly property var host: snapshotData.host || ({})

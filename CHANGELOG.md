@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 - initial implementation
+## 1.0.0 - initial release
 
 - Omarchy Quattro service/bar-widget/panel plugin under `nshkr.beam-deck`.
 - Graceful missing-BEAM, no-workload, OS-only, attached, and auth/unreachable states.
