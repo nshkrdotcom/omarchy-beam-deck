@@ -5,13 +5,8 @@ defmodule BeamDeck.RemoteIntegrationTest do
   alias BeamDeck.{DeepEvents, Remote}
 
   setup_all do
-    unless Node.alive?() do
-      case :net_kernel.start([:beam_deck_test_controller, :shortnames]) do
-        {:ok, _pid} -> :ok
-        {:error, {:already_started, _pid}} -> :ok
-        other -> flunk("could not start distributed test node: #{inspect(other)}")
-      end
-    end
+    ensure_epmd!()
+    ensure_distribution!()
 
     :erlang.set_cookie(Node.self(), :beam_deck_test_cookie)
 
@@ -62,6 +57,59 @@ defmodule BeamDeck.RemoteIntegrationTest do
       assert is_pid(pid)
       assert :ok = DeepEvents.stop(node, pid)
       assert Remote.call(node, :code, :is_loaded, [:nshkr_beam_deck_probe], false) == false
+    end
+  end
+
+  defp ensure_epmd! do
+    case System.find_executable("epmd") do
+      nil ->
+        flunk("epmd executable is not available")
+
+      epmd ->
+        ensure_epmd_running!(epmd)
+    end
+  end
+
+  defp ensure_epmd_running!(epmd) do
+    case System.cmd(epmd, ["-names"], stderr_to_stdout: true) do
+      {_output, 0} ->
+        :ok
+
+      _ ->
+        start_epmd!(epmd)
+    end
+  end
+
+  defp start_epmd!(epmd) do
+    case System.cmd(epmd, ["-daemon"], stderr_to_stdout: true) do
+      {_output, 0} ->
+        wait_for_epmd!(epmd, 20)
+
+      {output, status} ->
+        flunk("could not start epmd (status #{status}): #{String.trim(output)}")
+    end
+  end
+
+  defp wait_for_epmd!(_epmd, 0), do: flunk("epmd did not become reachable")
+
+  defp wait_for_epmd!(epmd, attempts) do
+    case System.cmd(epmd, ["-names"], stderr_to_stdout: true) do
+      {_output, 0} ->
+        :ok
+
+      _ ->
+        Process.sleep(50)
+        wait_for_epmd!(epmd, attempts - 1)
+    end
+  end
+
+  defp ensure_distribution! do
+    unless Node.alive?() do
+      case :net_kernel.start([:beam_deck_test_controller, :shortnames]) do
+        {:ok, _pid} -> :ok
+        {:error, {:already_started, _pid}} -> :ok
+        other -> flunk("could not start distributed test node: #{inspect(other)}")
+      end
     end
   end
 end
