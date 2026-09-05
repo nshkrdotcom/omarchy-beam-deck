@@ -1,58 +1,60 @@
-# Validation status for v1.0.0 handoff
+# Validation
 
-This records what was actually executed while building the first archive. It intentionally separates checks that were run here from real OTP/Omarchy acceptance that must run on the target workstation.
+BEAM Deck 1.0.0 uses separate source, BEAM/OTP, Omarchy, and live-behavior gates. A release is ready only when the checks applicable to the target workstation have executed successfully; an unavailable integration is not treated as a pass.
 
-## Build-environment capabilities
+## Automated release checks
 
-Available: `node`, `jq`, `git`, `zip`, Python 3.
-
-Not available: `erl`, `elixir`, `mix`, `qmllint`, `qmlformat`, `shellcheck`, or a live Omarchy/Quickshell session.
-
-## Executed successfully here
+With the Mise-managed Erlang/Elixir toolchain available, run the complete local suite from the repository root:
 
 ```bash
-./test/static.sh
+mise exec -- make check
 ```
 
-The static suite covers:
+`make check` runs the static plugin/script contracts, fetches the daemon's development dependencies, verifies formatting, compiles the test build with warnings as errors, runs unit tests, runs the real-peer OTP integration suite, runs Credo in strict mode, and runs Dialyzer.
 
-- manifest id/kinds and required entry-point files;
-- current plugin id use in QML IPC/service lookup;
-- required Omarchy panel `open(payloadJson)` / `close()` lifecycle hooks;
-- Bash syntax and executable bits for shipped commands;
-- exact `beam-deck-profile` output and invalid-value rejection;
-- `beam-deck-remsh` per-node `cookie_env` handling without storing a cookie in config;
-- the stale-Omarchy-PATH path where `beam-deckd` discovers a usable Mise toolchain through `mise exec`;
-- the no-BEAM `runtime_missing` JSON path, including valid JSON output;
-- QML delimiter/string/comment balance.
+The static suite also verifies the manifest id/kinds and entry points, current plugin-id use in QML IPC/service lookup, panel lifecycle hooks, executable Bash syntax, profile-helper validation, per-node `cookie_env` handling, stale-shell-PATH recovery through `mise exec`, the no-BEAM onboarding protocol, and QML delimiter/string/comment balance.
 
-The archive packaging step also runs whitespace checks, archive integrity checks, and a final static-suite pass.
+GitHub Actions exercises the BEAM suite across OTP 27 / Elixir 1.18, OTP 28 / Elixir 1.19, and OTP 29 / Elixir 1.20, and separately runs strict formatting, compile, Credo, and Dialyzer gates.
 
-## Implemented but not executable in this container
+## Omarchy validation
 
-`daemon/test/` and GitHub Actions contain tests for:
+Run the official native manifest/path validation on the exact release checkout:
 
-- custom dependency-free JSON codec and protocol parsing;
-- configuration merge, malformed-value normalization, and invalid-JSON fallback;
-- `/proc` parsing, CPU deltas, runtime discovery, and command-line cookie redaction;
-- local-only host scheduler accounting and weighted scheduler-budget recommendations;
-- no-op budget recommendations when the host is not oversubscribed;
-- remote-peer exclusion from local scheduler pressure;
-- mailbox absolute/rate alerts using real deep-sample timestamps;
-- explicit required-node and directional `expected_peers` alerts;
-- registered-name/PID replacement churn and expiry;
-- bounded history and full-window downsampling;
-- hot-process union and registered-process fingerprints;
-- scheduler-wall-time utilization math;
-- real OTP peer attachment and OS PID inspection;
-- actual `observer_backend` process scanning;
-- real `schedulers_online` mutation and restoration;
-- OTP 28+ remote trace-probe load/start/stop/unload.
+```bash
+omarchy plugin validate .
+omarchy restart shell
+journalctl --user -t omarchy-shell --since "30 seconds ago" --no-pager
+```
 
-GitHub Actions is configured for OTP 27/Elixir 1.18, OTP 28/Elixir 1.19, and OTP 29/Elixir 1.20.
+Any plugin-local manifest, QML, service, or panel error is a release failure.
 
-## Required live acceptance
+## Live acceptance
 
-`HANDOFF.md` is the authoritative release checklist. In particular, the first real Omarchy host must run `mix format`, compile with warnings as errors, execute unit + real-peer integration tests, run `omarchy plugin validate .`, restart the Omarchy shell, and complete visual/local/remote-node acceptance.
+Exercise the real plugin on the target Omarchy workstation:
 
-Until that is done, this archive should be described as **fully implemented with static/no-BEAM validation completed, and BEAM/Quattro live verification pending**, not as a host-certified release.
+- The bar widget loads in its configured section and opens/closes the panel reliably.
+- Missing Erlang/Elixir presents the guided runtime-missing state without crashing the shell.
+- Local `beam.smp` processes are discovered and correlated with attached distributed nodes.
+- OS-only, attached, authentication failure, unreachable-node, and no-workload states are distinguishable and stable.
+- EPMD, explicitly configured nodes, and learned peers behave as documented.
+- Process, memory, scheduler, run-queue, mailbox, VM-limit, topology, history, event, and alert data update from real OTP nodes.
+- Scheduler changes are bounded to the selected node, are reversible, and original scheduler/wall-time settings are restored when the panel closes or the service exits.
+- Garbage collection is sent only to the explicitly selected process on the explicitly selected attached node.
+- OTP 28+ Deep Events is opt-in, creates an isolated trace session, and tears down/unloads its transient probe when disabled, disconnected, or closed.
+- Remote-node cookie configuration uses environment-variable references; cookie values do not appear in configuration, UI snapshots, logs, or committed files.
+- Repeated shell restart, plugin update/reload, panel open/close, and node churn do not leave duplicate helpers, stale controls, or persistent mutations.
+
+## Publication gate
+
+Immediately before tagging and submitting the plugin, run:
+
+```bash
+git diff --check
+git status --short
+mise exec -- make check
+omarchy plugin validate .
+```
+
+The working tree should be clean after the release commit. Confirm the root `manifest.json`, `README.md`, `CHANGELOG.md`, `LICENSE`, and `preview.png` are committed, and confirm the public GitHub repository resolves at the exact commit being submitted.
+
+Marketplace compatibility and security-baseline results are authoritative for the submitted commit. BEAM Deck intentionally includes Mise-based toolchain onboarding, so any marketplace review capability reported for that behavior should be reviewed as reported rather than suppressed or relabeled.

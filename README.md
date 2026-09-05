@@ -41,6 +41,7 @@ mise use -g erlang@latest elixir@latest
 - BEAM Deck adds **no dependencies to applications being monitored**.
 - Named BEAM applications need standard distribution enabled with `--sname` or `--name` for deep telemetry.
 - Non-distributed local BEAM processes are still discovered through Linux `/proc`.
+- **jq** is optional at runtime and is used by `beam-deck-remsh` to resolve a configured node's `cookie_env` entry from `~/.config/beam-deck/config.json`. Core monitoring does not require it.
 
 ## Install
 
