@@ -27,6 +27,10 @@ grep -q 'property var bar' qml/BarWidget.qml
 grep -q 'serviceFor("nshkr.beam-deck")' qml/BarWidget.qml
 grep -q 'serviceFor("nshkr.beam-deck")' qml/Panel.qml
 
+grep -q 'selectByMouse: true' qml/Panel.qml
+grep -q 'selectByKeyboard: true' qml/Panel.qml
+grep -q 'Quickshell.clipboardText' qml/Panel.qml
+
 # Validate the runtime-missing protocol without Erlang/Elixir installed in this
 # build environment. timeout is expected to stop the daemon's retry loop.
 if ! command -v erl >/dev/null 2>&1 || ! command -v elixir >/dev/null 2>&1 || ! command -v mix >/dev/null 2>&1; then
