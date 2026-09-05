@@ -3,7 +3,7 @@
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/nshkrdotcom/omarchy-beam-deck)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Omarchy%20Quattro-purple.svg)](https://github.com/nshkrdotcom/omarchy-beam-deck)
-[![Hex Dependencies](https://img.shields.io/badge/Hex%20dependencies-0-brightgreen.svg)](#zero-app-dependencies)
+[![App Dependencies](https://img.shields.io/badge/app%20dependencies-0-brightgreen.svg)](#requirements)
 
 **BEAM Deck** is a host-aware cockpit and real-time monitoring suite for **Erlang & Elixir (BEAM/OTP)** designed natively for the **Omarchy Quattro** desktop environment.
 
@@ -26,6 +26,22 @@ It automatically discovers every local BEAM instance running on your machine, at
 
 ---
 
+## Requirements
+
+- **Omarchy Quattro** is the supported desktop environment.
+- **Erlang/OTP and Elixir** are required for BEAM runtime monitoring and deep OTP telemetry.
+- **Mise** is the recommended Omarchy-native way to install Erlang and Elixir. If the toolchain is missing, BEAM Deck provides guided onboarding with:
+
+```bash
+mise use -g erlang@latest elixir@latest
+```
+
+- BEAM Deck adds **no dependencies to applications being monitored**.
+- Named BEAM applications need standard distribution enabled with `--sname` or `--name` for deep telemetry.
+- Non-distributed local BEAM processes are still discovered through Linux `/proc`.
+
+---
+
 ## Quick Start (60 Seconds)
 
 ### 1. Install BEAM Deck
@@ -37,10 +53,15 @@ omarchy plugin add https://github.com/nshkrdotcom/omarchy-beam-deck.git --enable
 omarchy restart shell
 ```
 
-> **Tip for local development:** If you cloned this repository locally:
+> **Tip for local development:** Keep the checkout directly in Omarchy's plugin directory, for example:
+> ```text
+> ~/.config/omarchy/plugins/nshkr.beam-deck
+> ```
+>
+> Then rescan, enable, and restart:
 > ```bash
-> omarchy plugin validate /path/to/omarchy-beam-deck
-> omarchy plugin add /path/to/omarchy-beam-deck --enable
+> omarchy-shell shell rescanPlugins
+> omarchy plugin enable nshkr.beam-deck --section right
 > omarchy restart shell
 > ```
 
@@ -58,7 +79,7 @@ iex --sname demo
 
 ### 3. Open the Cockpit
 
-Look for the BEAM icon in your Omarchy status bar. Click it (or run `omarchy-shell nshkr.beam-deck toggle`) to toggle the cockpit panel!
+Look for the BEAM icon in your Omarchy status bar. Click it (or run `omarchy-shell shell toggle nshkr.beam-deck '{}'`) to toggle the cockpit panel!
 
 ---
 
@@ -236,20 +257,20 @@ You can control BEAM Deck programmatically or bind shortcuts through the Omarchy
 
 ```bash
 # Toggle cockpit panel open/closed
-omarchy-shell nshkr.beam-deck toggle
+omarchy-shell shell toggle nshkr.beam-deck '{}'
 
 # Open or close explicitly
-omarchy-shell nshkr.beam-deck open
-omarchy-shell nshkr.beam-deck close
+omarchy-shell shell open nshkr.beam-deck '{}'
+omarchy-shell shell close nshkr.beam-deck '{}'
 
 # Force an immediate refresh
-omarchy-shell nshkr.beam-deck refresh
+omarchy-shell shell refresh nshkr.beam-deck '{}'
 
 # Print latest JSON snapshot
-omarchy-shell nshkr.beam-deck status
+omarchy-shell shell status nshkr.beam-deck '{}'
 
 # Ping the background service
-omarchy-shell nshkr.beam-deck ping
+omarchy-shell shell ping nshkr.beam-deck '{}'
 ```
 
 ---
@@ -270,6 +291,25 @@ BEAM Deck is designed with security-conscious defaults:
 - **Build Cache**: `~/.cache/beam-deck/`
 - **Daemon Logs**: `~/.local/state/beam-deck/beam-deckd.log`
 - **User Config**: `~/.config/beam-deck/config.json`
+
+---
+
+## Uninstall
+
+Remove BEAM Deck through Omarchy:
+
+```bash
+omarchy plugin remove nshkr.beam-deck
+omarchy restart shell
+```
+
+BEAM Deck does not modify monitored applications. Erlang/OTP and Elixir are installed independently and are not removed with the plugin.
+
+Optional BEAM Deck user state can also be removed:
+
+```bash
+rm -rf ~/.config/beam-deck ~/.cache/beam-deck ~/.local/state/beam-deck
+```
 
 ---
 
