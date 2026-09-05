@@ -158,57 +158,56 @@ Item {
       Text { Layout.alignment: Qt.AlignHCenter; text: root.missingTitle; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
       Text { Layout.alignment: Qt.AlignHCenter; Layout.maximumWidth: Style.space(560); text: root.missingMessage; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.body; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter }
       BorderSurface {
-        Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: Style.space(500); implicitHeight: installCmd.implicitHeight + Style.space(24)
+        Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: Style.space(500); implicitHeight: Math.max(installCmd.implicitHeight, copyInstallCmd.implicitHeight) + Style.space(24)
         color: Util.alpha(root.fg, 0.05); borderSpec: Border.flat(Util.alpha(root.fg, 0.16), 1); radius: Style.cornerRadius
-        RowLayout {
-          id: installRow
-          anchors.fill: parent
-          anchors.margins: Style.space(10)
-          spacing: Style.space(10)
+        TextEdit {
+          id: installCmd
+          anchors.left: parent.left
+          anchors.right: copyInstallCmd.left
+          anchors.leftMargin: Style.space(12)
+          anchors.rightMargin: Style.space(10)
+          anchors.verticalCenter: parent.verticalCenter
 
-          TextEdit {
-            id: installCmd
-            Layout.fillWidth: true
-            Layout.alignment: Qt.AlignVCenter
-            implicitHeight: copyButton.implicitHeight
-            text: "mise use -g erlang@latest elixir@latest"
-            textFormat: TextEdit.PlainText
-            readOnly: true
-            selectByMouse: true
-            selectByKeyboard: true
-            persistentSelection: true
-            activeFocusOnTab: true
-            wrapMode: TextEdit.NoWrap
-            color: root.fg
-            selectionColor: root.accent
-            selectedTextColor: root.bg
-            font.family: Style.font.family
-            font.pixelSize: Style.font.body
+          text: "mise use -g erlang@latest elixir@latest"
+          readOnly: true
+          selectByMouse: true
+          selectByKeyboard: true
+          persistentSelection: true
+          activeFocusOnTab: true
+          wrapMode: TextEdit.NoWrap
 
-            Keys.onPressed: function(event) {
-              var commandModifier =
-                event.modifiers & (Qt.ControlModifier | Qt.MetaModifier)
+          color: root.fg
+          selectionColor: root.accent
+          selectedTextColor: root.bg
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body
 
-              if (commandModifier && event.key === Qt.Key_A) {
-                installCmd.selectAll()
-                event.accepted = true
-              } else if (commandModifier && event.key === Qt.Key_C) {
-                Quickshell.clipboardText =
-                  installCmd.selectedText.length > 0
-                    ? installCmd.selectedText
-                    : "mise use -g erlang@latest elixir@latest"
-                event.accepted = true
-              }
+          Keys.onPressed: function(event) {
+            var commandModifier =
+              event.modifiers & (Qt.ControlModifier | Qt.MetaModifier)
+
+            if (commandModifier && event.key === Qt.Key_A) {
+              installCmd.selectAll()
+              event.accepted = true
+            } else if (commandModifier && event.key === Qt.Key_C) {
+              if (installCmd.selectedText.length > 0)
+                installCmd.copy()
+              else
+                Quickshell.clipboardText = installCmd.text
+
+              event.accepted = true
             }
           }
+        }
 
-          Button {
-            id: copyButton
-            text: "Copy"
-            activeFocusOnTab: true
-            onClicked: Quickshell.clipboardText =
-              "mise use -g erlang@latest elixir@latest"
-          }
+        Button {
+          id: copyInstallCmd
+          anchors.right: parent.right
+          anchors.rightMargin: Style.space(8)
+          anchors.verticalCenter: parent.verticalCenter
+
+          text: "Copy"
+          onClicked: Quickshell.clipboardText = installCmd.text
         }
       }
       Button { Layout.alignment: Qt.AlignHCenter; text: "Open Mise setup"; onClicked: if (root.service) root.service.installBeam() }

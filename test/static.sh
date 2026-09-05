@@ -29,7 +29,7 @@ grep -q 'serviceFor("nshkr.beam-deck")' qml/Panel.qml
 
 grep -q 'selectByMouse: true' qml/Panel.qml
 grep -q 'selectByKeyboard: true' qml/Panel.qml
-grep -q 'Quickshell.clipboardText' qml/Panel.qml
+grep -q 'Quickshell.clipboardText = installCmd.text' qml/Panel.qml
 
 # Validate the runtime-missing protocol without Erlang/Elixir installed in this
 # build environment. timeout is expected to stop the daemon's retry loop.
