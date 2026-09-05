@@ -1,0 +1,86 @@
+import QtQuick
+import qs.Commons
+import qs.Ui
+
+BarWidget {
+  id: root
+  moduleName: "nshkr.beam-deck"
+
+  readonly property var beamService:
+    bar?.shell?.serviceFor("nshkr.beam-deck")
+
+  readonly property var snapshotData:
+    beamService ? beamService.snapshot : ({})
+
+  readonly property var summary:
+    snapshotData.summary || ({})
+
+  readonly property int runtimes:
+    Number(summary.runtime_count || 0)
+
+  readonly property int warnings:
+    Number(summary.warning_count || 0)
+    + Number(summary.critical_count || 0)
+
+  readonly property bool critical:
+    Number(summary.critical_count || 0) > 0
+
+  readonly property bool runtimeMissing:
+    snapshotData.onboarding
+    && snapshotData.onboarding.state === "runtime_missing"
+
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
+
+  WidgetButton {
+    id: button
+    anchors.fill: parent
+    bar: root.bar
+
+    text: String.fromCharCode(0xe7cd)
+    labelVisible: false
+    horizontalMargin: 0
+
+    fixedWidth: root.vertical ? -1 : Style.bar.statusSlot
+    fixedHeight: root.vertical ? Style.bar.statusSlot : -1
+
+    active: root.critical
+
+    tooltipText:
+      root.runtimeMissing
+        ? "BEAM Deck — setup Elixir/OTP"
+        : root.runtimes === 0
+          ? "BEAM Deck — no runtimes"
+          : "BEAM Deck — " + root.runtimes + " runtime"
+            + (root.runtimes === 1 ? "" : "s")
+            + (root.warnings > 0
+               ? " — " + root.warnings + " alert"
+               : "")
+
+    OpticalGlyph {
+      anchors.centerIn: parent
+      anchors.horizontalCenterOffset:
+        root.vertical ? 0 : 4
+
+      width: Style.bar.iconCanvas
+      height: Style.bar.iconCanvas
+
+      text: button.text
+      fontFamily: button.fontFamily
+      fontSize: Style.bar.iconFont
+      color:
+        button.active && button.useActiveColor
+          ? button.activeColor
+          : button.foreground
+    }
+
+    onPressed: function(mouseButton) {
+      if (!root.bar)
+        return
+
+      root.bar.run(
+        "omarchy-shell shell toggle nshkr.beam-deck '{}'"
+      )
+    }
+  }
+}

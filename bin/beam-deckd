@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -u
+umask 077
+
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+DAEMON="$ROOT/daemon"
+CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/beam-deck"
+STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}/beam-deck"
+LOG="$STATE_HOME/beam-deckd.log"
+mkdir -p "$CACHE_HOME" "$STATE_HOME"
+
+emit_missing() {
+  local mise=false erl=false elixir=false mix=false
+  command -v mise >/dev/null 2>&1 && mise=true
+  command -v erl >/dev/null 2>&1 && erl=true
+  command -v elixir >/dev/null 2>&1 && elixir=true
+  command -v mix >/dev/null 2>&1 && mix=true
+  printf '{"type":"snapshot","protocol":1,"onboarding":{"state":"runtime_missing","mise_available":%s,"erl_available":%s,"elixir_available":%s,"mix_available":%s,"install_command":"mise use -g erlang@latest elixir@latest"},"host":{"logical_cpus":0,"runtimes":[],"memory":{}},"nodes":[],"alerts":[],"budget":[],"history":[],"events":[],"summary":{"runtime_count":0,"distributed_count":0,"attached_count":0,"local_attached_count":0,"warning_count":0,"critical_count":0,"schedulers_online":0,"logical_cpus":0,"beam_rss_bytes":0,"process_count":0}}\n' "$mise" "$erl" "$elixir" "$mix"
+}
+
+beam_mode() {
+  if command -v erl >/dev/null 2>&1 && command -v elixir >/dev/null 2>&1 && command -v mix >/dev/null 2>&1; then
+    printf 'direct\n'
+    return 0
+  fi
+
+  if command -v mise >/dev/null 2>&1 && mise exec -- sh -c 'command -v erl >/dev/null && command -v elixir >/dev/null && command -v mix >/dev/null' >/dev/null 2>&1; then
+    printf 'mise\n'
+    return 0
+  fi
+
+  return 1
+}
+
+mode="$(beam_mode || true)"
+if [[ -z "$mode" ]]; then
+  while :; do
+    emit_missing
+    sleep "${BEAM_DECK_MISSING_POLL_SECONDS:-5}"
+    mode="$(beam_mode || true)"
+    if [[ -n "$mode" ]]; then
+      break
+    fi
+  done
+fi
+
+cd "$DAEMON" || exit 1
+export MIX_ENV=prod
+export MIX_BUILD_PATH="$CACHE_HOME/_build"
+export MIX_DEPS_PATH="$CACHE_HOME/deps"
+NODE_SUFFIX="${BASHPID:-$$}"
+
+if [[ "${BEAM_DECK_LONGNAMES:-0}" == "1" ]]; then
+  NODE_HOST="${BEAM_DECK_NODE_HOST:-$(hostname -f 2>/dev/null || hostname)}"
+  export BEAM_DECK_LOCAL_HOST="$NODE_HOST"
+  NODE_FLAG="-name beam_deck_${NODE_SUFFIX}@${NODE_HOST}"
+else
+  NODE_FLAG="-sname beam_deck_${NODE_SUFFIX}"
+fi
+
+# The monitor is intentionally tiny. User-supplied flags come last so an
+# advanced operator can override this profile deliberately.
+unset ERL_AFLAGS ERL_ZFLAGS
+export ERL_FLAGS="${NODE_FLAG} -hidden +S 1:1 +SDcpu 1:1 +SDio 1 ${BEAM_DECK_ERL_FLAGS:-}"
+
+run_mix() {
+  if [[ "$mode" == "mise" ]]; then
+    mise exec -- mix "$@"
+  else
+    mix "$@"
+  fi
+}
+
+if ! run_mix compile >>"$LOG" 2>&1; then
+  printf '{"type":"error","error":"daemon_compile_failed","reason":"See %s"}\n' "$LOG"
+  exit 70
+fi
+
+# Reserve fd 3 for the JSONL protocol and redirect all ordinary VM/Mix output
+# to the state log. This prevents Logger/distribution diagnostics from ever
+# corrupting the protocol consumed by QML.
+exec 3>&1
+export BEAM_DECK_PROTOCOL_PATH=/dev/fd/3
+if [[ "$mode" == "mise" ]]; then
+  exec mise exec -- mix run --no-compile --no-halt >>"$LOG" 2>&1
+else
+  exec mix run --no-compile --no-halt >>"$LOG" 2>&1
+fi

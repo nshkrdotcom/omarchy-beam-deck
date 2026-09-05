@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y jq
+      - run: ./test/static.sh
+
+  beam:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - otp: "27"
+            elixir: "1.18"
+          - otp: "28"
+            elixir: "1.19"
+          - otp: "29"
+            elixir: "1.20"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
+      - working-directory: daemon
+        run: mix deps.get
+      - working-directory: daemon
+        run: MIX_ENV=test mix compile --warnings-as-errors
+      - working-directory: daemon
+        run: mix test
+      - working-directory: daemon
+        run: BEAM_DECK_INTEGRATION=1 mix test
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20"
+      - working-directory: daemon
+        run: mix deps.get
+      - working-directory: daemon
+        run: mix format --check-formatted
+      - working-directory: daemon
+        run: MIX_ENV=test mix compile --warnings-as-errors
+      - working-directory: daemon
+        run: mix credo --strict
+      - working-directory: daemon
+        run: mix dialyzer

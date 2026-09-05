@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+node="${1:-}"
+if [[ ! "$node" =~ ^[A-Za-z0-9_.-]+@[A-Za-z0-9_.:-]+$ ]]; then
+  echo "usage: beam-deck-remsh NAME@HOST" >&2
+  exit 2
+fi
+
+command -v iex >/dev/null 2>&1 || { echo "iex is not on PATH" >&2; exit 127; }
+
+config="${XDG_CONFIG_HOME:-$HOME/.config}/beam-deck/config.json"
+cookie=""
+if command -v jq >/dev/null 2>&1 && [[ -r "$config" ]]; then
+  cookie_env="$(jq -r --arg node "$node" '.nodes[]? | select(.name == $node) | .cookie_env // empty' "$config" 2>/dev/null | head -n1)"
+  if [[ -n "$cookie_env" && "$cookie_env" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    cookie="${!cookie_env:-}"
+  fi
+fi
+
+suffix="${BASHPID:-$$}"
+host="${node#*@}"
+args=(iex --hidden)
+if [[ "$host" == *.* || "$host" == *:* ]]; then
+  args+=(--name "beam_deck_shell_${suffix}@127.0.0.1")
+else
+  args+=(--sname "beam_deck_shell_${suffix}")
+fi
+if [[ -n "$cookie" ]]; then
+  args+=(--cookie "$cookie")
+fi
+args+=(--remsh "$node")
+exec "${args[@]}"

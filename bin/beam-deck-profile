@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: beam-deck-profile [options]
+
+Generate copy/paste ERL_FLAGS for startup-only BEAM sizing.
+
+Options:
+  --schedulers N      Normal scheduler threads and online count (+S N:N)
+  --dirty-cpu N       Dirty CPU scheduler threads and online count (+SDcpu N:N)
+  --dirty-io N        Dirty I/O scheduler threads (+SDio N)
+  --process-limit N   Maximum Erlang processes (+P N)
+  --port-limit N      Maximum ports (+Q N)
+  --atom-limit N      Maximum atoms (+t N)
+  -h, --help          Show this help
+
+Nothing is changed. The command only prints an ERL_FLAGS assignment.
+USAGE
+}
+
+positive_int() {
+  [[ "$1" =~ ^[1-9][0-9]*$ ]] || { echo "expected a positive integer, got: $1" >&2; exit 2; }
+}
+
+flags=()
+while (($#)); do
+  case "$1" in
+    --schedulers)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      positive_int "$2"; flags+=("+S" "$2:$2"); shift 2 ;;
+    --dirty-cpu)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      positive_int "$2"; flags+=("+SDcpu" "$2:$2"); shift 2 ;;
+    --dirty-io)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      positive_int "$2"; flags+=("+SDio" "$2"); shift 2 ;;
+    --process-limit)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      positive_int "$2"; flags+=("+P" "$2"); shift 2 ;;
+    --port-limit)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      positive_int "$2"; flags+=("+Q" "$2"); shift 2 ;;
+    --atom-limit)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      positive_int "$2"; flags+=("+t" "$2"); shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+if ((${#flags[@]} == 0)); then
+  usage
+  exit 0
+fi
+
+printf 'ERL_FLAGS="%s"\n' "$(printf '%s ' "${flags[@]}" | sed 's/ $//')"

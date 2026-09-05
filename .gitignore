@@ -1,0 +1,12 @@
+.DS_Store
+*.log
+*.swp
+*.swo
+/.cache/
+/daemon/_build/
+/daemon/deps/
+/daemon/cover/
+/daemon/doc/
+/daemon/erl_crash.dump
+daemon/_build/
+daemon/deps/

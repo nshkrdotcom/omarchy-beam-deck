@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "nshkr.beam-deck",
+  "name": "BEAM Deck",
+  "version": "0.1.0",
+  "author": "nshkr",
+  "license": "MIT",
+  "description": "Host-aware BEAM/OTP cockpit for Omarchy: local runtime census, distributed-node inspection, process pathology signals, topology, and reversible scheduler controls.",
+  "kinds": ["service", "bar-widget", "panel"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "qml/Service.qml",
+    "barWidget": "qml/BarWidget.qml",
+    "panel": "qml/Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "BEAM Deck",
+    "description": "BEAM runtime health, local VM density, and OTP alerts.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {}
+  }
+}

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+printf '\nBEAM Deck setup for Omarchy\n\n'
+if ! command -v mise >/dev/null 2>&1; then
+  cat <<'MSG'
+Mise is not currently on PATH.
+
+BEAM Deck deliberately does not install a second toolchain manager behind
+Omarchy's back. Install/repair Mise using your Omarchy development setup, then:
+
+  mise use -g erlang@latest elixir@latest
+
+No BEAM Deck files need to be reinstalled afterward; the widget re-detects the
+toolchain automatically.
+MSG
+  exit 2
+fi
+
+cat <<'MSG'
+This will install/select current stable Erlang/OTP and Elixir in your global
+Mise configuration. BEAM Deck itself has no Hex dependencies.
+
+Command:
+  mise use -g erlang@latest elixir@latest
+
+MSG
+read -r -p 'Continue? [Y/n] ' answer
+case "${answer:-Y}" in n|N|no|NO) exit 0;; esac
+exec mise use -g erlang@latest elixir@latest

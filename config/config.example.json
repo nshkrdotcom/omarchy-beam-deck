@@ -1,0 +1,29 @@
+{
+  "poll_interval_ms": 2000,
+  "deep_interval_ms": 5000,
+  "history_points": 450,
+  "max_process_scan": 100000,
+  "mailbox_warn": 5000,
+  "mailbox_critical": 50000,
+  "mailbox_rate_warn": 1000,
+  "process_usage_warn": 0.8,
+  "atom_usage_warn": 0.8,
+  "run_queue_per_scheduler_warn": 1.0,
+  "event_thresholds": {
+    "long_gc_ms": 100,
+    "long_schedule_ms": 100,
+    "mailbox_enable": 5000,
+    "mailbox_disable": 1000,
+    "large_heap_words": 8000000
+  },
+  "nodes": [
+    {
+      "name": "worker@omen",
+      "cookie_env": "BEAM_DECK_OMEN_COOKIE",
+      "required": false,
+      "expected_peers": [
+        "api@workstation"
+      ]
+    }
+  ]
+}
