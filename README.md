@@ -9,6 +9,8 @@
 
 It automatically discovers every local BEAM instance running on your machine, attaches agentlessly to distributed nodes, surfaces runtime health and process bottlenecks, visualizes cluster topology, and provides safe, reversible scheduler controls—all right from your desktop status bar.
 
+![BEAM Deck preview](preview.png)
+
 ---
 
 ## Features at a Glance
