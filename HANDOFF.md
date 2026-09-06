@@ -8,7 +8,7 @@ Authority: attached `beam-deck-v1.1-implementation-docset(1).zip`. Actual base: 
 
 ## Exact implementation status
 
-Production paths are implemented for forecasts, incident correlation, compact recorder/diffs/export, focused process/ancestry/binary-reference metadata, metadata-only ETS, persistent exact pins with closed-panel targeted sampling, leased whole-local scheduler trials, bounded matched local crash triage, native critical notification intents and the investigation UI. The original cockpit/scripts and protocol-v1 service/bar/panel identity remain. Feature-to-code/test mapping is in the reviewed design document.
+Production paths are implemented for forecasts, incident correlation, compact recorder/diffs/export, focused process/ancestry/binary-reference metadata, metadata-only ETS, persistent exact pins with closed-panel targeted sampling, leased whole-local scheduler trials, bounded matched local crash triage, native critical notification intents and the investigation UI. The original cockpit/scripts and protocol-v1 service/bar-widget identity remain; `Panel.qml` is now a bar-owned nested popup rather than a standalone manifest `panel` kind. Feature-to-code/test mapping is in the reviewed design document.
 
 Safety refinements include asynchronous collection and pin resolution, bounded owned jobs, JSON input/depth/duplicate-key checks, private writes, export allowlists, exact-cookie scrubbing, VM-incarnation identity, stale/historical action gates, owned wall-time measurement, pre-effect control journaling and conditional retryable rollback. Existing original scheduler values survive Keep and subsequent changes.
 
@@ -43,7 +43,7 @@ Actual source inventory: **97 ExUnit test declarations, 15 marked integration, 6
 
 **Crash identification:** multiple VMs can share cwd; timestamp/fingerprint matching is correlation, not proof. Delayed/incomplete or redirected dumps may be unavailable. Check the real disposable peer crash, fd identity checks and prefix-only parsing. Never read/export a full production dump to validate convenience.
 
-**QML:** type imports, native control style, dimensions and accessibility were unrun. The Node body parser is not qmllint or an actual render. Preserve the single helper service and base plugin API while correcting target-specific layout.
+**QML:** type imports, native control style, dimensions and accessibility were unrun. The Node body parser is not qmllint or an actual render. The bar now owns `Panel.qml`, which uses Omarchy `Panel` + `KeyboardPanel` instead of a hand-centered full-output `PanelWindow`; validate that contract on the real desktop, including the documented 1280x800 scrolling/dwindle regression, every bar edge, focus/edit controls and outside-click dismissal. Preserve the single helper service while fixing any target-specific QML issue.
 
 ## Operational recovery notes
 

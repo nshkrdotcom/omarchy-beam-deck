@@ -36,8 +36,54 @@ BarWidget {
     snapshotData.onboarding
     && snapshotData.onboarding.state === "runtime_missing"
 
+  readonly property bool opened:
+    panelLoader.item ? panelLoader.item.opened === true : false
+
+  readonly property bool popoutSwitchClosing:
+    panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
+
+  function open(payloadJson) {
+    if (panelLoader.item) panelLoader.item.open(payloadJson || "{}")
+  }
+
+  function close() {
+    if (panelLoader.item) panelLoader.item.close()
+  }
+
+  function toggle() {
+    if (panelLoader.item) panelLoader.item.toggle()
+  }
+
+  function closeForPopoutSwitch() {
+    if (panelLoader.item) panelLoader.item.closeForPopoutSwitch()
+  }
+
+  function injectPanel() {
+    if (!panelLoader.item) return
+    panelLoader.item.bar = root.bar
+    panelLoader.item.anchorItem = button
+    panelLoader.item.hostWidget = root
+    panelLoader.item.service = root.beamService
+    panelLoader.item.settings = root.settings
+  }
+
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
+
+  onBarChanged: injectPanel()
+  onBeamServiceChanged: injectPanel()
+  onSettingsChanged: injectPanel()
+
+  Loader {
+    id: panelLoader
+    active: true
+    source: Qt.resolvedUrl("Panel.qml")
+    visible: false
+    onLoaded: {
+      root.injectPanel()
+      Qt.callLater(root.injectPanel)
+    }
+  }
 
   WidgetButton {
     id: button
@@ -76,12 +122,7 @@ BarWidget {
     }
 
     onPressed: function(mouseButton) {
-      if (!root.bar)
-        return
-
-      root.bar.run(
-        "omarchy-shell shell toggle nshkr.beam-deck '{}'"
-      )
+      if (mouseButton === Qt.LeftButton) root.toggle()
     }
   }
 }

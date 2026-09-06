@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- Route the bar-launched cockpit through Omarchy's native `Panel` + `KeyboardPanel` contract instead of a hand-centered full-output layer surface, so monitor, bar-edge, gap, focus, dismissal and clamping geometry are shell-owned.
+
 
 ## [1.1.0] - 2026-09-05
 

@@ -4,6 +4,26 @@ import fs from "node:fs";
 const read = p => fs.readFileSync(p, "utf8");
 const manifest = JSON.parse(read("manifest.json"));
 assert.equal(manifest.version, "1.1.0");
+assert.deepEqual([...manifest.kinds].sort(), ["bar-widget", "service"]);
+assert.equal(manifest.entryPoints.panel, undefined);
+const barWidget = read("qml/BarWidget.qml");
+const panelSource = read("qml/Panel.qml");
+assert.match(barWidget, /source:\s*Qt\.resolvedUrl\("Panel\.qml"\)/);
+assert.match(barWidget, /panelLoader\.item\.anchorItem\s*=\s*button/);
+assert.match(barWidget, /panelLoader\.item\.hostWidget\s*=\s*root/);
+assert.match(barWidget, /panelLoader\.item\.service\s*=\s*root\.beamService/);
+assert.match(barWidget, /function\s+closeForPopoutSwitch\s*\(/);
+assert.doesNotMatch(barWidget, /omarchy-shell shell toggle nshkr\.beam-deck/);
+assert.match(panelSource, /^Panel\s*\{/m);
+assert.match(panelSource, /\bKeyboardPanel\s*\{/);
+assert.match(panelSource, /\bPanelKeyCatcher\s*\{/);
+assert.match(panelSource, /Keys\.priority:\s*Keys\.AfterItem/);
+assert.match(panelSource, /contentWidth:\s*panel\.fittedContentWidth\(Style\.space\(1280\)\)/);
+assert.match(panelSource, /contentHeight:\s*panel\.cappedContentHeight\(Style\.space\(840\)\)/);
+assert.doesNotMatch(panelSource, /\bPanelWindow\s*\{/);
+assert.doesNotMatch(panelSource, /\bWlrLayershell\b/);
+assert.doesNotMatch(panelSource, /Style\.space\(48\)/);
+assert.doesNotMatch(panelSource, /Math\.min\(panel\.(width|height)\s*-\s*Style\.space/);
 assert.match(read("daemon/mix.exs"), /version: "1\.1\.0"/);
 assert.match(read("daemon/lib/beam_deck/diagnostics/bundle.ex"), /version: "1\.1\.0"/);
 const source = read("daemon/lib/beam_deck/config.ex").split("@defaults ")[1].split("\n\n  def defaults")[0];
@@ -31,4 +51,4 @@ assert.doesNotMatch(copyText[1], /\bimplicitHeight\s*:/, "TextEdit implicitHeigh
 for (const path of ["README.md", "SECURITY.md", "HANDOFF.md", "docs/ARCHITECTURE.md", "docs/PROTOCOL.md", "docs/CONFIGURATION.md", "docs/VALIDATION.md", "docs/IMPLEMENTATION-1.1.md"]) {
   assert.ok(fs.statSync(path).size > 200, `documentation missing: ${path}`);
 }
-console.log("repository contracts: versions, configuration parity, command wiring, privacy boundaries and documentation present");
+console.log("repository contracts: versions, native bar-panel surface, configuration parity, command wiring, privacy boundaries and documentation present");

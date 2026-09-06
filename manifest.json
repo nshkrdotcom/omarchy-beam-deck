@@ -8,14 +8,12 @@
   "description": "Agentless BEAM cockpit: conservative resource forecasts, incident evidence, flight recorder, focused OTP diagnostics, persistent pins, and reversible scheduler trials.",
   "kinds": [
     "service",
-    "bar-widget",
-    "panel"
+    "bar-widget"
   ],
   "keepLoaded": true,
   "entryPoints": {
     "service": "qml/Service.qml",
-    "barWidget": "qml/BarWidget.qml",
-    "panel": "qml/Panel.qml"
+    "barWidget": "qml/BarWidget.qml"
   },
   "barWidget": {
     "displayName": "BEAM Deck",

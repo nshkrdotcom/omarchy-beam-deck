@@ -2,24 +2,23 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
 import "DeckState.js" as DeckState
 
-Item {
+Panel {
   id: root
-  property string omarchyPath: ""
-  property var shell: null
-  property var manifest: null
-  property var pluginRegistry: null
-  property bool opened: false
+  moduleName: "nshkr.beam-deck"
+  manageIpc: false
+
+  property var anchorItem: null
+  property var hostWidget: null
+  property var service: null
   property string workspace: "cockpit"
   property double nowMs: Date.now()
   readonly property bool stale: !service || !service.daemonRunning || !snapshotData.at_ms || nowMs - snapshotData.at_ms > 10000
   Timer { interval: 1000; repeat: true; running: root.opened; onTriggered: root.nowMs = Date.now() }
   property string selectedNode: ""
-  property var service: shell ? shell.serviceFor("nshkr.beam-deck") : (pluginRegistry ? pluginRegistry.serviceFor("nshkr.beam-deck") : null)
   readonly property var snapshotData: service ? service.snapshot : ({})
   readonly property var summary: snapshotData.summary || ({})
   readonly property var host: snapshotData.host || ({})
@@ -37,15 +36,31 @@ Item {
     : "BEAM Deck is ready, but Erlang/OTP and Elixir are not on PATH. Omarchy development tooling favors Mise, so setup is one deliberate terminal action — nothing is installed silently."
 
   function open(payloadJson) {
-    opened = true
-    if (service) service.setPanelOpen(true)
+    root.controller.show()
     if (!selectedNode && nodes.length > 0) selectedNode = String(nodes[0].name || "")
-    Qt.callLater(function() { card.forceActiveFocus() })
   }
   function close() {
-    opened = false
-    workspace = "cockpit"
-    if (service) service.setPanelOpen(false)
+    root.controller.hide()
+  }
+  function switchPanel(direction) {
+    if (root.bar && typeof root.bar.switchPanelFrom === "function")
+      return root.bar.switchPanelFrom(root.hostWidget || root, direction)
+    return false
+  }
+
+  onOpenedChanged: {
+    if (service) service.setPanelOpen(root.opened)
+    if (root.opened && !selectedNode && nodes.length > 0)
+      selectedNode = String(nodes[0].name || "")
+    if (!root.opened) workspace = "cockpit"
+  }
+
+  onServiceChanged: {
+    if (service && root.opened) service.setPanelOpen(true)
+  }
+
+  Component.onDestruction: {
+    if (service && root.opened) service.setPanelOpen(false)
   }
   function openInvestigation(tab, node, pid) {
     workspace = "investigate"
@@ -111,37 +126,31 @@ Item {
     return null
   }
 
-  PanelWindow {
+  KeyboardPanel {
     id: panel
-    visible: root.opened
-    anchors { top: true; bottom: true; left: true; right: true }
-    color: "transparent"
-    WlrLayershell.namespace: "nshkr-beam-deck"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-    exclusionMode: ExclusionMode.Ignore
+    anchorItem: root.anchorItem
+    owner: root.hostWidget || root
+    bar: root.bar
+    open: root.opened
+    focusTarget: keyCatcher
+    centerOnBar: true
 
-    Rectangle {
+    // Keep the cockpit deliberately large while delegating every real screen,
+    // bar-edge, gap, monitor, scale and clamping decision to Omarchy.
+    contentWidth: panel.fittedContentWidth(Style.space(1280))
+    contentHeight: panel.cappedContentHeight(Style.space(840))
+
+    PanelKeyCatcher {
+      id: keyCatcher
       anchors.fill: parent
-      color: Util.alpha(Color.background, 0.48)
-      MouseArea { anchors.fill: parent; onClicked: root.close() }
-    }
-
-    BorderSurface {
-      id: card
-      focus: true
-      Keys.onEscapePressed: root.close()
-      width: Math.min(panel.width - Style.space(48), Style.space(1280))
-      height: Math.min(panel.height - Style.space(48), Style.space(840))
-      anchors.centerIn: parent
-      color: root.bg
-      borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(1)))
-      radius: Style.cornerRadius
-      MouseArea { anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; onClicked: function(mouse) { mouse.accepted = true } }
+      // BEAM Deck contains TextEdit/TextField/ComboBox/SpinBox controls. Make
+      // the shell key catcher a fallback so focused editors get first refusal.
+      Keys.priority: Keys.AfterItem
+      onCloseRequested: root.close()
+      onTabRequested: function(direction) { root.switchPanel(direction) }
 
       ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Style.space(18)
         spacing: Style.space(12)
 
         RowLayout {

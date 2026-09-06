@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-jq -e '.schemaVersion == 1 and .id == "nshkr.beam-deck" and (.kinds | sort == ["bar-widget","panel","service"])' manifest.json >/dev/null
+jq -e '.schemaVersion == 1 and .id == "nshkr.beam-deck" and (.kinds | sort == ["bar-widget","service"])' manifest.json >/dev/null
 
 for file in qml/Service.qml qml/BarWidget.qml qml/Panel.qml; do
   test -s "$file"
@@ -14,18 +14,31 @@ for script in bin/beam-deckd bin/beam-deck-onboard bin/beam-deck-remsh bin/beam-
   test -x "$script"
 done
 
-for file in qml/Service.qml qml/BarWidget.qml qml/Panel.qml; do
+for file in qml/Service.qml qml/BarWidget.qml; do
   grep -q 'property string omarchyPath' "$file"
   grep -q 'property var shell' "$file"
   grep -q 'property var manifest' "$file"
 done
 
 grep -q 'target: "nshkr.beam-deck"' qml/Service.qml
+grep -q 'function open(payloadJson)' qml/BarWidget.qml
 grep -q 'function open(payloadJson)' qml/Panel.qml
 grep -q 'function close()' qml/Panel.qml
 grep -q 'property var bar' qml/BarWidget.qml
 grep -q 'serviceFor("nshkr.beam-deck")' qml/BarWidget.qml
-grep -q 'serviceFor("nshkr.beam-deck")' qml/Panel.qml
+grep -q 'source: Qt.resolvedUrl("Panel.qml")' qml/BarWidget.qml
+grep -q 'panelLoader.item.anchorItem = button' qml/BarWidget.qml
+grep -q 'panelLoader.item.hostWidget = root' qml/BarWidget.qml
+grep -q 'panelLoader.item.service = root.beamService' qml/BarWidget.qml
+grep -q '^Panel {' qml/Panel.qml
+grep -q 'KeyboardPanel {' qml/Panel.qml
+grep -q 'PanelKeyCatcher {' qml/Panel.qml
+grep -q 'Keys.priority: Keys.AfterItem' qml/Panel.qml
+grep -q 'contentWidth: panel.fittedContentWidth' qml/Panel.qml
+grep -q 'contentHeight: panel.cappedContentHeight' qml/Panel.qml
+! grep -q 'PanelWindow {' qml/Panel.qml
+! grep -q 'WlrLayershell' qml/Panel.qml
+! grep -q 'Style.space(48)' qml/Panel.qml
 
 grep -q 'selectByMouse: true' qml/Panel.qml
 grep -q 'selectByKeyboard: true' qml/Panel.qml
