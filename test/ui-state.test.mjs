@@ -105,53 +105,41 @@ test('investigation keyboard shortcuts map each workspace without colliding with
 });
 
 
-test('recorder selector sparsifies dense timelines while preserving evidence endpoints', () => {
-  const timeline = Array.from({length: 150}, (_, i) => ({
-    frame_id: `f${i}`,
-    at_ms: 1700000000000 + i * 2000,
-    alert_count: i >= 60 && i < 70 ? 1 : 0,
-    event_count: i === 90 ? 1 : 0,
-    beam_rss_bytes: 1000000 + i
-  }));
+test('recorder range navigation is sequence ordered and never depends on wall-clock ordering', () => {
+  const timeline = [
+    {frame_id:'frame-10', at_ms:10000, beam_rss_bytes:10},
+    {frame_id:'frame-11', at_ms:12000, beam_rss_bytes:11},
+    {frame_id:'frame-12', at_ms:9000, beam_rss_bytes:12}, // wall clock moved backward
+    {frame_id:'frame-13', at_ms:11000, beam_rss_bytes:13}
+  ];
 
-  const options = plain(S.recorderOptions(timeline, 'f37', 'f121', 30000, 20));
-  const ids = options.map(x => x.id);
+  assert.equal(S.recorderFrameAtFraction(timeline, 0), 'frame-10');
+  assert.equal(S.recorderFrameAtFraction(timeline, 1), 'frame-13');
+  assert.equal(S.recorderFrameAtFraction(timeline, 0.66), 'frame-12');
 
-  assert.ok(options.length <= 20);
-  for (const id of [
-    'f0', 'f149',
-    'f37', 'f121',
-    'f59', 'f60',
-    'f69', 'f70',
-    'f89', 'f90', 'f91'
-  ]) {
-    assert.ok(ids.includes(id), `missing preserved frame ${id}`);
-  }
+  assert.deepEqual(
+    plain(S.recorderOrderedRange(timeline, 'frame-13', 'frame-11')),
+    {from:'frame-11', to:'frame-13', from_index:1, to_index:3}
+  );
 });
 
-
-test('recorder selector keeps a stable time cadence as history fills', () => {
-  const timeline = Array.from({length: 150}, (_, i) => ({
-    frame_id: `q${i}`,
-    at_ms: 1700000000000 + i * 2000,
-    alert_count: 0,
-    event_count: 0,
-    beam_rss_bytes: 1000000
+test('recorder presets and selected duration use retained sequence without inventing negative time', () => {
+  const timeline = Array.from({length: 40}, (_, i) => ({
+    frame_id: `f${i}`,
+    at_ms: 100000 + i * 2000,
+    beam_rss_bytes: 1000 + i
   }));
 
-  const early = plain(S.recorderOptions(timeline.slice(0, 10), '', '', 30000, 20));
-  const middle = plain(S.recorderOptions(timeline.slice(0, 40), '', '', 30000, 20));
-  const full = plain(S.recorderOptions(timeline, '', '', 30000, 20));
+  assert.deepEqual(plain(S.recorderRangeAll(timeline)), {from:'f0',to:'f39'});
+  assert.deepEqual(plain(S.recorderRangeLast(timeline, 60000)), {from:'f9',to:'f39'});
+  assert.equal(S.recorderSelectionSpanMs(timeline, 'f9', 'f39'), 60000);
+  assert.equal(S.recorderCapturedSpanMs(timeline), 78000);
 
-  // Ten two-second samples must not become ten human-facing choices.
-  assert.equal(early.length, 2);
-
-  // The selector grows by stable time buckets rather than exposing every poll.
-  assert.ok(middle.length <= 5);
-  assert.ok(full.length <= 12);
-
-  assert.equal(early[0].id, 'q0');
-  assert.equal(early[early.length - 1].id, 'q9');
-  assert.equal(full[0].id, 'q0');
-  assert.equal(full[full.length - 1].id, 'q149');
+  const clockRegression = [
+    {frame_id:'a',at_ms:10000},
+    {frame_id:'b',at_ms:12000},
+    {frame_id:'c',at_ms:7000},
+    {frame_id:'d',at_ms:9000}
+  ];
+  assert.equal(S.recorderSelectionSpanMs(clockRegression, 'a', 'd'), 4000);
 });

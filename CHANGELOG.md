@@ -4,46 +4,45 @@ All notable changes to BEAM Deck are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-09-06
 
 ### Added
 
-- Omarchy-native keyboard integration for the BEAM Deck panel: mnemonic Cockpit/Investigate workspace shortcuts, arrow/Vim context navigation, editor-safe fallback handling, Go Live, refresh, and an in-panel shortcut guide.
+- Dedicated Investigate workspace with Triage, Flight Recorder, Process, ETS Lens, Watchlist, and Budget Trial views.
+- Conservative process, atom, and port capacity forecasts plus binary/ETS growth signals with explicit sample, span, fit, stability, and evidence labeling.
+- Deduplicated incident lifecycle with observed/correlated/heuristic evidence, nearby recorder context, bounded critical-notification cooldowns, and allowlisted follow-up actions.
+- Compact in-memory Flight Recorder with exact frame identity, sequence-stable ranges, restart-aware diffs, and private allowlisted diagnostic ZIP export.
+- Flight Recorder range navigator with live RSS trace, alert/event markers, click/drag historical selection, draggable A/B endpoints, Last 1m and All retained presets, keyboard endpoint adjustment, explicit Go Live behavior, and exact frame/range actions.
+- Focused process diagnostics with ancestry, stack/current-function metadata, bounded shared-binary metadata, registered-name pinning, explicit refresh, and VM-incarnation-gated actions.
+- Metadata-only ETS inspection with bounded leaderboards, owner navigation, word-size-aware memory reporting, partial/capped result handling, and no key/value collection.
+- Persistent exact node and registered-process watchlist entries with targeted closed-panel observations and registered-name PID replacement tracking.
+- Whole-local-budget leased scheduler trials with sticky Keep/Restore state, first-original restoration, conditional rollback, lease expiry, and retained rollback failure recovery.
+- Local runtime disappearance tracking and bounded fresh `erl_crash.dump` header triage with PID/start-time identity checks, symlink refusal, fingerprint matching, and one delayed retry.
+- OTP 28+ opt-in Deep Events using isolated trace sessions and transient namespaced probe code with overload protection and ownership-aware cleanup.
+- Omarchy-native keyboard integration with Cockpit/Investigate mnemonics, arrow/Vim context navigation, editor-safe fallback handling, refresh, Go Live, close, and an in-panel shortcut guide.
+- Real OTP peer integration coverage, production JavaScript state tests, source contracts, and an actual-launcher private-EPMD protocol harness.
 
 ### Changed
 
-- Rewrite the README around the complete 1.1 workflow, clearer install/update/remove guidance, keyboard operation, security boundaries, and concise Cockpit/Investigate documentation.
+- Route the bar-launched cockpit through Omarchy's native `Panel` + `KeyboardPanel` contract so monitor, bar-edge, gap, focus, dismissal, and clamping geometry remain shell-owned.
+- Separate collection, diagnostics, and control ownership with bounded queues, per-node limits, deadlines, async watchlist validation, and urgent recovery/control serviceability.
+- Preserve protocol version 1 while adding bounded diagnostic/job/result envelopes and explicit unavailable/partial states.
+- Use strict bounded JSON decoding, private writes, stronger cookie/export redaction, and no arbitrary RPC/eval surface.
+- Sample scheduler utilization within one remote caller lifetime instead of relying on transient RPC flag ownership.
+- Keep the 2-second light telemetry cadence independent from user interaction; historical Flight Recorder selection is fixed by exact retained frame IDs rather than mutable timestamp dropdowns.
+- Rewrite the README around the complete 1.1 workflow, current keyboard controls, installation/update/removal, security boundaries, configuration, and Cockpit/Investigate operation.
+- Correct Omarchy IPC documentation so BEAM Deck service methods target `nshkr.beam-deck` directly while shell-level panel routing remains under the shell target.
+- Raise the supported helper baseline to OTP 27 / Elixir 1.18 while keeping monitored-application dependencies at zero.
+- Make the full release gate fail closed when required validation tools are missing rather than presenting partial static checks as release acceptance.
 
 ### Fixed
 
-- Make Flight Recorder range selectors usable with dense sampling by showing stable ~30-second navigation checkpoints while preserving endpoints and alert/event transitions; full-fidelity retained frames remain untouched.
-- Correct Omarchy IPC documentation to distinguish shell-level panel routing from direct BEAM Deck service calls.
-- Route the bar-launched cockpit through Omarchy's native `Panel` + `KeyboardPanel` contract instead of a hand-centered full-output layer surface, so monitor, bar-edge, gap, focus, dismissal and clamping geometry are shell-owned.
-
-
-## [1.1.0] - 2026-09-06
-
-Implementation candidate; see HANDOFF for unrun BEAM/desktop acceptance.
-
-### Added
-
-- Conservative process/atom/port capacity forecasts and binary/ETS growth-only signals with explicit fit/sample evidence.
-- Deduplicated incident lifecycle, labeled evidence correlation, nearby recorder context, critical transition notification intents and bounded cooldown.
-- Compact in-memory flight recorder, sequence-stable range selection, restart-aware diffs and private allowlisted diagnostics ZIP export.
-- Focused argument-free process/ancestry/shared-binary metadata, metadata-only ETS inspection, persistent exact node/registered-name pins and closed-panel targeted observations.
-- Whole-local-budget leased scheduler trials, sticky Keep/Revert status, conditional rollback and retained failure recovery/first-original Restore.
-- Local PID/start-time disappearance tracking and matched bounded crash-header triage with one delayed retry.
-- Triage/recorder/process/ETS/watchlist/budget investigation workspace with request-specific jobs, historical read-only mode, capture-age and VM-incarnation action protection.
-- New pure/regression/real-peer test sources, production JavaScript state tests and an actual-launcher private-EPMD protocol harness.
-
-### Changed
-
-- Separate collection/diagnostic/control ownership; bounded queues, deadlines, async pin validation and urgent control recovery bypass.
-- Additive protocol-v1 envelopes, strict bounded JSON decoding using OTP 27, private writes and stronger export/cookie redaction.
-- Scheduler utilization sampled within one remote caller lifetime instead of relying on a transient RPC flag owner.
-- Helper minimum is OTP 27 / Elixir 1.18; runtime target application dependencies remain zero. All configuration/default/version and operator/security/validation documentation updated.
-- Full release gate fails when required tools are missing instead of implying partial checks are release acceptance.
-
+- Prevent focused text fields, combo boxes, spin boxes, and other native controls from having editing/navigation keys stolen by the panel keyboard wrapper.
+- Remove the obsolete hand-centered/full-output panel geometry path and its associated layout/focus regressions.
+- Fix the Investigation `TextEdit` implicit-height regression that could break panel interaction/rendering.
+- Eliminate unusable Flight Recorder FROM/TO timestamp dropdowns whose contents changed with every live telemetry refresh.
+- Keep historical recorder A/B selections stable while live collection continues and clear historical selection when returning to live/helper state changes instead of silently rebinding it to newer frames.
+- Preserve exact recorder sequence semantics across wall-clock/NTP changes so range ordering and exports cannot be inverted by timestamp regression.
 
 ## [1.0.0] - 2026-09-05
 
@@ -63,7 +62,5 @@ Implementation candidate; see HANDOFF for unrun BEAM/desktop acceptance.
 - Bounded in-memory history with full-window downsampling.
 - Real OTP peer integration tests and multi-version GitHub Actions matrix.
 
-[Unreleased]: https://github.com/nshkrdotcom/omarchy-beam-deck/compare/v1.1.0...HEAD
-[1.0.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/releases/tag/v1.0.0
-
 [1.1.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/releases/tag/v1.0.0

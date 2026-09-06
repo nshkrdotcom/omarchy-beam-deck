@@ -27,13 +27,14 @@ Item {
   property string exportRequest: ""
   property string fromFrame: ""
   property string toFrame: ""
-  property var recorderChoices: []
-  property double recorderChoicesAtMs: 0
+  property bool recorderPaused: false
+  property var recorderFrozenTimeline: []
   property string etsSort: "memory"
   readonly property var snapshot: service ? service.snapshot : DeckState.emptySnapshot()
   readonly property var jobs: service ? service.jobs : ({})
   readonly property var nodes: snapshot.nodes || []
   readonly property var timeline: (snapshot.flight_recorder || {}).timeline || []
+  readonly property var recorderDisplayTimeline: recorderPaused ? recorderFrozenTimeline : timeline
   readonly property var processJob: DeckState.jobFor(jobs, processRequest, "inspect_process", targetNode)
   readonly property var etsJob: DeckState.jobFor(jobs, etsRequest, "inspect_ets", targetNode)
   readonly property var frameJob: DeckState.jobFor(jobs, frameRequest, "recorder_frame")
@@ -55,14 +56,16 @@ Item {
     var next = {}
     ;(snapshot.incidents || []).forEach(function(i) { if (root.expandedIncidents[i.id]) next[i.id] = true })
     expandedIncidents = next
-
-    if (tab === "recorder" && recorderChoices.length === 0 && timeline.length > 0)
-      refreshRecorderChoices()
   }
   onTargetNodeChanged: { processRequest = ""; etsRequest = ""; targetPid = ""; gcConfirmed = false }
-  onTabChanged: if (tab === "recorder") refreshRecorderChoices()
   onFrameResultChanged: if (frameResult && service) service.historicalMode = true
   Component.onCompleted: if (!targetNode && nodes.length) targetNode = nodes[0].name
+  Connections {
+    target: root.service
+    function onHistoricalModeChanged() {
+      if (root.service && !root.service.historicalMode && root.recorderPaused) root.clearRecorderPause()
+    }
+  }
 
   function result(job) { return job && job.status === "complete" ? job.result : null }
   function jobText(job, idle) {
@@ -80,10 +83,56 @@ Item {
       if (service && !service.historicalMode) processRequest = service.inspectProcess(targetNode, targetPid)
     }
   }
-  function returnLive() {
+  function clearRecorderPause() {
+    recorderPaused = false
+    recorderFrozenTimeline = []
+    fromFrame = ""
+    toFrame = ""
     frameRequest = ""
     diffRequest = ""
+  }
+  function returnLive() {
+    clearRecorderPause()
     if (service) service.returnLive()
+  }
+  function selectRecorderRange(from, to) {
+    if (!timeline.length && !recorderPaused) return
+    if (!recorderPaused) {
+      recorderFrozenTimeline = timeline.slice()
+      recorderPaused = true
+      if (service) service.historicalMode = true
+    }
+    var ordered = DeckState.recorderOrderedRange(recorderFrozenTimeline, from, to)
+    if (!ordered.from || !ordered.to) return
+    fromFrame = ordered.from
+    toFrame = ordered.to
+    frameRequest = ""
+    diffRequest = ""
+  }
+  function selectAllRecorder() {
+    if (!timeline.length) return
+    if (!recorderPaused) recorderFrozenTimeline = timeline.slice()
+    var range = DeckState.recorderRangeAll(recorderPaused ? recorderFrozenTimeline : timeline)
+    selectRecorderRange(range.from, range.to)
+  }
+  function selectLastRecorder(spanMs) {
+    if (!timeline.length) return
+    if (!recorderPaused) recorderFrozenTimeline = timeline.slice()
+    var range = DeckState.recorderRangeLast(recorderPaused ? recorderFrozenTimeline : timeline, spanMs)
+    selectRecorderRange(range.from, range.to)
+  }
+  function selectedFrom() { return recorderPaused ? fromFrame : "" }
+  function selectedTo() { return recorderPaused ? toFrame : "" }
+  function recorderMeta(id) {
+    var rows = recorderDisplayTimeline
+    var index = DeckState.recorderIndexById(rows, id)
+    return index >= 0 ? rows[index] : null
+  }
+  function recorderSelectionSpanMs() {
+    return DeckState.recorderSelectionSpanMs(recorderDisplayTimeline, fromFrame, toFrame)
+  }
+  function recorderCapturedSpanMs() {
+    return DeckState.recorderCapturedSpanMs(recorderDisplayTimeline)
   }
   function cycleTab(direction) {
     if (!direction) return
@@ -112,39 +161,6 @@ Item {
     if (!nextTab) return false
     activate(nextTab, "", "")
     return true
-  }
-  function recorderSpanMs() {
-    if (timeline.length < 2) return 0
-    return Math.max(
-      0,
-      Number(timeline[timeline.length - 1].at_ms || 0)
-        - Number(timeline[0].at_ms || 0)
-    )
-  }
-  function refreshRecorderChoices() {
-    var choices = DeckState.recorderOptions(timeline, fromFrame, toFrame, 16)
-    recorderChoices = choices
-    recorderChoicesAtMs = Date.now()
-
-    if (choices.length) {
-      if (!fromFrame || optionIndex(fromFrame) < 0)
-        fromFrame = choices[0].id
-
-      if (!toFrame || optionIndex(toFrame) < 0)
-        toFrame = choices[choices.length - 1].id
-    } else {
-      fromFrame = ""
-      toFrame = ""
-    }
-  }
-
-  function options() { return recorderChoices }
-  function optionIndex(id) { var list = options(); for (var i=0;i<list.length;i++) if (list[i].id===id) return i; return -1 }
-  function selectedFrom() {
-    return fromFrame || (recorderChoices.length ? recorderChoices[0].id : "")
-  }
-  function selectedTo() {
-    return toFrame || (recorderChoices.length ? recorderChoices[recorderChoices.length - 1].id : "")
   }
   function runExport(range) { if (service) exportRequest = service.exportBundle(range ? selectedFrom() : null, range ? selectedTo() : null) }
   function actionLabel(action) {
@@ -195,7 +211,21 @@ Item {
     RowLayout {
       visible: root.service && root.service.historicalMode
       Layout.fillWidth: true
-      Label { Layout.fillWidth: true; color: root.accent; text: "HISTORICAL SELECTION / ACTIONS LOCKED  " + (root.frameResult ? DeckState.time(root.frameResult.at_ms) : "Selected frame loading or expired") }
+      Label {
+        Layout.fillWidth: true
+        color: root.accent
+        text: {
+          if (root.recorderPaused && root.fromFrame && root.toFrame) {
+            var a = root.recorderMeta(root.fromFrame)
+            var b = root.recorderMeta(root.toFrame)
+            return "HISTORICAL RANGE / ACTIONS LOCKED  "
+              + (a ? DeckState.time(a.at_ms) : "A expired")
+              + " → " + (b ? DeckState.time(b.at_ms) : "B expired")
+          }
+          return "HISTORICAL SELECTION / ACTIONS LOCKED  "
+            + (root.frameResult ? DeckState.time(root.frameResult.at_ms) : "Selected frame loading or expired")
+        }
+      }
       Button { text: "Return to live"; onClicked: root.returnLive() }
     }
     Loader {
@@ -391,35 +421,113 @@ Item {
       Column {
         id: recorderColumn
         width: recorderScroll.width; spacing: Style.space(12)
-        Heading { text: "Flight recorder" }
+
+        RowLayout {
+          width: parent.width
+          Heading { text: "Flight recorder"; Layout.fillWidth: true }
+          Label {
+            text: root.recorderPaused ? "PAUSED" : "LIVE"
+            color: root.recorderPaused ? root.fg : root.accent
+            font.bold: true
+          }
+        }
+
         Label {
           width: parent.width
-          text: "Checkpoints are frozen while this view is open. Use Refresh checkpoints to include newer recorder frames."
+          text: {
+            var frames = (root.snapshot.flight_recorder || {}).frame_count || 0
+            var span = root.recorderCapturedSpanMs()
+            if (!frames) return "Waiting for the first retained frame. The recorder is memory-resident and begins fresh with the helper."
+            return frames + " retained frames · " + DeckState.duration(span) + " visible window. "
+              + (root.recorderPaused
+                ? "Historical selection is frozen while live collection continues in the background."
+                : "The right edge follows the rolling in-memory buffer. Drag the timeline to investigate without chasing timestamps.")
+          }
         }
-        Label { width: parent.width; text: (root.snapshot.flight_recorder || {}).frame_count+" retained frames · "+DeckState.duration(root.recorderSpanMs())+" captured. "+"The recorder starts empty with the helper and fills a rolling in-memory window; nothing is written unless you export. Historical selections are read-only." }
-        Label { width: parent.width; visible: root.timeline.length > root.options().length; text: "Range controls use ~30-second checkpoints plus alert/event transitions. "+"All "+root.timeline.length+" retained frames remain in the recorder." }
+
+        RecorderTimeline {
+          id: recorderTimeline
+          width: parent.width
+          timeline: root.recorderDisplayTimeline
+          fromFrame: root.fromFrame
+          toFrame: root.toFrame
+          live: !root.recorderPaused
+          fg: root.fg
+          dim: root.dim
+          accent: root.accent
+          urgent: root.urgent
+          onRangeRequested: function(from, to) { root.selectRecorderRange(from, to) }
+        }
+
         RowLayout {
           width: parent.width
-          Label { text: "FROM" }
-          Controls.ComboBox { Layout.fillWidth:true; model:root.options(); textRole:"label"; currentIndex:root.optionIndex(root.selectedFrom()); onActivated:function(index) { root.fromFrame=model[index].id }; Accessible.name:"Earlier recorder frame" }
+          visible: root.recorderPaused && !!root.fromFrame && !!root.toFrame
+          spacing: Style.space(10)
+
+          Label {
+            Layout.fillWidth: true
+            text: {
+              var a = root.recorderMeta(root.fromFrame)
+              return a ? "A  " + DeckState.time(a.at_ms) + "  ·  " + DeckState.bytes(a.beam_rss_bytes) : "A  expired"
+            }
+          }
+          Label {
+            text: DeckState.duration(root.recorderSelectionSpanMs()) + " selected"
+            color: root.accent
+            font.bold: true
+          }
+          Label {
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignRight
+            text: {
+              var b = root.recorderMeta(root.toFrame)
+              return b ? "B  " + DeckState.time(b.at_ms) + "  ·  " + DeckState.bytes(b.beam_rss_bytes) : "B  expired"
+            }
+          }
         }
-        RowLayout {
-          width: parent.width
-          Label { text: "TO" }
-          Controls.ComboBox { Layout.fillWidth:true; model:root.options(); textRole:"label"; currentIndex:root.optionIndex(root.selectedTo()); onActivated:function(index) { root.toFrame=model[index].id }; Accessible.name:"Later recorder frame" }
-        }
+
         Flow {
           width: parent.width; spacing: Style.space(6)
-          Button { text:"View earlier frame"; enabled:root.timeline.length>0; onClicked:{ root.service.historicalMode=true; root.frameRequest=root.service.recorderFrame(root.selectedFrom()) } }
-          Button { text:"Compare selected frames"; enabled:root.timeline.length>1; onClicked:root.diffRequest=root.service.compareFrames(root.selectedFrom(),root.selectedTo()) }
-          Button { text:"Export selected range"; enabled:root.timeline.length>0; onClicked:root.runExport(true) }
-          Button { text:"Return to live"; onClicked:root.returnLive() }
-          Button { text:"Refresh checkpoints"; onClicked:root.refreshRecorderChoices() }
+          Button { text:"Go live"; selected:!root.recorderPaused; onClicked:root.returnLive() }
+          Button { text:"Last 1m"; enabled:root.timeline.length>1; onClicked:root.selectLastRecorder(60000) }
+          Button { text:"All retained"; enabled:root.timeline.length>1; onClicked:root.selectAllRecorder() }
+          Button {
+            text:"View A"
+            enabled:root.recorderPaused && !!root.fromFrame && root.service
+            onClicked:root.frameRequest=root.service.recorderFrame(root.fromFrame)
+          }
+          Button {
+            text:"View B"
+            enabled:root.recorderPaused && !!root.toFrame && root.service
+            onClicked:root.frameRequest=root.service.recorderFrame(root.toFrame)
+          }
+          Button {
+            text:"Compare A → B"
+            enabled:root.recorderPaused && !!root.fromFrame && !!root.toFrame && root.fromFrame!==root.toFrame
+            onClicked:root.diffRequest=root.service.compareFrames(root.fromFrame,root.toFrame)
+          }
+          Button {
+            text:"Export range"
+            enabled:root.recorderPaused && !!root.fromFrame && !!root.toFrame
+            onClicked:root.runExport(true)
+          }
         }
-        Label { width:parent.width; text:root.jobText(root.frameJob,"Choose an explicit retained timestamp. Expired frames return an error, never a replacement frame.") }
+
+        Label {
+          width: parent.width
+          color: root.dim
+          text: root.recorderPaused
+            ? "Drag either handle to refine the frozen range. Click-drag elsewhere to replace it. Tab to the timeline; Left/Right moves B and Shift+Left/Right moves A."
+            : "Alert markers appear above the RSS trace; runtime events appear below it. Drag any interval—or click a point—to enter read-only historical mode."
+        }
+
+        Label {
+          width:parent.width
+          text:root.jobText(root.frameJob,"Select a point or range, then View A or View B to fetch that exact retained frame. Expired frames return an error; they are never silently replaced.")
+        }
         InfoCard {
           width:parent.width; visible:!!root.frameResult
-          Heading { text:"THEN / "+(root.frameResult?DeckState.time(root.frameResult.at_ms):"") }
+          Heading { text:"FRAME / "+(root.frameResult?DeckState.time(root.frameResult.at_ms):"") }
           Label { width:parent.width; text:root.frameResult?"BEAM RSS "+DeckState.bytes(root.frameResult.summary.beam_rss_bytes)+"  |  Processes "+root.frameResult.summary.process_count+"  |  Schedulers "+root.frameResult.summary.schedulers_online:"" }
           Repeater {
             model:root.frameResult?root.frameResult.nodes || []:[]
@@ -444,7 +552,7 @@ Item {
             }
           }
         }
-        Label { width:parent.width; text:root.jobText(root.diffJob,"Compare frames to see exact resource deltas, node transitions and sampled hot-set changes.") }
+        Label { width:parent.width; text:root.jobText(root.diffJob,"Select a range to compare exact resource deltas, node transitions and sampled hot-set changes between A and B.") }
         CopyText { width:parent.width; visible:!!root.result(root.diffJob); text:root.result(root.diffJob)?DeckState.diffText(root.diffJob.result):"" }
       }
     }

@@ -112,125 +112,53 @@ function investigationTabShortcut(text) {
 }
 
 
-function recorderOptions(timeline, selectedFrom, selectedTo, bucketMs, maxItems) {
-  var rows = timeline || []
-  if (!rows.length) return []
-
-  var stride = Math.max(5000, Number(bucketMs || 30000))
-  var limit = Math.max(8, Number(maxItems || 20))
-  var chosen = {}
-
-  function add(index) {
-    if (index >= 0 && index < rows.length)
-      chosen[String(index)] = true
+function recorderIndexById(timeline, id) {
+  var rows=timeline || [];
+  for (var i=0;i<rows.length;i++) if (String(rows[i].frame_id || "")===String(id || "")) return i;
+  return -1;
+}
+function recorderFrameAtFraction(timeline, fraction) {
+  var rows=timeline || [];
+  if (!rows.length) return "";
+  var f=Math.max(0,Math.min(1,Number(fraction || 0)));
+  var index=rows.length===1 ? 0 : Math.round(f*(rows.length-1));
+  return String(rows[index].frame_id || "");
+}
+function recorderOrderedRange(timeline, a, b) {
+  var ai=recorderIndexById(timeline,a), bi=recorderIndexById(timeline,b);
+  if (ai<0 || bi<0) return {from:"",to:"",from_index:-1,to_index:-1};
+  if (ai<=bi) return {from:String(a),to:String(b),from_index:ai,to_index:bi};
+  return {from:String(b),to:String(a),from_index:bi,to_index:ai};
+}
+function recorderRangeAll(timeline) {
+  var rows=timeline || [];
+  if (!rows.length) return {from:"",to:""};
+  return {from:String(rows[0].frame_id || ""),to:String(rows[rows.length-1].frame_id || "")};
+}
+function recorderRangeLast(timeline, spanMs) {
+  var rows=timeline || [];
+  if (!rows.length) return {from:"",to:""};
+  var target=Math.max(0,Number(spanMs || 0));
+  var end=rows.length-1, start=end, elapsed=0;
+  for (var i=end;i>0 && elapsed<target;i--) {
+    var delta=Number(rows[i].at_ms || 0)-Number(rows[i-1].at_ms || 0);
+    if (delta>0) elapsed+=delta;
+    start=i-1;
   }
-
-  function count() {
-    return Object.keys(chosen).length
+  return {from:String(rows[start].frame_id || ""),to:String(rows[end].frame_id || "")};
+}
+function recorderSelectionSpanMs(timeline, from, to) {
+  var ordered=recorderOrderedRange(timeline,from,to);
+  if (ordered.from_index<0) return 0;
+  var rows=timeline || [], elapsed=0;
+  for (var i=ordered.from_index+1;i<=ordered.to_index;i++) {
+    var delta=Number(rows[i].at_ms || 0)-Number(rows[i-1].at_ms || 0);
+    if (delta>0) elapsed+=delta;
   }
-
-  function indexFor(id) {
-    if (id === undefined || id === null || String(id) === "")
-      return -1
-
-    for (var i = 0; i < rows.length; i++)
-      if (String(rows[i].frame_id) === String(id))
-        return i
-
-    return -1
-  }
-
-  function addEvenly(indices, slots) {
-    if (slots <= 0 || !indices.length) return
-
-    var available = []
-    var seen = {}
-
-    for (var i = 0; i < indices.length; i++) {
-      var key = String(indices[i])
-      if (chosen[key] || seen[key]) continue
-      seen[key] = true
-      available.push(indices[i])
-    }
-
-    if (!available.length) return
-
-    if (available.length <= slots) {
-      for (var j = 0; j < available.length; j++)
-        add(available[j])
-      return
-    }
-
-    if (slots === 1) {
-      add(available[Math.floor(available.length / 2)])
-      return
-    }
-
-    for (var n = 0; n < slots; n++) {
-      var pos = Math.round(n * (available.length - 1) / (slots - 1))
-      add(available[pos])
-    }
-  }
-
-  // The actual retained boundaries and explicit user selections are sacred.
-  add(0)
-  add(rows.length - 1)
-  add(indexFor(selectedFrom))
-  add(indexFor(selectedTo))
-
-  // Preserve both sides of meaningful alert/event transitions.
-  var transitions = []
-
-  for (var i = 1; i < rows.length; i++) {
-    var previous = rows[i - 1]
-    var current = rows[i]
-
-    if (
-      Number(previous.alert_count || 0) !== Number(current.alert_count || 0) ||
-      Number(previous.event_count || 0) !== Number(current.event_count || 0)
-    ) {
-      transitions.push(i - 1)
-      transitions.push(i)
-    }
-  }
-
-  addEvenly(transitions, limit - count())
-
-  // Human navigation is time-based, not sample-count based. Pick one
-  // representative frame from each fixed wall-clock bucket.
-  var buckets = []
-  var previousBucket = null
-
-  for (var j = 0; j < rows.length; j++) {
-    var at = Number(rows[j].at_ms || 0)
-    var bucket = Math.floor(at / stride)
-
-    if (bucket !== previousBucket) {
-      buckets.push(j)
-      previousBucket = bucket
-    }
-  }
-
-  addEvenly(buckets, limit - count())
-
-  var result = []
-
-  for (var k = 0; k < rows.length; k++) {
-    if (!chosen[String(k)]) continue
-
-    var frame = rows[k]
-    var alerts = Number(frame.alert_count || 0)
-    var events = Number(frame.event_count || 0)
-
-    result.push({
-      id: frame.frame_id,
-      label:
-        time(frame.at_ms)
-        + "  |  " + alerts + " alert" + (alerts === 1 ? "" : "s")
-        + "  |  " + events + " event" + (events === 1 ? "" : "s")
-        + "  |  " + bytes(frame.beam_rss_bytes)
-    })
-  }
-
-  return result
+  return elapsed;
+}
+function recorderCapturedSpanMs(timeline) {
+  var rows=timeline || [];
+  if (rows.length<2) return 0;
+  return recorderSelectionSpanMs(rows,rows[0].frame_id,rows[rows.length-1].frame_id);
 }

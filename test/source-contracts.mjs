@@ -129,21 +129,24 @@ assert.match(keyboardInvestigation, /function cycleTab\(direction\)/);
 assert.match(keyboardInvestigation, /function keyboardMove\(dx, dy\)/);
 
 
-// recorder selector and IPC documentation contracts
-assert.match(ui, /DeckState\.recorderOptions\(timeline, fromFrame, toFrame, 30000, 20\)/);
-assert.match(read("README.md"), /omarchy-shell nshkr\.beam-deck ping/);
-assert.doesNotMatch(
-  read("README.md"),
-  /omarchy-shell shell (?:refresh|status|ping) nshkr\.beam-deck/
-);
-
-
-// recorder choices remain stable until explicit refresh
-const investigation = read("qml/Investigation.qml");
-assert.match(investigation, /property var recorderChoices:\s*\[\]/);
-assert.match(investigation, /function refreshRecorderChoices\(\)/);
-assert.match(investigation, /function options\(\) \{ return recorderChoices \}/);
-assert.match(investigation, /onTabChanged: if \(tab === "recorder"\) refreshRecorderChoices\(\)/);
-assert.match(investigation, /Refresh checkpoints/);
+// recorder range navigator replaces timestamp dropdowns
+const investigationSource = read("qml/Investigation.qml");
+const recorderTimelineSource = read("qml/RecorderTimeline.qml");
+assert.match(investigationSource, /RecorderTimeline\s*\{/);
+assert.match(investigationSource, /property bool recorderPaused:\s*false/);
+assert.match(investigationSource, /property var recorderFrozenTimeline:\s*\[\]/);
+assert.match(investigationSource, /function selectRecorderRange\(from, to\)/);
+assert.match(investigationSource, /service\.historicalMode = true/);
+assert.match(investigationSource, /text:\"Last 1m\"/);
+assert.match(investigationSource, /text:\"All retained\"/);
+assert.match(investigationSource, /text:\"Compare A → B\"/);
+assert.doesNotMatch(investigationSource, /Earlier recorder frame|Later recorder frame/);
+assert.doesNotMatch(investigationSource, /function options\(\)|recorderOptions\(/);
+assert.match(recorderTimelineSource, /Canvas\s*\{/);
+assert.match(recorderTimelineSource, /signal rangeRequested\(string fromFrame, string toFrame\)/);
+assert.match(recorderTimelineSource, /Accessible\.role:\s*Accessible\.Slider/);
+assert.match(recorderTimelineSource, /ShiftModifier/);
+assert.match(read("qml/DeckState.js"), /function recorderOrderedRange\(/);
+assert.match(read("qml/DeckState.js"), /function recorderRangeLast\(/);
 
 console.log("repository contracts: versions, native bar-panel surface, keyboard navigation, configuration parity, command wiring, privacy boundaries and documentation present");

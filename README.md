@@ -19,7 +19,7 @@ It is intentionally local-first. You do not add a BEAM Deck dependency to the ap
 - **Automatic host census** — discovers local `beam.smp` processes through Linux `/proc`, including non-distributed Erlang/Elixir workloads that cannot expose OTP internals.
 - **Deep OTP telemetry** — for named nodes, surfaces VM memory, process/atom/port capacity, run queues, scheduler state and utilization, ETS metadata, peer topology, hot processes, and runtime identity.
 - **Evidence-first incident triage** — groups active symptoms into incidents while keeping directly observed facts, nearby correlations, and heuristic forecasts visibly distinct.
-- **Flight recorder** — retains a bounded in-memory timeline of compact frames for before/after comparison, runtime-disappearance context, and selected-range export.
+- **Flight recorder** — presents the rolling in-memory recorder as a live time-range navigator with RSS history, alert/event markers, explicit pause-on-selection, exact A/B frame comparison, and selected-range export.
 - **Focused process diagnostics** — inspects one live PID with bounded status, argument-free stack metadata, focused ancestry, mailbox/memory/reductions, and shared-binary reference summaries without collecting messages or arbitrary process state.
 - **Metadata-only ETS lens** — ranks bounded table metadata by memory or element count and lets you pivot to the current table owner without reading keys or values.
 - **Persistent watchlist** — pins exact node names and registered process names; registered-name pins follow PID replacement instead of pretending PIDs are durable identities.
@@ -40,7 +40,7 @@ BEAM Deck 1.1 keeps the live **Cockpit** as the fast operational overview and ad
 | Workspace | Purpose |
 |---|---|
 | **Triage** | Prioritized incidents, evidence classes, nearby events, watchlist context, forecasts, and incident actions. |
-| **Flight recorder** | Browse retained frames, compare resource deltas and sampled hot sets, inspect historical state, and export a selected range. |
+| **Flight recorder** | Follow the live recorder timeline, drag to freeze an exact historical range, inspect A/B frames, compare resource deltas and sampled hot sets, and export that range. |
 | **Process** | Inspect one captured process identity, refresh it deliberately, pin its registered name, open `remsh`, or request GC from fresh live state. |
 | **ETS lens** | Inspect bounded metadata-only table rankings and pivot to table owners. |
 | **Watchlist** | Keep a durable working set of exact nodes and registered process names across BEAM Deck restarts. |
@@ -224,13 +224,25 @@ BEAM Deck discovers local named nodes through EPMD and correlates the distribute
 A useful 1.1 workflow is:
 
 1. Open **Triage** and identify the active symptom plus its evidence class.
-2. Open **Flight recorder** to compare nearby retained frames instead of reasoning only from the newest snapshot.
+2. Open **Flight recorder** and drag the timeline around the suspicious interval. The selection freezes as read-only historical evidence while live collection continues in the background.
 3. Pivot to **Process** or **ETS** when the evidence identifies a concrete target worth deeper inspection.
 4. Press **`G`** or click **Return to live** before any mutating action.
 5. Reinspect a live process immediately before GC; stale process reports do not authorize actions.
 6. Export a bounded diagnostics bundle only if you need to preserve or share the evidence.
 
 Forecasts are deliberately conditional. An ETA means approximately **“if this qualified observed trajectory continues”**; it is not a probability of failure. A nearby event is evidence of timing, not proof of cause.
+
+### Using the Flight Recorder
+
+The recorder opens in **LIVE** mode. Its right edge follows the newest retained frame while BEAM RSS is plotted over the bounded in-memory window; alert markers are shown above the trace and runtime-event markers below it. There are no timestamp dropdowns.
+
+- **Drag across the timeline** to freeze an exact A/B historical range. A click creates a one-frame selection.
+- **Drag either handle** to refine A or B without changing the underlying retained frame identities.
+- **Last 1m** and **All retained** are range presets; **Go live** discards the frozen selection and resumes the moving tail.
+- **View A** / **View B** fetch the exact retained endpoint frame. **Compare A → B** uses the daemon's sequence-stable diff, and **Export range** includes every retained frame between the exact endpoint IDs.
+- Historical selection locks mutating runtime actions. If the helper restarts or the panel returns to live state, the selection is cleared rather than silently rebound to different frames.
+
+The recorder is intentionally memory-resident and starts empty with the helper. `flight_recorder_points` controls the frame cap; the effective time window therefore depends on the configured poll cadence and real collection duration.
 
 ### Diagnosing a Hot Process
 
