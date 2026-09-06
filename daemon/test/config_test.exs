@@ -51,14 +51,26 @@ defmodule BeamDeck.ConfigTest do
   end
 
   test "1.1 defaults, nested fallback, forecast ordering and hard caps" do
-    path = Path.join(System.tmp_dir!(), "bd-config-bounds-#{System.unique_integer([:positive])}.json")
+    path =
+      Path.join(System.tmp_dir!(), "bd-config-bounds-#{System.unique_integer([:positive])}.json")
+
     on_exit(fn -> File.rm(path) end)
-    File.write!(path, BeamDeck.Json.encode(%{
-      flight_recorder_points: 999_999, budget_trial_lease_ms: 999_999,
-      forecast: %{min_r2: 2, min_stability: -1, critical_eta_ms: 8_000, warning_eta_ms: 2_000},
-      diagnostics: %{max_concurrent_jobs: 999, per_node_remote_jobs: 8, crash_dump_read_bytes: 999_999_999},
-      event_thresholds: %{mailbox_enable: 3, mailbox_disable: 10}
-    }))
+
+    File.write!(
+      path,
+      BeamDeck.Json.encode(%{
+        flight_recorder_points: 999_999,
+        budget_trial_lease_ms: 999_999,
+        forecast: %{min_r2: 2, min_stability: -1, critical_eta_ms: 8_000, warning_eta_ms: 2_000},
+        diagnostics: %{
+          max_concurrent_jobs: 999,
+          per_node_remote_jobs: 8,
+          crash_dump_read_bytes: 999_999_999
+        },
+        event_thresholds: %{mailbox_enable: 3, mailbox_disable: 10}
+      })
+    )
+
     assert {:ok, c, ^path} = Config.load(path)
     assert c["flight_recorder_points"] == 2_000
     assert c["budget_trial_lease_ms"] == 30_000
@@ -84,5 +96,4 @@ defmodule BeamDeck.ConfigTest do
     File.ln_s!(file, link)
     assert {:error, :unsafe_or_oversized_config, _, _} = Config.load(link)
   end
-
 end

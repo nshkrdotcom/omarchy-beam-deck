@@ -1,6 +1,7 @@
 defmodule BeamDeck.InputTest do
   use ExUnit.Case, async: true
   alias BeamDeck.Input
+
   test "split lines and oversized input preserve framing and bounded memory" do
     {state, []} = Input.feed({"", false}, "{\"cmd\":")
     {_state, [{:line, line}]} = Input.feed(state, "\"refresh\"}\n")

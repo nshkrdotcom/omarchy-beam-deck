@@ -10,3 +10,4 @@
 /daemon/erl_crash.dump
 daemon/_build/
 daemon/deps/
+__pycache__/

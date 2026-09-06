@@ -1,20 +1,36 @@
 defmodule BeamDeck.Forecast do
   @moduledoc "Conservative weighted trend estimates; confidence is fit quality, not probability."
   @metrics [
-    {:processes, :process_limit, "processes"}, {:atoms, :atom_limit, "atoms"},
-    {:ports, :port_limit, "ports"}, {:binary, nil, "binary_memory"},
-    {:ets_memory, nil, "ets_memory"}, {:ets, nil, "ets_count"}
+    {:processes, :process_limit, "processes"},
+    {:atoms, :atom_limit, "atoms"},
+    {:ports, :port_limit, "ports"},
+    {:binary, nil, "binary_memory"},
+    {:ets_memory, nil, "ets_memory"},
+    {:ets, nil, "ets_count"}
   ]
 
   def derive([], _config), do: []
+
   def derive(history, config) do
     f = config["forecast"]
+
     if f["enabled"] do
-      names = hd(history) |> Map.get(:nodes, []) |> Enum.filter(& &1[:attached]) |> Enum.map(& &1.name)
-      rows = for name <- names, metric <- @metrics,
-          result = estimate(segment(history, name, metric), name, metric, f),
-          not is_nil(result), do: result
-      rows |> Enum.sort_by(&{Map.get(%{"critical" => 0, "warning" => 1, "info" => 2}, &1.severity), &1.eta_ms || 86_400_000, &1.id}) |> Enum.take(100)
+      names =
+        hd(history) |> Map.get(:nodes, []) |> Enum.filter(& &1[:attached]) |> Enum.map(& &1.name)
+
+      rows =
+        for name <- names,
+            metric <- @metrics,
+            result = estimate(segment(history, name, metric), name, metric, f),
+            not is_nil(result),
+            do: result
+
+      rows
+      |> Enum.sort_by(
+        &{Map.get(%{"critical" => 0, "warning" => 1, "info" => 2}, &1.severity),
+         &1.eta_ms || 86_400_000, &1.id}
+      )
+      |> Enum.take(100)
     else
       []
     end
@@ -25,19 +41,34 @@ defmodule BeamDeck.Forecast do
   defp value(n, key), do: n[key]
 
   defp segment(history, name, {key, limit, _label}) do
-    {points, _} = Enum.reduce_while(history, {[], nil}, fn frame, {acc, newer} ->
-      n = Enum.find(frame[:nodes] || [], &(&1.name == name))
-      valid = n && n[:attached] && is_number(value(n, key)) && is_number(n[:uptime_ms])
-      continuous = valid && (is_nil(newer) or
-        (n.uptime_ms <= newer.uptime_ms and n[:creation] == newer.creation and frame.at_ms < newer.at_ms and
-         frame.at_ms >= newer.at_ms - 120_000 and (is_nil(limit) or n[limit] == newer.limit)))
-      if continuous do
-        point = %{at_ms: frame.at_ms, value: value(n, key), uptime_ms: n.uptime_ms, creation: n[:creation], limit: n[limit]}
-        {:cont, {[point | acc], point}}
-      else
-        {:halt, {acc, newer}}
-      end
-    end)
+    {points, _} =
+      Enum.reduce_while(history, {[], nil}, fn frame, {acc, newer} ->
+        n = Enum.find(frame[:nodes] || [], &(&1.name == name))
+        valid = n && n[:attached] && is_number(value(n, key)) && is_number(n[:uptime_ms])
+
+        continuous =
+          valid &&
+            (is_nil(newer) or
+               (n.uptime_ms <= newer.uptime_ms and n[:creation] == newer.creation and
+                  frame.at_ms < newer.at_ms and
+                  frame.at_ms >= newer.at_ms - 120_000 and
+                  (is_nil(limit) or n[limit] == newer.limit)))
+
+        if continuous do
+          point = %{
+            at_ms: frame.at_ms,
+            value: value(n, key),
+            uptime_ms: n.uptime_ms,
+            creation: n[:creation],
+            limit: n[limit]
+          }
+
+          {:cont, {[point | acc], point}}
+        else
+          {:halt, {acc, newer}}
+        end
+      end)
+
     points
   end
 
@@ -48,11 +79,24 @@ defmodule BeamDeck.Forecast do
       span = latest.at_ms - first.at_ms
       fit = fit(points, f["half_life_ms"])
       stable = stability(points)
-      if span >= f["min_span_ms"] and fit.slope > 0 and fit.r2 >= f["min_r2"] and stable >= f["min_stability"] do
-        base = %{id: "forecast:#{name}:#{label}", node: name, metric: label,
-          current: latest.value, rate_per_second: fit.slope, fit_r2: fit.r2,
-          stability: stable, confidence: min(fit.r2, stable), sample_count: length(points),
-          span_ms: span, evidence_class: "heuristic", at_ms: latest.at_ms}
+
+      if span >= f["min_span_ms"] and fit.slope > 0 and fit.r2 >= f["min_r2"] and
+           stable >= f["min_stability"] do
+        base = %{
+          id: "forecast:#{name}:#{label}",
+          node: name,
+          metric: label,
+          current: latest.value,
+          rate_per_second: fit.slope,
+          fit_r2: fit.r2,
+          stability: stable,
+          confidence: min(fit.r2, stable),
+          sample_count: length(points),
+          span_ms: span,
+          evidence_class: "heuristic",
+          at_ms: latest.at_ms
+        }
+
         finish(base, first.value, latest.limit, key, limit_key, f)
       end
     end
@@ -61,38 +105,61 @@ defmodule BeamDeck.Forecast do
   defp finish(base, _first, limit, _key, limit_key, f) when not is_nil(limit_key) do
     if is_number(limit) and limit > base.current and limit > 0 do
       eta = round((limit - base.current) / base.rate_per_second * 1_000)
+
       if eta <= f["info_eta_ms"] do
-        severity = cond do
-          eta <= f["critical_eta_ms"] -> "critical"
-          eta <= f["warning_eta_ms"] -> "warning"
-          true -> "info"
-        end
-        Map.merge(base, %{kind: "capacity", limit: limit, eta_ms: round(eta), severity: severity,
-          summary: "#{base.metric} may reach the configured hard limit if the observed trend continues"})
+        severity =
+          cond do
+            eta <= f["critical_eta_ms"] -> "critical"
+            eta <= f["warning_eta_ms"] -> "warning"
+            true -> "info"
+          end
+
+        Map.merge(base, %{
+          kind: "capacity",
+          limit: limit,
+          eta_ms: round(eta),
+          severity: severity,
+          summary:
+            "#{base.metric} may reach the configured hard limit if the observed trend continues"
+        })
       end
     end
   end
+
   defp finish(base, first, _limit, key, _limit_key, f) do
-    prefix = case key do
-      :binary -> "binary_growth"
-      :ets_memory -> "ets_memory_growth"
-      :ets -> "ets_count_growth"
-    end
+    prefix =
+      case key do
+        :binary -> "binary_growth"
+        :ets_memory -> "ets_memory_growth"
+        :ets -> "ets_count_growth"
+      end
+
     absolute = f[prefix <> if(key == :ets, do: "_min", else: "_min_bytes")]
     fraction = f[prefix <> "_min_fraction"]
     delta = base.current - first
+
     if delta >= absolute and delta / max(first, 1) >= fraction do
-      Map.merge(base, %{kind: "growth", limit: nil, eta_ms: nil, severity: "warning",
-        growth: delta, summary: "Sustained #{base.metric} growth; this is not an exhaustion forecast"})
+      Map.merge(base, %{
+        kind: "growth",
+        limit: nil,
+        eta_ms: nil,
+        severity: "warning",
+        growth: delta,
+        summary: "Sustained #{base.metric} growth; this is not an exhaustion forecast"
+      })
     end
   end
 
   def fit([], _half_life_ms), do: %{slope: 0.0, r2: 0.0}
+
   def fit(points, half_life_ms) do
     last = List.last(points).at_ms
-    rows = Enum.map(points, fn p ->
-      {(p.at_ms - last) / 1_000, p.value, :math.pow(0.5, (last - p.at_ms) / half_life_ms)}
-    end)
+
+    rows =
+      Enum.map(points, fn p ->
+        {(p.at_ms - last) / 1_000, p.value, :math.pow(0.5, (last - p.at_ms) / half_life_ms)}
+      end)
+
     weight = Enum.reduce(rows, 0.0, fn {_, _, w}, acc -> acc + w end)
     mx = Enum.reduce(rows, 0.0, fn {x, _, w}, acc -> acc + x * w end) / weight
     my = Enum.reduce(rows, 0.0, fn {_, y, w}, acc -> acc + y * w end) / weight
@@ -100,10 +167,13 @@ defmodule BeamDeck.Forecast do
     cov = Enum.reduce(rows, 0.0, fn {x, y, w}, acc -> acc + w * (x - mx) * (y - my) end)
     slope = if vx > 0, do: cov / vx, else: 0.0
     total = Enum.reduce(rows, 0.0, fn {_, y, w}, acc -> acc + w * (y - my) * (y - my) end)
-    error = Enum.reduce(rows, 0.0, fn {x, y, w}, acc ->
-      residual = y - (my + slope * (x - mx))
-      acc + w * residual * residual
-    end)
+
+    error =
+      Enum.reduce(rows, 0.0, fn {x, y, w}, acc ->
+        residual = y - (my + slope * (x - mx))
+        acc + w * residual * residual
+      end)
+
     %{slope: slope, r2: if(total > 0, do: max(0.0, 1 - error / total), else: 0.0)}
   end
 

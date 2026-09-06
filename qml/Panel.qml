@@ -74,6 +74,14 @@ Panel {
     for (var i = 0; i < nodes.length; i++) if (String(nodes[i].name) === selectedNode) return nodes[i]
     return nodes.length > 0 ? nodes[0] : null
   }
+  function nodePinned(name) {
+    var watch = snapshotData.watchlist || ({})
+    var entries = watch.entries || []
+    for (var i = 0; i < entries.length; i++) {
+      if (String(entries[i].node || "") === String(name || "")) return true
+    }
+    return false
+  }
   function bytes(n) {
     if (n === null || n === undefined) return "\u2014"
     n = Number(n)
@@ -428,10 +436,11 @@ Panel {
       width: parent.width
       spacing: Style.space(10)
       readonly property var node: root.selected()
+      readonly property bool pinned: root.nodePinned(node ? node.name : "")
       visible: node !== null
 
       Text { textFormat: Text.PlainText; width: parent.width; text: nd.node ? nd.node.name : ""; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true; elide: Text.ElideRight }
-      Text { textFormat: Text.PlainText; visible: nd.node && !nd.node.attached; width: parent.width; text: "Node discovered but not attached: " + String(nd.node.error || "authentication/unreachable"); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
+      Text { textFormat: Text.PlainText; visible: nd.node && !nd.node.attached; width: parent.width; text: nd.pinned ? "Pinned node unavailable: " + String(nd.node.error || "authentication/unreachable") + ". It remains listed because it is in your Watchlist." : "Node discovered but not attached: " + String(nd.node.error || "authentication/unreachable"); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
 
       GridLayout {
         visible: nd.node && nd.node.attached

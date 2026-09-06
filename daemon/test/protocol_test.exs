@@ -16,10 +16,20 @@ defmodule BeamDeck.ProtocolTest do
   end
 
   test "new jobs require request IDs and reject malformed targets without atom creation" do
-    assert {:error, :invalid_arguments} = Protocol.parse(~s({"cmd":"inspect_ets","node":"app@host"}))
-    assert {:ok, "inspect_process", _} = Protocol.parse(~s({"cmd":"inspect_process","request_id":"ui-1","node":"app@host","pid":"<0.1.0>"}))
-    assert {:error, :invalid_arguments} = Protocol.parse(~s({"cmd":"inspect_process","request_id":"ui-1","node":"app@host","pid":"#PID<0.1.0>"}))
-    assert {:error, :invalid_arguments} = Protocol.parse(~s({"cmd":"budget_trial_begin","request_id":"ui-2","rows":[]}))
-  end
+    assert {:error, :invalid_arguments} =
+             Protocol.parse(~s({"cmd":"inspect_ets","node":"app@host"}))
 
+    assert {:ok, "inspect_process", _} =
+             Protocol.parse(
+               ~s({"cmd":"inspect_process","request_id":"ui-1","node":"app@host","pid":"<0.1.0>"})
+             )
+
+    assert {:error, :invalid_arguments} =
+             Protocol.parse(
+               ~s({"cmd":"inspect_process","request_id":"ui-1","node":"app@host","pid":"#PID<0.1.0>"})
+             )
+
+    assert {:error, :invalid_arguments} =
+             Protocol.parse(~s({"cmd":"budget_trial_begin","request_id":"ui-2","rows":[]}))
+  end
 end

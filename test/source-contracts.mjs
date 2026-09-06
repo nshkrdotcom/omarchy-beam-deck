@@ -51,4 +51,71 @@ assert.doesNotMatch(copyText[1], /\bimplicitHeight\s*:/, "TextEdit implicitHeigh
 for (const path of ["README.md", "SECURITY.md", "HANDOFF.md", "docs/ARCHITECTURE.md", "docs/PROTOCOL.md", "docs/CONFIGURATION.md", "docs/VALIDATION.md", "docs/IMPLEMENTATION-1.1.md"]) {
   assert.ok(fs.statSync(path).size > 200, `documentation missing: ${path}`);
 }
+const discoveryRegression = read("daemon/lib/beam_deck/discovery.ex");
+assert.match(
+  discoveryRegression,
+  /@helper_node_re\s+~r\/\^beam_deck_\[0-9\]\+\(\?:@\|\$\)\//
+);
+assert.doesNotMatch(
+  discoveryRegression,
+  /String\.starts_with\?\(to_string\(name\), "beam_deck_"\)/
+);
+
+const discoveryTests = read("daemon/test/discovery_test.exs");
+assert.match(
+  discoveryTests,
+  /beam_deck_demo@host/
+);
+assert.match(
+  discoveryTests,
+  /beam_deck_api@host/
+);
+assert.match(
+  discoveryTests,
+  /beam_deck_58391@host/
+);
+// legitimate beam_deck application names must not be hidden as helpers
+
+const pinnedPanel = read("qml/Panel.qml");
+assert.match(pinnedPanel, /function nodePinned\(name\)/);
+assert.match(pinnedPanel, /Pinned node unavailable:/);
+assert.match(
+  pinnedPanel,
+  /It remains listed because it is in your Watchlist/
+);
+
+
+const beamBar = read("qml/BarWidget.qml");
+assert.doesNotMatch(
+  beamBar,
+  /horizontalCenterOffset\s*:\s*root\.vertical\s*\?\s*0\s*:\s*4/,
+  "BEAM Deck bar glyph must remain centered on its selection indicator"
+);
+
+const beamDiscovery = read("daemon/lib/beam_deck/discovery.ex");
+assert.match(
+  beamDiscovery,
+  /@helper_node_re\s+~r\/\^beam_deck_\[0-9\]\+\(\?:@\|\$\)\//
+);
+assert.doesNotMatch(
+  beamDiscovery,
+  /String\.starts_with\?\(to_string\(name\),\s*"beam_deck_"\)/
+);
+
+const beamDiscoveryTests = read("daemon/test/discovery_test.exs");
+for (const name of [
+  "beam_deck_58391@host",
+  "beam_deck_demo@host",
+  "beam_deck_api@host"
+]) {
+  assert.ok(
+    beamDiscoveryTests.includes(name),
+    "missing helper-name regression: " + name
+  );
+}
+
+const beamPanel = read("qml/Panel.qml");
+assert.match(beamPanel, /function nodePinned\(name\)/);
+assert.match(beamPanel, /Pinned node unavailable:/);
+
 console.log("repository contracts: versions, native bar-panel surface, configuration parity, command wiring, privacy boundaries and documentation present");

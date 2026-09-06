@@ -31,8 +31,11 @@ defmodule BeamDeck.Procfs do
 
   def verify_local_nodes(host, nodes) do
     pids = MapSet.new(host.runtimes, & &1.pid)
+
     Enum.map(nodes, fn node ->
-      verified = node[:local] == true and node[:attached] == true and MapSet.member?(pids, node[:os_pid])
+      verified =
+        node[:local] == true and node[:attached] == true and MapSet.member?(pids, node[:os_pid])
+
       Map.put(node, :local, verified)
     end)
   end

@@ -25,4 +25,20 @@ defmodule BeamDeck.DiscoveryTest do
              expected_peers: []
            }
   end
+
+  test "only numeric internal helper names are excluded from discovery" do
+    config = %{
+      "nodes" => [
+        %{"name" => "beam_deck_58391@host"},
+        %{"name" => "beam_deck_demo@host"},
+        %{"name" => "beam_deck_api@host"}
+      ]
+    }
+
+    candidates = Discovery.candidates(config)
+
+    refute :beam_deck_58391@host in candidates
+    assert :beam_deck_demo@host in candidates
+    assert :beam_deck_api@host in candidates
+  end
 end

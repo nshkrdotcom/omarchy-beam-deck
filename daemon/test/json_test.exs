@@ -33,10 +33,12 @@ defmodule BeamDeck.JsonTest do
     for value <- [~s({"a":1,"a":2}), "[1,]", ~s({"a":1,}), ~s("\\uD800")] do
       assert {:error, _} = Json.decode(value)
     end
-    assert {:error, :json_too_deep} = Json.decode(String.duplicate("[", 33) <> "0" <> String.duplicate("]", 33))
+
+    assert {:error, :json_too_deep} =
+             Json.decode(String.duplicate("[", 33) <> "0" <> String.duplicate("]", 33))
+
     assert {:error, :json_too_large} = Json.decode(String.duplicate("x", 1_048_577))
     assert {:ok, text} = Json.decode(~s("\\uD83D\\uDE80"))
     assert text == <<0x1F680::utf8>>
   end
-
 end

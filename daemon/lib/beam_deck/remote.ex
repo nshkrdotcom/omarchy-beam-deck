@@ -55,7 +55,14 @@ defmodule BeamDeck.Remote do
         peers: peers,
         observer_backend: observer_backend?,
         deep_events_capable: otp_int(sys[:otp_release]) >= 28,
-        capabilities: %{process_inspect: true, process_binary_info: true, supervisor_focus: true, ets_inspect: true, scheduler_wall_time: true, deep_events: otp_int(sys[:otp_release]) >= 28}
+        capabilities: %{
+          process_inspect: true,
+          process_binary_info: true,
+          supervisor_focus: true,
+          ets_inspect: true,
+          scheduler_wall_time: true,
+          deep_events: otp_int(sys[:otp_release]) >= 28
+        }
       }
 
       node_map =
@@ -299,8 +306,15 @@ defmodule BeamDeck.Remote do
 
   def call_raw(node, mod, fun, args, timeout \\ @timeout) do
     deadline = Process.get(:beam_deck_rpc_deadline)
-    timeout = if is_integer(deadline), do: min(timeout, deadline - System.monotonic_time(:millisecond)), else: timeout
-    if timeout > 0, do: {:ok, :erpc.call(node, mod, fun, args, timeout)}, else: {:error, :deadline}
+
+    timeout =
+      if is_integer(deadline),
+        do: min(timeout, deadline - System.monotonic_time(:millisecond)),
+        else: timeout
+
+    if timeout > 0,
+      do: {:ok, :erpc.call(node, mod, fun, args, timeout)},
+      else: {:error, :deadline}
   catch
     :error, reason -> {:error, reason}
     :exit, reason -> {:error, reason}
@@ -309,7 +323,10 @@ defmodule BeamDeck.Remote do
   def parse_pid(node, text) when is_binary(text) do
     # list_to_pid is node-local; invoke it remotely rather than constructing a
     # foreign pid in the helper node.
-    case if(BeamDeck.Protocol.pid?(text), do: call_raw(node, :erlang, :list_to_pid, [String.to_charlist(text)]), else: {:error, :invalid_pid}) do
+    case if(BeamDeck.Protocol.pid?(text),
+           do: call_raw(node, :erlang, :list_to_pid, [String.to_charlist(text)]),
+           else: {:error, :invalid_pid}
+         ) do
       {:ok, pid} when is_pid(pid) -> {:ok, pid}
       error -> error
     end
@@ -386,10 +403,12 @@ defmodule BeamDeck.Remote do
   defp term(value), do: inspect(value)
   defp mfa({mod, fun, arity}) when is_atom(mod) and is_atom(fun), do: "#{mod}.#{fun}/#{arity}"
   defp mfa(value), do: term(value)
+
   def pid_text(pid) when is_pid(pid) do
     # The first printed component is the observer's node index, not target PID identity.
     pid |> :erlang.pid_to_list() |> List.to_string() |> String.replace(~r/^<\d+\./, "<0.")
   end
+
   def pid_text(_), do: ""
 
   def utilization_sample(node) do
@@ -397,19 +416,27 @@ defmodule BeamDeck.Remote do
     case call_raw(node, :scheduler, :utilization, [1], 2_500) do
       {:ok, rows} when is_list(rows) ->
         for {kind, id, utilization, _percent} <- rows,
-            kind in [:normal, :cpu], is_integer(id), is_number(utilization),
-            do: %{id: id, kind: Atom.to_string(kind), utilization: min(max(utilization, 0.0), 1.0)}
-      _ -> []
+            kind in [:normal, :cpu],
+            is_integer(id),
+            is_number(utilization),
+            do: %{
+              id: id,
+              kind: Atom.to_string(kind),
+              utilization: min(max(utilization, 0.0), 1.0)
+            }
+
+      _ ->
+        []
     end
   end
 
   def identity(node) do
-    with {:ok, creation} when is_integer(creation) <- call_raw(node, :erlang, :system_info, [:creation]),
+    with {:ok, creation} when is_integer(creation) <-
+           call_raw(node, :erlang, :system_info, [:creation]),
          {:ok, pid} when is_list(pid) <- call_raw(node, :os, :getpid, []) do
       {:ok, %{creation: creation, os_pid: List.to_string(pid)}}
     else
       _ -> {:error, :identity_unavailable}
     end
   end
-
 end

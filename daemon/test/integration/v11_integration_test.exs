@@ -3,18 +3,22 @@ defmodule BeamDeck.V11IntegrationTest do
   @moduletag :integration
   alias BeamDeck.{BudgetTrial, Config, Json, Remote, TestPeer, Watchlist}
 
+  alias BeamDeck.Diagnostics.Ets, as: EtsDiagnostics
+  alias BeamDeck.Diagnostics.Process, as: ProcessDiagnostics
+
   setup do
     {peer, node} = TestPeer.start()
     on_exit(fn -> TestPeer.stop(peer) end)
     %{peer: peer, node: node, name: Atom.to_string(node), opts: Config.defaults()["diagnostics"]}
   end
 
-  test "focused diagnostics use real OTP ancestry and exclude dictionary, state, binary IDs and contents", c do
+  test "focused diagnostics use real OTP ancestry and exclude dictionary, state, binary IDs and contents",
+       c do
     pid = Remote.call(c.node, :erlang, :whereis, [:bd_test_worker], nil)
     assert is_pid(pid)
     text = Remote.pid_text(pid)
     assert {:ok, ^pid} = Remote.parse_pid(c.node, text)
-    assert {:ok, report} = BeamDeck.Diagnostics.Process.inspect_process(c.node, text, c.opts)
+    assert {:ok, report} = ProcessDiagnostics.inspect_process(c.node, text, c.opts)
     assert report.registered_name == "bd_test_worker"
     assert report.stack != []
     assert Enum.any?(report.ancestry, &(&1[:name] == "bd_test_sup"))
@@ -31,26 +35,36 @@ defmodule BeamDeck.V11IntegrationTest do
     assert %{status: "present", pid: old} = Watchlist.resolve(c.node, "bd_test_worker")
     pid = Remote.call(c.node, :erlang, :whereis, [:bd_test_worker], nil)
     assert {:ok, true} = Remote.call_raw(c.node, :erlang, :exit, [pid, :kill])
+
     TestPeer.eventually(fn ->
       case Watchlist.resolve(c.node, "bd_test_worker") do
         %{status: "present", pid: current} -> current != old
         _ -> false
       end
     end)
-    assert {:ok, pin} = Watchlist.normalize(%{"kind" => "registered_process", "node" => c.name, "name" => "bd_test_worker"})
+
+    assert {:ok, pin} =
+             Watchlist.normalize(%{
+               "kind" => "registered_process",
+               "node" => c.name,
+               "name" => "bd_test_worker"
+             })
+
     refute Map.has_key?(pin, "pid")
-    assert %{status: "missing"} = Watchlist.resolve(c.node, "name_that_has_never_been_an_atom_928349823")
+
+    assert %{status: "missing"} =
+             Watchlist.resolve(c.node, "name_that_has_never_been_an_atom_928349823")
   end
 
   test "metadata-only ETS inspection and cap run against actual named and private tables", c do
-    assert {:ok, report} = BeamDeck.Diagnostics.Ets.inspect_tables(c.node, "memory", c.opts)
+    assert {:ok, report} = EtsDiagnostics.inspect_tables(c.node, "memory", c.opts)
     row = Enum.find(report.top, &(&1.name == "bd_test_table"))
     assert row && row.size == 1
     assert row.memory_bytes == row.memory_words * report.wordsize
     refute Json.encode(report) =~ "BD_FIXTURE_ETS"
     assert {:ok, 12} = Remote.call_raw(c.node, :bd_test_worker, :make_tables, [12])
     bounded = Map.put(c.opts, "ets_max_tables", 4)
-    assert {:ok, partial} = BeamDeck.Diagnostics.Ets.inspect_tables(c.node, "size", bounded)
+    assert {:ok, partial} = EtsDiagnostics.inspect_tables(c.node, "size", bounded)
     assert partial.partial
     assert partial.attempted_tables == 4
     assert partial.scanned_tables <= 4
@@ -64,7 +78,10 @@ defmodule BeamDeck.V11IntegrationTest do
     assert Enum.all?(sample, &(&1.utilization >= 0 and &1.utilization <= 1))
     assert is_list(Remote.call(c.node, :erlang, :statistics, [:scheduler_wall_time], nil))
     assert {:ok, true} = Remote.call_raw(c.node, :erlang, :exit, [owner, :kill])
-    TestPeer.eventually(fn -> Remote.call(c.node, :erlang, :statistics, [:scheduler_wall_time], nil) == :undefined end)
+
+    TestPeer.eventually(fn ->
+      Remote.call(c.node, :erlang, :statistics, [:scheduler_wall_time], nil) == :undefined
+    end)
   end
 
   test "panel close rolls back an actual scheduler trial", c do
@@ -95,7 +112,14 @@ defmodule BeamDeck.V11IntegrationTest do
   test "lease expiry and owner loss restore the actual target", c do
     start_supervised!(BudgetTrial)
     {rows, budget, nodes} = proposal(c)
-    owner = spawn(fn -> receive do :stop -> :ok end end)
+
+    owner =
+      spawn(fn ->
+        receive do
+          :stop -> :ok
+        end
+      end)
+
     on_exit(fn -> Elixir.Process.exit(owner, :kill) end)
     BudgetTrial.panel(true, 1, owner)
     assert {:ok, _} = BudgetTrial.begin(rows, budget, nodes, 1, 5_000)
@@ -142,29 +166,58 @@ defmodule BeamDeck.V11IntegrationTest do
 
   defp proposal(c, current \\ 3) do
     {[%{"node" => c.name, "current" => current, "suggested" => 1}],
-      [%{node: c.name, current: current, suggested: 1}],
-      [%{name: c.name, attached: true, local: true, schedulers_online: current,
-        creation: Remote.call(c.node, :erlang, :system_info, [:creation], nil),
-        os_pid: Remote.call(c.node, :os, :getpid, [], ~c"0") |> to_string() |> String.to_integer()}]}
+     [%{node: c.name, current: current, suggested: 1}],
+     [
+       %{
+         name: c.name,
+         attached: true,
+         local: true,
+         schedulers_online: current,
+         creation: Remote.call(c.node, :erlang, :system_info, [:creation], nil),
+         os_pid:
+           Remote.call(c.node, :os, :getpid, [], ~c"0") |> to_string() |> String.to_integer()
+       }
+     ]}
   end
+
   defp schedulers(node), do: Remote.call(node, :erlang, :system_info, [:schedulers_online], nil)
 
   test "GC rejects a report from another VM incarnation without collecting", c do
     {:ok, identity} = Remote.identity(c.node)
     pid = Remote.call(c.node, :erlang, :whereis, [:bd_test_worker], nil)
-    assert {:error, :target_restarted} = Remote.trigger_gc(c.node, Remote.pid_text(pid), identity.creation + 1)
+
+    assert {:error, :target_restarted} =
+             Remote.trigger_gc(c.node, Remote.pid_text(pid), identity.creation + 1)
+
     assert {:ok, true} = Remote.trigger_gc(c.node, Remote.pid_text(pid), identity.creation)
   end
 
   test "OTP 28 trace session exits with its actual parent without replacing system_monitor", c do
-    otp = Remote.call(c.node, :erlang, :system_info, [:otp_release], ~c"0") |> to_string() |> String.to_integer()
+    otp =
+      Remote.call(c.node, :erlang, :system_info, [:otp_release], ~c"0")
+      |> to_string()
+      |> String.to_integer()
+
     if otp >= 28 do
-      parent = spawn(fn -> receive do :stop -> :ok end end)
+      parent =
+        spawn(fn ->
+          receive do
+            :stop -> :ok
+          end
+        end)
+
       on_exit(fn -> Process.exit(parent, :kill) end)
       before = Remote.call(c.node, :erlang, :system_monitor, [], nil)
-      assert {:ok, probe} = BeamDeck.DeepEvents.start(c.node, Config.defaults()["event_thresholds"], parent)
+
+      assert {:ok, probe} =
+               BeamDeck.DeepEvents.start(c.node, Config.defaults()["event_thresholds"], parent)
+
       Process.exit(parent, :kill)
-      TestPeer.eventually(fn -> Remote.call(c.node, :erlang, :is_process_alive, [probe], true) == false end)
+
+      TestPeer.eventually(fn ->
+        Remote.call(c.node, :erlang, :is_process_alive, [probe], true) == false
+      end)
+
       assert Remote.call(c.node, :erlang, :system_monitor, [], nil) == before
       assert :ok = BeamDeck.DeepEvents.stop(c.node, probe)
       assert Remote.call(c.node, :code, :is_loaded, [:nshkr_beam_deck_probe], :unknown) == false
@@ -181,8 +234,13 @@ defmodule BeamDeck.V11IntegrationTest do
     on_exit(fn -> File.rm_rf!(dir) end)
     path = Path.join(dir, "erl_crash.dump")
     assert {:ok, :ok} = Remote.call_raw(c.node, :file, :set_cwd, [String.to_charlist(dir)])
-    assert {:ok, true} = Remote.call_raw(c.node, :os, :putenv, [~c"ERL_CRASH_DUMP", String.to_charlist(path)])
-    assert {:ok, true} = Remote.call_raw(c.node, :os, :putenv, [~c"ERL_CRASH_DUMP_SECONDS", ~c"2"])
+
+    assert {:ok, true} =
+             Remote.call_raw(c.node, :os, :putenv, [~c"ERL_CRASH_DUMP", String.to_charlist(path)])
+
+    assert {:ok, true} =
+             Remote.call_raw(c.node, :os, :putenv, [~c"ERL_CRASH_DUMP_SECONDS", ~c"2"])
+
     {:ok, identity} = Remote.identity(c.node)
     pid = String.to_integer(identity.os_pid)
     runtime = Enum.find(BeamDeck.Procfs.snapshot().runtimes, &(&1.pid == pid))
@@ -190,7 +248,10 @@ defmodule BeamDeck.V11IntegrationTest do
     before = %{runtimes: [Map.put(runtime, :node_name, c.name)]}
     Remote.call_raw(c.node, :erlang, :halt, [~c"BEAM_DECK_CONTROLLED_TEST_CRASH"], 4000)
     TestPeer.eventually(fn -> not File.exists?("/proc/#{pid}") end)
-    [exit] = BeamDeck.CrashDump.disappeared(before, %{runtimes: []}, System.system_time(:millisecond))
+
+    [exit] =
+      BeamDeck.CrashDump.disappeared(before, %{runtimes: []}, System.system_time(:millisecond))
+
     report = BeamDeck.CrashDump.triage(exit, c.opts)
     assert report.status == "matched"
     assert report.bytes_read <= c.opts["crash_dump_read_bytes"]
@@ -199,5 +260,4 @@ defmodule BeamDeck.V11IntegrationTest do
     refute Json.encode(report) =~ "BD_FIXTURE_BINARY"
     refute Json.encode(report) =~ "BD_FIXTURE_ETS"
   end
-
 end

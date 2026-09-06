@@ -106,8 +106,7 @@ BarWidget {
 
     OpticalGlyph {
       anchors.centerIn: parent
-      anchors.horizontalCenterOffset:
-        root.vertical ? 0 : 4
+      anchors.horizontalCenterOffset: 0
 
       width: Style.bar.iconCanvas
       height: Style.bar.iconCanvas

@@ -2,6 +2,7 @@ defmodule BeamDeck.Discovery do
   @moduledoc false
 
   @node_re ~r/^[A-Za-z0-9_.-]+@[A-Za-z0-9_.:-]+$/
+  @helper_node_re ~r/^beam_deck_[0-9]+(?:@|$)/
 
   def candidates(config, learned \\ []) do
     epmd = epmd_nodes()
@@ -10,8 +11,7 @@ defmodule BeamDeck.Discovery do
 
     (epmd ++ explicit ++ learned)
     |> Enum.uniq()
-    |> Enum.reject(&is_nil/1)
-    |> Enum.reject(&helper_node?/1)
+    |> Enum.reject(&(is_nil(&1) or helper_node?(&1)))
     |> Enum.take(64)
   end
 
@@ -21,7 +21,7 @@ defmodule BeamDeck.Discovery do
     case :net_adm.names() do
       {:ok, names} ->
         for {name, _port} <- names,
-            not String.starts_with?(to_string(name), "beam_deck_") do
+            not helper_node_name?(name) do
           safe_node("#{name}@#{host}")
         end
 
@@ -90,31 +90,53 @@ defmodule BeamDeck.Discovery do
   def apply_cookie(_), do: :skip
 
   defp safe_node(name) do
-    if BeamDeck.Protocol.node_name?(name) do
-      :global.trans({{__MODULE__, :admission}, self()}, fn ->
-        known = :persistent_term.get({__MODULE__, :known}, %{})
-        cond do
-          Map.has_key?(known, name) -> known[name]
-          map_size(known) >= 1_024 -> nil
-          true ->
-            atom = String.to_atom(name)
-            :persistent_term.put({__MODULE__, :known}, Map.put(known, name, atom))
-            atom
-        end
-      end, [node()])
+    if BeamDeck.Protocol.node_name?(name),
+      do: admit_node(name)
+  end
+
+  defp admit_node(name) do
+    :global.trans(
+      {{__MODULE__, :admission}, self()},
+      fn -> admitted_node(name) end,
+      [node()]
+    )
+  end
+
+  defp admitted_node(name) do
+    known = :persistent_term.get({__MODULE__, :known}, %{})
+
+    cond do
+      Map.has_key?(known, name) ->
+        known[name]
+
+      map_size(known) >= 1_024 ->
+        nil
+
+      true ->
+        atom = String.to_atom(name)
+
+        :persistent_term.put(
+          {__MODULE__, :known},
+          Map.put(known, name, atom)
+        )
+
+        atom
     end
   end
 
-  defp helper_node?(node), do: node |> Atom.to_string() |> String.starts_with?("beam_deck_")
+  defp helper_node?(node), do: helper_node_name?(node)
+  defp helper_node_name?(node), do: Regex.match?(@helper_node_re, to_string(node))
 
   def local_short_host do
     {:ok, host} = :inet.gethostname()
     to_string(host)
   end
+
   def existing_node(name) do
-    if BeamDeck.Protocol.node_name?(name), do: {:ok, String.to_existing_atom(name)}, else: {:error, :invalid_node}
+    if BeamDeck.Protocol.node_name?(name),
+      do: {:ok, String.to_existing_atom(name)},
+      else: {:error, :invalid_node}
   rescue
     ArgumentError -> {:error, :unknown_node}
   end
-
 end

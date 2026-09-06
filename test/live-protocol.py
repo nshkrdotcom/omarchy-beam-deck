@@ -90,14 +90,19 @@ def main() -> None:
         with socket.socket() as probe:
             probe.bind(("127.0.0.1", 0))
             port = probe.getsockname()[1]
-        host = socket.gethostname().split(".")[0]
-        short_name = "bd_protocol_" + secrets.token_hex(4)
-        target = f"{short_name}@{host}"
+        # The private EPMD listens only on loopback. Use explicit long names
+        # on the same loopback address so Erlang distribution cannot resolve
+        # the machine hostname to a non-loopback interface and escape the
+        # isolated test topology.
+        host = "127.0.0.1"
+        node_name = "bd_protocol_" + secrets.token_hex(4)
+        target = f"{node_name}@{host}"
         env = {key: val for key, val in os.environ.items()
                if key not in ("ERL_FLAGS", "ERL_AFLAGS", "ERL_ZFLAGS") and not key.startswith("BEAM_DECK_")}
         env.update(HOME=str(home), XDG_CONFIG_HOME=str(home / "config"),
                    XDG_CACHE_HOME=str(home / "cache"), XDG_STATE_HOME=str(home / "state"),
-                   ERL_EPMD_PORT=str(port), BEAM_DECK_TEST_COOKIE=cookie)
+                   ERL_EPMD_PORT=str(port), BEAM_DECK_TEST_COOKIE=cookie,
+                   BEAM_DECK_LONGNAMES="1", BEAM_DECK_NODE_HOST=host)
         config_dir = home / "config" / "beam-deck"
         config_dir.mkdir(parents=True)
         (config_dir / "config.json").write_text(json.dumps({
@@ -121,7 +126,7 @@ def main() -> None:
                               'ets:insert(bd_protocol_table,{private_data,"DO_NOT_EXPORT_ETS_CONTENT"}),'
                               "receive stop -> ok end.")
                 peer = subprocess.Popen([shutil.which("erl"), "+S", "3:3", "+SDcpu", "1:1", "+SDio", "1",
-                                         "-sname", short_name, "-setcookie", cookie, "-noshell", "-eval", expression],
+                                         "-name", target, "-setcookie", cookie, "-noshell", "-eval", expression],
                                         cwd=home, env=env, stdout=log, stderr=log)
                 daemon = subprocess.Popen([str(ROOT / "bin" / "beam-deckd")], cwd=ROOT, env=env,
                                           stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)

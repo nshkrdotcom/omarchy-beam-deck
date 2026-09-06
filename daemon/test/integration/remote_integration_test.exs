@@ -12,7 +12,16 @@ defmodule BeamDeck.RemoteIntegrationTest do
 
     case :peer.start(%{
            name: :beam_deck_test_target,
-           args: [~c"+S", ~c"3:3", ~c"+SDcpu", ~c"1:1", ~c"+SDio", ~c"1", ~c"-setcookie", ~c"beam_deck_test_cookie"]
+           args: [
+             ~c"+S",
+             ~c"3:3",
+             ~c"+SDcpu",
+             ~c"1:1",
+             ~c"+SDio",
+             ~c"1",
+             ~c"-setcookie",
+             ~c"beam_deck_test_cookie"
+           ]
          }) do
       {:ok, peer, node} ->
         on_exit(fn ->
