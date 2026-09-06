@@ -499,7 +499,7 @@ Panel {
         Button { text: nd.node && nd.node.deep_events_active ? "Stop events" : "Deep events"; enabled: !!nd.node.deep_events_capable; onClicked: if (root.service) root.service.deepEvents(nd.node.name, !nd.node.deep_events_active) }
         Button { text: "Restore"; onClicked: if (root.service) root.service.restore(nd.node.name) }
       }
-      Text { textFormat: Text.PlainText; visible: nd.node && nd.node.process_scan_error; width: parent.width; text: "Process scan: " + nd.node.process_scan_error; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+      Text { textFormat: Text.PlainText; visible: !!(nd.node && nd.node.process_scan_error); width: parent.width; text: "Process scan: " + nd.node.process_scan_error; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
       Repeater {
         model: nd.node && nd.node.hot_processes ? nd.node.hot_processes.slice(0, 12) : []
         BorderSurface {
