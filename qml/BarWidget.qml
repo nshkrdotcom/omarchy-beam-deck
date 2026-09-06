@@ -27,7 +27,10 @@ BarWidget {
     + Number(summary.critical_count || 0)
 
   readonly property bool critical:
-    Number(summary.critical_count || 0) > 0
+    Number(summary.critical_count || 0) > 0 || Number(summary.critical_incident_count || 0) > 0
+
+  readonly property string incidentTitle: (snapshotData.incidents || []).filter(function(i) { return i.status === "active" }).length ? String(snapshotData.incidents.filter(function(i) { return i.status === "active" })[0].title).slice(0, 100) : ""
+  readonly property int watchProblems: Number(summary.watched_problem_count || 0)
 
   readonly property bool runtimeMissing:
     snapshotData.onboarding
@@ -50,16 +53,10 @@ BarWidget {
 
     active: root.critical
 
-    tooltipText:
-      root.runtimeMissing
-        ? "BEAM Deck — setup Elixir/OTP"
-        : root.runtimes === 0
-          ? "BEAM Deck — no runtimes"
-          : "BEAM Deck — " + root.runtimes + " runtime"
-            + (root.runtimes === 1 ? "" : "s")
-            + (root.warnings > 0
-               ? " — " + root.warnings + " alert"
-               : "")
+    tooltipText: root.runtimeMissing ? "BEAM Deck - setup Elixir/OTP"
+      : "BEAM Deck - " + root.runtimes + " local runtimes / " + Number(root.summary.attached_count || 0) + " attached"
+        + (root.incidentTitle ? "\n" + root.incidentTitle : "")
+        + (root.watchProblems ? "\n" + root.watchProblems + " watched identities need attention" : "")
 
     OpticalGlyph {
       anchors.centerIn: parent

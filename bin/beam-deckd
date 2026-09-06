@@ -15,7 +15,7 @@ emit_missing() {
   command -v erl >/dev/null 2>&1 && erl=true
   command -v elixir >/dev/null 2>&1 && elixir=true
   command -v mix >/dev/null 2>&1 && mix=true
-  printf '{"type":"snapshot","protocol":1,"onboarding":{"state":"runtime_missing","mise_available":%s,"erl_available":%s,"elixir_available":%s,"mix_available":%s,"install_command":"mise use -g erlang@latest elixir@latest"},"host":{"logical_cpus":0,"runtimes":[],"memory":{}},"nodes":[],"alerts":[],"budget":[],"history":[],"events":[],"summary":{"runtime_count":0,"distributed_count":0,"attached_count":0,"local_attached_count":0,"warning_count":0,"critical_count":0,"schedulers_online":0,"logical_cpus":0,"beam_rss_bytes":0,"process_count":0}}\n' "$mise" "$erl" "$elixir" "$mix"
+  printf '{"type":"snapshot","protocol":1,"onboarding":{"state":"runtime_missing","mise_available":%s,"erl_available":%s,"elixir_available":%s,"mix_available":%s,"install_command":"mise use -g erlang@latest elixir@latest"},"host":{"logical_cpus":0,"runtimes":[],"memory":{}},"nodes":[],"incidents":[],"forecasts":[],"budget_trial":null,"watchlist":{"entries":[],"error":null},"flight_recorder":{"frame_count":0,"timeline":[]},"crash_triage":[],"alerts":[],"budget":[],"history":[],"events":[],"summary":{"runtime_count":0,"distributed_count":0,"attached_count":0,"local_attached_count":0,"warning_count":0,"critical_count":0,"schedulers_online":0,"logical_cpus":0,"beam_rss_bytes":0,"process_count":0}}\n' "$mise" "$erl" "$elixir" "$mix"
 }
 
 beam_mode() {
@@ -72,7 +72,7 @@ run_mix() {
 }
 
 if ! run_mix compile >>"$LOG" 2>&1; then
-  printf '{"type":"error","error":"daemon_compile_failed","reason":"See %s"}\n' "$LOG"
+  printf '%s\n' '{"type":"error","error":"daemon_compile_failed","reason":"Compilation failed. See the private XDG state beam-deck/beam-deckd.log; OTP 27+ and Elixir 1.18+ are required."}'
   exit 70
 fi
 

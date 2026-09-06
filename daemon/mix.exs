@@ -4,8 +4,8 @@ defmodule BeamDeck.MixProject do
   def project do
     [
       app: :beam_deck,
-      version: "1.0.0",
-      elixir: ">= 1.15.0",
+      version: "1.1.0",
+      elixir: ">= 1.18.0",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       erlc_paths: ["src"],
@@ -14,7 +14,7 @@ defmodule BeamDeck.MixProject do
   end
 
   def application do
-    base = [extra_applications: [:logger, :runtime_tools]]
+    base = [extra_applications: [:logger, :runtime_tools, :crypto]]
     if Mix.env() == :test, do: base, else: Keyword.put(base, :mod, {BeamDeck.Application, []})
   end
 

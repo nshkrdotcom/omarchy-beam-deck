@@ -29,6 +29,14 @@ defmodule BeamDeck.Procfs do
     }
   end
 
+  def verify_local_nodes(host, nodes) do
+    pids = MapSet.new(host.runtimes, & &1.pid)
+    Enum.map(nodes, fn node ->
+      verified = node[:local] == true and node[:attached] == true and MapSet.member?(pids, node[:os_pid])
+      Map.put(node, :local, verified)
+    end)
+  end
+
   defp beam_pids(root) do
     root
     |> Path.join("[0-9]*")
@@ -68,6 +76,8 @@ defmodule BeamDeck.Procfs do
          threads: int(status_map["Threads"]),
          cpu_ticks: fields.utime + fields.stime,
          state: fields.state,
+         starttime: fields.starttime,
+         crash_dump_fingerprint: BeamDeck.CrashDump.fingerprint(cwd),
          os_only: true
        }}
     else
@@ -80,7 +90,7 @@ defmodule BeamDeck.Procfs do
     # stable fields begin after the final ") ".
     case :binary.matches(text, ") ") do
       [] ->
-        %{state: "?", utime: 0, stime: 0}
+        %{state: "?", utime: 0, stime: 0, starttime: 0}
 
       matches ->
         {idx, _len} = List.last(matches)
@@ -90,7 +100,8 @@ defmodule BeamDeck.Procfs do
         %{
           state: Enum.at(fields, 0, "?"),
           utime: to_i(Enum.at(fields, 11)),
-          stime: to_i(Enum.at(fields, 12))
+          stime: to_i(Enum.at(fields, 12)),
+          starttime: to_i(Enum.at(fields, 19))
         }
     end
   end
@@ -105,6 +116,14 @@ defmodule BeamDeck.Procfs do
   def redact_argv(argv) when is_list(argv), do: do_redact(argv, []) |> Enum.reverse()
 
   defp do_redact([], acc), do: acc
+
+  defp do_redact(["-setcookie", node, secret | rest], acc) when is_binary(node) do
+    if String.contains?(node, "@") do
+      do_redact(rest, ["[REDACTED]", node, "-setcookie" | acc])
+    else
+      do_redact([secret | rest], ["[REDACTED]", "-setcookie" | acc])
+    end
+  end
 
   defp do_redact([flag, _secret | rest], acc) when flag in ["-setcookie", "--cookie"] do
     do_redact(rest, ["[REDACTED]", flag | acc])
@@ -132,7 +151,7 @@ defmodule BeamDeck.Procfs do
       old = prior[runtime.pid]
 
       pct =
-        if old,
+        if old && old[:starttime] == runtime[:starttime],
           do: max(runtime.cpu_ticks - old.cpu_ticks, 0) / delta_host * cpus * 100.0,
           else: nil
 

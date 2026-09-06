@@ -31,4 +31,13 @@ defmodule BeamDeck.ProcfsTest do
              "4"
            ]
   end
+
+  test "a localhost-looking name alone cannot enter the physical host budget" do
+    host = %{runtimes: [%{pid: 10}]}
+    rows = [%{name: "real@localhost", attached: true, local: true, os_pid: 10},
+      %{name: "tunnel@localhost", attached: true, local: true, os_pid: 11},
+      %{name: "remote@elsewhere", attached: true, local: false, os_pid: 10}]
+    assert Enum.map(Procfs.verify_local_nodes(host, rows), & &1.local) == [true, false, false]
+  end
+
 end

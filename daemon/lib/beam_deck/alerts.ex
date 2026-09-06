@@ -48,7 +48,7 @@ defmodule BeamDeck.Alerts do
       |> Enum.flat_map(fn node ->
         old = old_nodes[node.name]
 
-        limits(node, config) ++
+        limits(node, config) ++ port_limit(node, config) ++
           runq(node, config) ++
           mailboxes(node, old, config) ++
           expected_links(node) ++
@@ -83,6 +83,15 @@ defmodule BeamDeck.Alerts do
         message: pct(atom_ratio) <> " of atom table used"
       }
     )
+  end
+
+  defp port_limit(node, config) do
+    usage = ratio(node[:ports], node[:port_limit])
+    if usage >= config["process_usage_warn"] do
+      [%{id: "#{node.name}.port_limit", node: node.name, severity: if(usage >= 0.95, do: "critical", else: "warning"), title: "Port table pressure", message: pct(usage) <> " of port table used"}]
+    else
+      []
+    end
   end
 
   defp runq(node, config) do

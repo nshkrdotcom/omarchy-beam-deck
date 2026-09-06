@@ -1,0 +1,146 @@
+{
+  "product": "BEAM Deck",
+  "version": "1.1.0",
+  "recorded_at_utc": "2026-09-06T02:50:59.463607+00:00",
+  "release_validated": false,
+  "base": "repomix-output(20260906-015959).xml",
+  "environment": {
+    "os": [
+      "PRETTY_NAME=\"Debian GNU/Linux 13 (trixie)\"",
+      "NAME=\"Debian GNU/Linux\"",
+      "VERSION_ID=\"13\"",
+      "VERSION=\"13 (trixie)\"",
+      "VERSION_CODENAME=trixie"
+    ],
+    "node": "v22.16.0",
+    "python": "3.13.5",
+    "missing_tools": [
+      "erl",
+      "elixir",
+      "mix",
+      "mise",
+      "qml",
+      "qmllint",
+      "qmltestrunner",
+      "quickshell",
+      "omarchy",
+      "shellcheck"
+    ]
+  },
+  "executed_javascript_tests": {
+    "passed": 13,
+    "failed": 0,
+    "skipped": 0
+  },
+  "exunit_source_inventory": {
+    "declared_cases": 97,
+    "integration_declarations": 15,
+    "executed": false,
+    "by_file": {
+      "daemon/test/history_test.exs": 2,
+      "daemon/test/forecast_test.exs": 9,
+      "daemon/test/budget_trial_test.exs": 1,
+      "daemon/test/crash_dump_test.exs": 4,
+      "daemon/test/discovery_test.exs": 1,
+      "daemon/test/config_test.exs": 5,
+      "daemon/test/alerts_test.exs": 6,
+      "daemon/test/input_test.exs": 1,
+      "daemon/test/flight_recorder_test.exs": 5,
+      "daemon/test/watchlist_test.exs": 5,
+      "daemon/test/diagnostics_test.exs": 6,
+      "daemon/test/procfs_test.exs": 4,
+      "daemon/test/bundle_test.exs": 3,
+      "daemon/test/incidents_test.exs": 5,
+      "daemon/test/inspection_test.exs": 4,
+      "daemon/test/redaction_test.exs": 6,
+      "daemon/test/protocol_test.exs": 3,
+      "daemon/test/remote_test.exs": 3,
+      "daemon/test/json_test.exs": 4,
+      "daemon/test/restart_churn_test.exs": 3,
+      "daemon/test/budget_test.exs": 2,
+      "daemon/test/integration/v11_integration_test.exs": 12,
+      "daemon/test/integration/remote_integration_test.exs": 3
+    }
+  },
+  "checks": [
+    {
+      "command": "make static",
+      "status": "passed",
+      "exit_code": 0,
+      "details": "13 JavaScript cases passed, 5 QML files delimiter checked, 89 embedded JS bodies parsed; forced runtime-missing JSONL, manifest, scripts, version/default parity, command/privacy/docs contracts passed."
+    },
+    {
+      "command": "bash -n bin/beam-deck* test/*.sh (one file per invocation)",
+      "status": "passed",
+      "files": 6,
+      "exit_code": 0
+    },
+    {
+      "command": "Python ast.parse(test/live-protocol.py)",
+      "status": "passed",
+      "details": "Syntax only; not the BEAM-dependent execution path."
+    },
+    {
+      "command": "make check",
+      "status": "blocked",
+      "exit_code": 2,
+      "details": "Static prerequisites passed; recipe explicitly exits 127 for missing Mix, surfaced by make as exit 2. No full release acceptance."
+    },
+    {
+      "command": "python3 test/live-protocol.py",
+      "status": "blocked",
+      "exit_code": 1,
+      "details": "UNRUN: real protocol validation requires erl, epmd, elixir, mix"
+    },
+    {
+      "command": "Elixir lexical do/fn/end audit",
+      "status": "passed_limited",
+      "files": 54,
+      "details": "Prism-tokenizer block audit only, not an Elixir grammar/compiler or BEAM execution check."
+    },
+    {
+      "command": "mix deps.get / format / compile --warnings-as-errors / test / BEAM_DECK_INTEGRATION=1 mix test / credo --strict / dialyzer",
+      "status": "unrun",
+      "details": "Erlang, Elixir and Mix are absent; packages could not be fetched. No generated lockfile."
+    },
+    {
+      "command": "omarchy plugin validate .; Quickshell/Qt QML lint/render and desktop acceptance",
+      "status": "unrun",
+      "details": "No Omarchy/Quickshell/Qt QML tools or desktop session."
+    },
+    {
+      "command": "shellcheck",
+      "status": "unrun",
+      "details": "Executable unavailable; Bash syntax and shell behavior tests passed instead."
+    },
+    {
+      "command": "git diff --check (reconstructed base committed in isolated audit checkout)",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "command": "repository-local Markdown link check",
+      "status": "passed",
+      "checked_links": 21,
+      "missing": 0
+    },
+    {
+      "command": "changed-only ZIP membership, safe paths, executable modes, CRC and base-plus-overlay byte comparison",
+      "status": "passed",
+      "details": "Validated programmatically during packaging; no unchanged files or complete-repository wrapper included."
+    }
+  ],
+  "tdd_evidence": {
+    "initial_ui_state": "RED module absent, then GREEN 12 production state tests",
+    "process_identity_guard": "RED 12 passed/1 failed before canActOnProcess; GREEN 13 passed after guard",
+    "beam": "Test sources authored before/alongside implementation. Red/green BEAM execution unavailable; no passing counts claimed."
+  },
+  "delivery": {
+    "archive": "beam-deck-v1.1-overlay.zip",
+    "format": "repository-relative changed/added-only ZIP overlay",
+    "files": 76,
+    "unchanged_files_omitted": 17,
+    "deletions": 0,
+    "binary_preview": "absent from source pack; not replaced"
+  }
+}

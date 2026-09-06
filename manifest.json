@@ -2,11 +2,15 @@
   "schemaVersion": 1,
   "id": "nshkr.beam-deck",
   "name": "BEAM Deck",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "nshkrdotcom",
   "license": "MIT",
-  "description": "Host-aware BEAM/OTP cockpit for Omarchy: local runtime census, distributed-node inspection, process pathology signals, topology, and reversible scheduler controls.",
-  "kinds": ["service", "bar-widget", "panel"],
+  "description": "Agentless BEAM cockpit: conservative resource forecasts, incident evidence, flight recorder, focused OTP diagnostics, persistent pins, and reversible scheduler trials.",
+  "kinds": [
+    "service",
+    "bar-widget",
+    "panel"
+  ],
   "keepLoaded": true,
   "entryPoints": {
     "service": "qml/Service.qml",

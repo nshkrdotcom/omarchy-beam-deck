@@ -5,8 +5,11 @@ defmodule BeamDeck.RestartChurn do
 
   def update(events, nodes, previous_nodes, now_ms, deep_due, window_ms \\ @window_ms)
 
-  def update(events, nodes, _previous_nodes, now_ms, false, window_ms) do
-    events = prune(events, now_ms, window_ms)
+  def update(events, nodes, previous_nodes, now_ms, false, window_ms) do
+    previous = Map.new(previous_nodes || [], &{&1.name, &1})
+    events = Enum.reduce(nodes, events, fn node, acc ->
+      if restarted?(previous[node.name], node), do: drop_node(acc, node.name), else: acc
+    end) |> prune(now_ms, window_ms)
     {events, decorate(nodes, events)}
   end
 
@@ -24,14 +27,28 @@ defmodule BeamDeck.RestartChurn do
   end
 
   defp record_node_restarts(%{attached: true} = node, events, previous, now_ms) do
-    old_registered = previous |> Map.get(node.name) |> registered_map()
-
-    Enum.reduce(node[:registered_processes] || [], events, fn process, acc ->
-      record_process_restart(node.name, process, old_registered, acc, now_ms)
-    end)
+    old = Map.get(previous, node.name)
+    if restarted?(old, node) do
+      drop_node(events, node.name)
+    else
+      old_registered = registered_map(old)
+      Enum.reduce(node[:registered_processes] || [], events, fn process, acc ->
+        record_process_restart(node.name, process, old_registered, acc, now_ms)
+      end)
+    end
   end
 
   defp record_node_restarts(_node, events, _previous, _now_ms), do: events
+
+  defp restarted?(nil, _node), do: false
+  defp restarted?(old, node) do
+    node[:attached] == true and
+      ((is_integer(old[:creation]) and is_integer(node[:creation]) and old.creation != node.creation) or
+       (is_integer(old[:uptime_ms]) and is_integer(node[:uptime_ms]) and node.uptime_ms < old.uptime_ms))
+  end
+  defp drop_node(events, node) do
+    events |> Enum.reject(fn {{name, _process}, _times} -> name == node end) |> Map.new()
+  end
 
   defp record_process_restart(node_name, process, old_registered, events, now_ms) do
     case old_registered[process.name] do

@@ -30,4 +30,13 @@ defmodule BeamDeck.RestartChurnTest do
   defp node(name, registered) do
     %{name: name, attached: true, registered_processes: registered}
   end
+
+  test "light polls clear churn across VM creation changes" do
+    old = node("api@ws", [%{name: "Orders.Server", pid: "<0.1.0>"}]) |> Map.put(:creation, 1)
+    current = Map.put(old, :creation, 2)
+    {events, [sample]} = RestartChurn.update(%{{"api@ws", "Orders.Server"} => [9000]}, [current], [old], 10000, false)
+    assert events == %{}
+    assert sample.restart_churn == []
+  end
+
 end

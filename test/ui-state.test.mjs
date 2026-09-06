@@ -1,0 +1,86 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const file = new URL('../qml/DeckState.js', import.meta.url);
+const context = vm.createContext({});
+vm.runInContext(fs.readFileSync(file, 'utf8').replace(/^\.pragma library\s*/, ''), context);
+const S = context;
+const plain = x => JSON.parse(JSON.stringify(x));
+
+test('safe defaults cover every optional 1.1 collection', () => {
+  const s = S.emptySnapshot();
+  for (const key of ['incidents', 'forecasts', 'crash_triage']) assert.deepEqual(plain(s[key]), []);
+  assert.equal(s.flight_recorder.frame_count, 0);
+  assert.equal(s.budget_trial, null);
+});
+test('job updates are immutable and terminal results cannot regress', () => {
+  const input = { x: { request_id: 'x', kind: 'inspect_process', status: 'queued', updated_at: 1 } };
+  const running = S.acceptJob(input, { request_id: 'x', kind: 'inspect_process', status: 'started' }, 2);
+  assert.equal(input.x.status, 'queued');
+  const done = S.acceptJob(running, { request_id: 'x', kind: 'inspect_process', status: 'complete', result: { pid: '<0.1.0>' } }, 3);
+  assert.equal(S.acceptJob(done, { request_id: 'x', status: 'started' }, 4).x.status, 'complete');
+});
+test('request identity, kind and node protect a newly selected target', () => {
+  const jobs = { old: { request_id: 'old', kind: 'inspect_process', node: 'a@host', status: 'complete' } };
+  assert.equal(S.jobFor(jobs, 'new', 'inspect_process', 'b@host'), null);
+  assert.equal(S.jobFor(jobs, 'old', 'inspect_ets', 'a@host'), null);
+  assert.equal(S.jobFor(jobs, 'old', 'inspect_process', 'b@host'), null);
+});
+test('job history is count and age bounded', () => {
+  const jobs = {};
+  for (let i=0; i<100; i++) jobs['j'+i] = {request_id:'j'+i, status:'complete', updated_at:i};
+  assert.equal(Object.keys(S.pruneJobs(jobs, 100)).length, 32);
+  assert.equal(Object.keys(S.pruneJobs(jobs, 200000)).length, 0);
+});
+test('historical, disconnected and stale snapshots cannot mutate', () => {
+  const s = {at_ms:10000, nodes:[{name:'n', attached:true}]};
+  assert.equal(S.canMutate(s, false, true, 12000, 'n'), true);
+  assert.equal(S.canMutate(s, true, true, 12000, 'n'), false);
+  assert.equal(S.canMutate(s, false, false, 12000, 'n'), false);
+  assert.equal(S.canMutate(s, false, true, 50000, 'n'), false);
+  assert.equal(S.canMutate(s, false, true, 12000, 'missing'), false);
+});
+test('notification content remains data in fixed argv', () => {
+  const args = plain(S.notificationArgs({urgency:'critical', title:'$(touch /tmp/pwn)', body:'; rm -rf /'}));
+  assert.deepEqual(args, ['omarchy-notification-send', '-u', 'critical', '$(touch /tmp/pwn)', '; rm -rf /']);
+  assert.equal(S.notificationArgs({urgency:'--help', title:'x', body:'x'})[2], 'normal');
+});
+test('formatters do not invent zeros for missing data', () => {
+  assert.equal(S.bytes(null), '\u2014');
+  assert.equal(S.duration(null), '\u2014');
+  assert.equal(S.duration(60000), '1m');
+  assert.equal(S.signed(-3), '-3');
+  assert.equal(S.bytes(1048576), '1.0 MiB');
+});
+test('returning live invalidates late historical results', () => {
+  assert.equal(S.jobFor({x:{kind:'recorder_frame',status:'complete'}}, '', 'recorder_frame'), null);
+});
+test('search works for node, name and label without mutating input', () => {
+  const input=[{node:'api@host',label:'Orders'},{node:'worker@host',name:'Billing'}];
+  assert.equal(S.filterRows(input,'billing').length,1);
+  assert.equal(input.length,2);
+});
+test('process reports never stringify unrecognized payload fields', () => {
+  const text = S.processText({pid:'<0.1.0>',status:'waiting',messages:['SECRET'],process_state:'SECRET',stack:[]});
+  assert.equal(text.includes('SECRET'), false);
+  assert.equal(text.includes('<0.1.0>'), true);
+});
+test('frame diff explicitly labels noncomparable hot sets', () => {
+  assert.match(S.diffText({summary_delta:{beam_rss_bytes:42},nodes:[{node:'n',change:'retained',hot_set_comparable:false}]}), /unavailable/);
+});
+test('canceling the panel preserves noninteractive export jobs', () => {
+  const jobs={a:{status:'started',kind:'inspect_process'},b:{status:'started',kind:'export_bundle'}};
+  const canceled=S.cancelInteractive(jobs,10);
+  assert.equal(canceled.a.status,'canceled');
+  assert.equal(canceled.b.status,'started');
+});
+test('process actions require a fresh captured report from the same VM incarnation', () => {
+  const s = {at_ms:10000,nodes:[{name:'a@host',attached:true,creation:8}]};
+  const p = {node:'a@host',at_ms:9000,creation:8,pid:'<0.7.0>'};
+  assert.equal(S.canActOnProcess(s,p,false,true,12000),true);
+  assert.equal(S.canActOnProcess(s,{...p,creation:7},false,true,12000),false);
+  assert.equal(S.canActOnProcess(s,p,true,true,12000),false);
+  assert.equal(S.canActOnProcess(s,p,false,true,25000),false);
+  assert.equal(S.canActOnProcess(s,null,false,true,12000),false);
+});

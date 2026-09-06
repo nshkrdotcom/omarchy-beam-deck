@@ -1,31 +1,57 @@
-# Security
+# BEAM Deck 1.1 security and reversibility
 
-BEAM Deck talks to Erlang distribution. That is a trusted-control-plane protocol, not a read-only metrics protocol.
+## Trust boundary
 
-## Distribution cookies
+BEAM Deck connects to Erlang distribution, which grants powerful remote execution capability to a party with the correct cookie and connectivity. An agentless client is not a sandbox or a read-only authorization role. Use it only with nodes you are authorized to control and on trusted distribution networks. Keep development cookies/ports private; normal transport is not asserted to be encrypted. Harden the deployment's distribution/TLS/network boundary separately.
 
-Anyone who obtains a node's Erlang distribution cookie and can reach its distribution port may gain powerful remote code execution capabilities on that node. Do not expose development distribution ports to untrusted networks.
+The OS user running Omarchy, its plugin directory, the XDG configuration/state ancestors and monitored local development directories are trusted. A hostile same-UID process, root, compromised target VM or malicious peer with the cookie can defeat assumptions beyond this plugin's API. Local PID/hostname corroboration is not cryptographic physical-host attestation. Protect paths and investigate tunnel/namespace ambiguity before local scheduler trials.
 
-BEAM Deck uses the current user's normal cookie by default. For explicitly configured nodes, `cookie_env` names an environment variable; the cookie value itself is not written into BEAM Deck configuration, Omarchy `shell.json`, logs, or the repository by BEAM Deck.
+## Data minimization precedes redaction
 
-The local `/proc` census can see BEAM command lines. Before a command line enters a snapshot, BEAM Deck redacts secrets supplied through separated or inline `-setcookie` / `--cookie` arguments. The helper launcher also sets `umask 077`, so its XDG cache/state files are private to the user by default.
+Production diagnostic code does **not** collect arbitrary process state, process messages, full dictionaries, ETS keys/values, binary contents/addresses or environment variables. Process ancestry reads only `$ancestors`; stack entries omit arguments. Supervisor child IDs are projected as metadata rather than arbitrary terms. ETS output is a metadata allowlist. Crash triage does not expose the raw file/prefix or heap/process sections.
 
-## Deep Events probe
+Outgoing metadata is sanitized with depth/map/list/string bounds, sensitive-key filtering and exact known-cookie replacement, including atom keys/values. Export additionally excludes cwd/argv/command/config/config_path/cookie_env. Redaction is defense in depth, not proof that arbitrary data is safe. A previously unknown secret in a module name, label, source metadata or crash slogan cannot always be recognized. Review every export before sharing; names and counts can reveal internal architecture even without credentials.
 
-Deep Events explicitly loads namespaced `nshkr_beam_deck_probe` bytecode into the selected target node. It is not enabled automatically. The probe:
+The legacy `/proc` census includes local command/cwd metadata in live UI; distribution-cookie flag values are redacted. Arbitrary unrelated application CLI secrets are not guaranteed detectable. Exports remove command/cwd entirely. Only configured/default known cookies are exactly scrubbed; cookies supplied solely to another unrelated process are not a universal redaction dictionary.
 
-- contains no file or network I/O;
-- creates an isolated OTP trace session;
-- forwards selected system-monitor events to the BEAM Deck helper PID;
-- monitors that parent PID and destroys the trace session if the parent disappears;
-- is synchronously stopped, then deleted/soft-purged when disabled or when the BEAM Deck panel closes normally.
+## Cookies and files
 
-Review `daemon/src/nshkr_beam_deck_probe.erl` before enabling it on a sensitive node.
+Config uses `cookie_env` names, not cookie values. The variable must exist in the actual shell/helper environment. Cookie value creation remains bounded to validated config entries. Commands use existing observed node atoms; discovery has bounded name admission and no subnet scan.
 
-## Runtime mutations
+The legacy `beam-deck-remsh` helper passes a selected cookie to IEx with `--cookie`. OS process-list readers with sufficient permission may see it. Do not interpret UI/export redaction as a guarantee that this legacy path, third-party logger messages or the OS environment hides credentials. Prefer the user's normal protected Erlang cookie mechanism for sensitive deployments, and keep helper logs private.
 
-The panel can change `schedulers_online` and `dirty_cpu_schedulers_online`. These changes affect application scheduling immediately. BEAM Deck stores the first previous value and offers Restore. Normal helper shutdown also attempts restoration, but no userspace process can guarantee cleanup after SIGKILL, power loss, or its own VM crash. A target VM restart returns to its startup settings.
+The launcher uses umask 077. Watchlist/export directories are chmod 0700 and files 0600. Writes use exclusive temporary files, sync and atomic replacement after regular-file checks. Symlink/oversize config/watchlist leaves are rejected; failure preserves prior in-memory watchlist state. This is not an adversarial same-UID race-proof filesystem sandbox or a guarantee of directory durability after power loss.
 
-## Reporting a security issue
+Exports use generated filenames in the plugin's private exports directory, never a caller-supplied output path. The archive entry set is fixed; selected frame IDs cannot become filenames. Failed/canceled worker writes attempt temporary cleanup. Helper SIGKILL/power loss can leave temporary files; inspect and remove only plugin-owned `.tmp-*` files after ensuring the helper is stopped.
 
-Until a private security contact is published for the repository, do not include live cookies, private node names, internal addresses, or production crash dumps in a public issue. Reproduce with sanitized data first.
+## Remote operation bounds
+
+A dedicated collection worker and bounded diagnostic queue protect the input owner. Commands are capped at 16 KiB before JSON parsing; JSON nesting is capped at 32. Duplicate keys are rejected. Request IDs are bounded and deduplicated; frontend jobs have count/age retention. Notifications execute a fixed argument vector, not a shell-generated string.
+
+Target APIs such as native ETS enumeration, process binary-reference enumeration and observer process collection can materialize native lists before helper-side truncation. Configurable output/processing/deadline limits do not make those target allocations disappear. Canceling a client worker does not guarantee cancellation of a BIF already running remotely. Run focused diagnostics deliberately on very large/sensitive nodes; partial/unavailable output is not a clean bill of health.
+
+No UI field selects an arbitrary module/function/eval expression or arbitrary filesystem read/write path. IEx remains a separately launched trusted operator shell; it is intentionally powerful. The terminal helper quotes node/path strings and accepts validated node names.
+
+## Runtime changes and rollback
+
+Scheduler changes and GC are explicit. A process report must be fresh and from the same VM incarnation for UI GC. The daemon rechecks the expected creation identity and attached target. PID lifetime can still change between observation and execution; process exit is handled as an error. There is no auto-GC or auto-apply incident playbook.
+
+A scheduler trial validates the complete local proposal and journals before mutation. Defaults give at most 30 seconds unless Keep is explicitly accepted. Panel closure, lease expiry, partial failure and owner loss begin rollback. Applied values and first-original values are retained by a dedicated control owner, not a disposable worker. An RPC timeout is treated as uncertain, not assumed to mean no mutation.
+
+Rollback checks VM identity and whether the present value is the one BEAM Deck applied (or already the original). It refuses to clobber an externally changed value. Failures retain recovery state and become visible incidents. Kept/manual values remain restorable; normal shutdown attempts restoration. **SIGKILL, power loss, partitions and helper/target crashes cannot be guaranteed reversible without a resident target guard, which this product intentionally does not install.** Do not use the feature as a production transactional resource manager.
+
+## Deep Events
+
+Explicit activation loads `nshkr_beam_deck_probe` only after collision checks. It creates an isolated OTP 28+ trace session rather than stealing `system_monitor`, monitors the daemon owner, bounds metadata/rate/queue and destroys its session on stop/owner loss/overload. Normal stop acknowledgement precedes code delete/soft-purge. Another module/session is never deliberately replaced.
+
+An abrupt helper failure may leave the unloaded process's module bytecode resident, though its monitored trace session should end. Future activation refuses a pre-existing module rather than blindly replacing it. Verify ownership and the absence of live probe processes before manual delete/soft-purge. Cross-OTP module compatibility and actual overload/parent-loss teardown need matrix testing before release.
+
+## Crash triage
+
+Only the existing `erl_crash.dump` in a disappeared local runtime's cached cwd is considered. No recursive search, arbitrary read path, dump generation in user applications or dump relocation occurs. A new/changed, time-matched regular file is required; descriptor identity is checked and the default/maximum read is 262144 bytes. A partial header, redirected dump, old file or disabled dump may yield no match. A timestamp/cwd match is correlation, not proven runtime causality when multiple VMs share a directory.
+
+A slogan/current-function string is bounded and sanitized, but can itself contain sensitive identifiers. Raw bytes are never persisted by triage or included in diagnostics export. The test suite's intentional crash runs only in a disposable test-owned peer/temp directory.
+
+## Reporting
+
+Do not post live cookies, unsanitized dumps, raw helper logs, private node names or production exports in a public issue. Reproduce with a disposable peer and distinctive fake secrets. A private security contact is not declared by this repository; use an available private maintainer channel rather than inventing one. Current unverified gates and known deployment limitations are in [HANDOFF.md](HANDOFF.md).

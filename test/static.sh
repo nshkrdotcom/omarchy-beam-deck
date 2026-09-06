@@ -9,7 +9,7 @@ for file in qml/Service.qml qml/BarWidget.qml qml/Panel.qml; do
   test -s "$file"
 done
 
-for script in bin/beam-deckd bin/beam-deck-onboard bin/beam-deck-remsh bin/beam-deck-profile test/scripts.sh; do
+for script in bin/beam-deckd bin/beam-deck-onboard bin/beam-deck-remsh bin/beam-deck-profile test/scripts.sh test/static.sh; do
   bash -n "$script"
   test -x "$script"
 done
@@ -31,15 +31,22 @@ grep -q 'selectByMouse: true' qml/Panel.qml
 grep -q 'selectByKeyboard: true' qml/Panel.qml
 grep -q 'Quickshell.clipboardText = installCmd.text' qml/Panel.qml
 
-# Validate the runtime-missing protocol without Erlang/Elixir installed in this
-# build environment. timeout is expected to stop the daemon's retry loop.
-if ! command -v erl >/dev/null 2>&1 || ! command -v elixir >/dev/null 2>&1 || ! command -v mix >/dev/null 2>&1; then
-  first_line="$(BEAM_DECK_MISSING_POLL_SECONDS=60 timeout 1 "$ROOT/bin/beam-deckd" 2>/dev/null | head -n 1 || true)"
-  printf '%s\n' "$first_line" | jq -e '.type == "snapshot" and .onboarding.state == "runtime_missing"' >/dev/null
-fi
+# Force the no-toolchain path, including on runtime-enabled CI. Only harmless
+# OS utilities are admitted to PATH; all writable state is temporary.
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp/bin"
+for utility in bash dirname mkdir sleep; do
+  ln -s "$(command -v "$utility")" "$tmp/bin/$utility"
+done
+first_line="$(PATH="$tmp/bin" HOME="$tmp" XDG_CONFIG_HOME="$tmp/config" XDG_CACHE_HOME="$tmp/cache" XDG_STATE_HOME="$tmp/state" BEAM_DECK_MISSING_POLL_SECONDS=60 /usr/bin/timeout 1 "$ROOT/bin/beam-deckd" 2>/dev/null | head -n 1 || true)"
+printf '%s\n' "$first_line" | jq -e '.type == "snapshot" and .protocol == 1 and .onboarding.state == "runtime_missing" and (.forecasts | type == "array") and (.incidents | type == "array") and (.flight_recorder | type == "object") and (.watchlist | type == "object") and (.crash_triage | type == "array")' >/dev/null
 
 # Basic delimiter balance catches accidental truncation in generated QML.
-node "$ROOT/test/qml-balance.mjs" qml/Service.qml qml/BarWidget.qml qml/Panel.qml
+node "$ROOT/test/qml-balance.mjs" qml/*.qml
+node "$ROOT/test/qml-functions.mjs" qml/*.qml
+node --test "$ROOT/test/ui-state.test.mjs"
+node "$ROOT/test/source-contracts.mjs"
 "$ROOT/test/scripts.sh"
 
 echo "static checks: ok"

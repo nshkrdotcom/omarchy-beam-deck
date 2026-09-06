@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
+import "DeckState.js" as DeckState
 
 Item {
   id: root
@@ -13,6 +14,10 @@ Item {
   property var manifest: null
   property var pluginRegistry: null
   property bool opened: false
+  property string workspace: "cockpit"
+  property double nowMs: Date.now()
+  readonly property bool stale: !service || !service.daemonRunning || !snapshotData.at_ms || nowMs - snapshotData.at_ms > 10000
+  Timer { interval: 1000; repeat: true; running: root.opened; onTriggered: root.nowMs = Date.now() }
   property string selectedNode: ""
   property var service: shell ? shell.serviceFor("nshkr.beam-deck") : (pluginRegistry ? pluginRegistry.serviceFor("nshkr.beam-deck") : null)
   readonly property var snapshotData: service ? service.snapshot : ({})
@@ -39,14 +44,24 @@ Item {
   }
   function close() {
     opened = false
+    workspace = "cockpit"
     if (service) service.setPanelOpen(false)
+  }
+  function openInvestigation(tab, node, pid) {
+    workspace = "investigate"
+    Qt.callLater(function() { if (contentLoader.item && contentLoader.item.activate) contentLoader.item.activate(tab || "triage", node || "", pid || "") })
+  }
+  function liveCockpit() {
+    if (service) service.returnLive()
+    workspace = "cockpit"
   }
   function selected() {
     for (var i = 0; i < nodes.length; i++) if (String(nodes[i].name) === selectedNode) return nodes[i]
     return nodes.length > 0 ? nodes[0] : null
   }
   function bytes(n) {
-    n = Number(n || 0)
+    if (n === null || n === undefined) return "\u2014"
+    n = Number(n)
     if (n >= 1073741824) return (n / 1073741824).toFixed(1) + " GiB"
     if (n >= 1048576) return (n / 1048576).toFixed(0) + " MiB"
     if (n >= 1024) return (n / 1024).toFixed(0) + " KiB"
@@ -55,7 +70,7 @@ Item {
   function percent(a, b) { return b > 0 ? ((Number(a || 0) / Number(b)) * 100).toFixed(1) + "%" : "—" }
   function schedulerAverage(n) {
     var rows = n && n.scheduler_utilization ? n.scheduler_utilization : []
-    if (!rows.length) return "warming…"
+    if (!rows.length) return "warming / unavailable"
     var total = 0
     for (var i = 0; i < rows.length; i++) total += Number(rows[i].utilization || 0)
     return ((total / rows.length) * 100).toFixed(0) + "% avg"
@@ -93,8 +108,6 @@ Item {
     if (Number(n.os_pid || 0) > 0) {
       for (var p = 0; p < list.length; p++) if (Number(list[p].pid || 0) === Number(n.os_pid)) return list[p]
     }
-    var shortName = String(n.name || "").split("@")[0]
-    for (var i = 0; i < list.length; i++) if (String(list[i].command || "").indexOf(shortName) >= 0) return list[i]
     return null
   }
 
@@ -118,8 +131,8 @@ Item {
       id: card
       focus: true
       Keys.onEscapePressed: root.close()
-      width: Math.min(panel.width - Style.space(48), Style.space(1100))
-      height: Math.min(panel.height - Style.space(48), Style.space(760))
+      width: Math.min(panel.width - Style.space(48), Style.space(1280))
+      height: Math.min(panel.height - Style.space(48), Style.space(840))
       anchors.centerIn: parent
       color: root.bg
       borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(1)))
@@ -133,30 +146,39 @@ Item {
 
         RowLayout {
           Layout.fillWidth: true
-          Text { text: "BEAM DECK"; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
-          Text { text: "host-aware OTP cockpit"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; Layout.fillWidth: true }
+          Text { textFormat: Text.PlainText; text: "BEAM DECK"; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
+          Text { textFormat: Text.PlainText; text: root.stale ? "Waiting for fresh telemetry" : "LIVE  /  " + DeckState.time(root.snapshotData.at_ms); color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; Layout.fillWidth: true }
+          Button { text: "Cockpit"; selected: root.workspace === "cockpit"; onClicked: root.liveCockpit() }
+          Button { text: "Investigate"; selected: root.workspace === "investigate"; onClicked: root.openInvestigation("triage") }
           Button { text: "Refresh"; onClicked: if (root.service) root.service.refresh() }
           Button { text: "Close"; onClicked: root.close() }
         }
-        Text { visible: !!root.snapshotData.config_error || (root.service && root.service.lastError !== ""); Layout.fillWidth: true; text: root.snapshotData.config_error ? ("Config: " + root.snapshotData.config_error) : (root.service ? root.service.lastError : ""); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+        Text { textFormat: Text.PlainText; visible: !!root.snapshotData.config_error || (root.service && root.service.lastError !== ""); Layout.fillWidth: true; text: root.snapshotData.config_error ? ("Config: " + root.snapshotData.config_error) : (root.service ? root.service.lastError : ""); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
 
+        Text { textFormat: Text.PlainText; visible: root.service && root.service.lastAction !== ""; Layout.fillWidth: true; text: root.service ? root.service.lastAction : ""; color: root.accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
+        Text { textFormat: Text.PlainText; visible: root.service && root.service.notificationError !== ""; Layout.fillWidth: true; text: root.service ? root.service.notificationError : ""; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
+        TrialBar { Layout.fillWidth: true; service: root.service }
         Loader {
+          id: contentLoader
           Layout.fillWidth: true
           Layout.fillHeight: true
           sourceComponent: root.snapshotData.onboarding && root.snapshotData.onboarding.state === "runtime_missing" ? missingView
-            : Number(root.summary.runtime_count || 0) === 0 ? emptyView : dashboardView
+            : root.workspace === "investigate" ? investigationView
+            : Number(root.summary.runtime_count || 0) === 0 && root.nodes.length === 0 && !(root.snapshotData.incidents || []).length && !((root.snapshotData.watchlist || {}).entries || []).length ? emptyView : dashboardView
         }
       }
     }
   }
+
+  Component { id: investigationView; Investigation { service: root.service; targetNode: root.selectedNode } }
 
   Component {
     id: missingView
     ColumnLayout {
       spacing: Style.space(16)
       Item { Layout.fillHeight: true }
-      Text { Layout.alignment: Qt.AlignHCenter; text: root.missingTitle; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
-      Text { Layout.alignment: Qt.AlignHCenter; Layout.maximumWidth: Style.space(560); text: root.missingMessage; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.body; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter }
+      Text { textFormat: Text.PlainText; Layout.alignment: Qt.AlignHCenter; text: root.missingTitle; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
+      Text { textFormat: Text.PlainText; Layout.alignment: Qt.AlignHCenter; Layout.maximumWidth: Style.space(560); text: root.missingMessage; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.body; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter }
       BorderSurface {
         Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: Style.space(500); implicitHeight: Math.max(installCmd.implicitHeight, copyInstallCmd.implicitHeight) + Style.space(24)
         color: Util.alpha(root.fg, 0.05); borderSpec: Border.flat(Util.alpha(root.fg, 0.16), 1); radius: Style.cornerRadius
@@ -211,7 +233,7 @@ Item {
         }
       }
       Button { Layout.alignment: Qt.AlignHCenter; text: "Open Mise setup"; onClicked: if (root.service) root.service.installBeam() }
-      Text { Layout.alignment: Qt.AlignHCenter; text: root.snapshotData.onboarding && root.snapshotData.onboarding.mise_available ? "Mise detected" : "Mise was not detected; the setup helper will explain the Omarchy prerequisite."; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+      Text { textFormat: Text.PlainText; Layout.alignment: Qt.AlignHCenter; text: root.snapshotData.onboarding && root.snapshotData.onboarding.mise_available ? "Mise detected" : "Mise was not detected; the setup helper will explain the Omarchy prerequisite."; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
       Item { Layout.fillHeight: true }
     }
   }
@@ -220,20 +242,25 @@ Item {
     id: emptyView
     ColumnLayout {
       Item { Layout.fillHeight: true }
-      Text { Layout.alignment: Qt.AlignHCenter; text: "BEAM Deck is ready"; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
-      Text { Layout.alignment: Qt.AlignHCenter; Layout.maximumWidth: Style.space(540); text: "No user BEAM VMs are running. Start iex, mix phx.server, Livebook, a release, or any Erlang/Gleam node and it will appear automatically."; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.body; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter }
-      Text { Layout.alignment: Qt.AlignHCenter; text: "For deep telemetry, launch a distributed node (for example: iex --sname my_app -S mix)."; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+      Text { textFormat: Text.PlainText; Layout.alignment: Qt.AlignHCenter; text: "BEAM Deck is ready"; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
+      Text { textFormat: Text.PlainText; Layout.alignment: Qt.AlignHCenter; Layout.maximumWidth: Style.space(540); text: "No user BEAM VMs are running. Start iex, mix phx.server, Livebook, a release, or any Erlang/Gleam node and it will appear automatically."; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.body; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter }
+      Text { textFormat: Text.PlainText; Layout.alignment: Qt.AlignHCenter; text: "For deep telemetry, launch a distributed node (for example: iex --sname my_app -S mix)."; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
       Item { Layout.fillHeight: true }
     }
   }
 
   Component {
     id: dashboardView
-    RowLayout {
-      spacing: Style.space(14)
+    GridLayout {
+      id: dashboardGrid
+      columns: width >= Style.space(900) ? 3 : 1
+      columnSpacing: Style.space(14)
+      rowSpacing: Style.space(10)
 
       Flickable {
-        Layout.preferredWidth: Style.space(360)
+        Layout.preferredWidth: dashboardGrid.columns > 1 ? Style.space(320) : -1
+        Layout.fillWidth: dashboardGrid.columns === 1
+        Layout.preferredHeight: dashboardGrid.columns === 1 ? Style.space(180) : -1
         Layout.fillHeight: true
         contentWidth: width
         contentHeight: hostColumn.implicitHeight
@@ -244,6 +271,16 @@ Item {
           width: parent.width
           spacing: Style.space(10)
 
+          PanelSectionHeader { width: parent.width; text: "ATTENTION"; foreground: root.fg; fontFamily: Style.font.family }
+          Text { textFormat: Text.PlainText; width: parent.width; text: Number(root.summary.active_incident_count || 0) + " incidents  /  " + Number(root.summary.forecast_warning_count || 0) + " trends  /  " + Number(root.summary.watched_problem_count || 0) + " watch issues"; color: Number(root.summary.critical_incident_count || 0) > 0 ? root.urgent : root.fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
+          Text { textFormat: Text.PlainText; width: parent.width; visible: (root.snapshotData.incidents || []).length > 0; text: (root.snapshotData.incidents || []).length ? root.snapshotData.incidents[0].title : ""; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
+          Flow {
+            width: parent.width; spacing: Style.space(6)
+            Button { text: "Triage"; onClicked: root.openInvestigation("triage") }
+            Button { text: "Recorder"; onClicked: root.openInvestigation("recorder") }
+            Button { text: "Watchlist"; onClicked: root.openInvestigation("pins") }
+          }
+          PanelSeparator { width: parent.width; foreground: root.fg }
           PanelSectionHeader { width: parent.width; text: "HOST"; foreground: root.fg; fontFamily: Style.font.family }
           StatLine { label: "Local BEAM VMs"; value: String(root.summary.runtime_count || 0) }
           StatLine { label: "Deeply attached"; value: String(root.summary.attached_count || 0) }
@@ -260,18 +297,18 @@ Item {
 
           PanelSeparator { width: parent.width; foreground: root.fg }
           PanelSectionHeader { width: parent.width; text: "ACTIVE SCHEDULER BUDGET"; foreground: root.fg; fontFamily: Style.font.family }
-          Text { visible: root.budget.length === 0; width: parent.width; text: "No attached local nodes to budget"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+          Text { textFormat: Text.PlainText; visible: root.budget.length === 0; width: parent.width; text: "No attached local nodes to budget"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
           Repeater {
             model: root.budget
             RowLayout {
               required property var modelData
               width: hostColumn.width
-              Text { Layout.fillWidth: true; text: String(modelData.node || ""); color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideMiddle }
-              Text { text: String(modelData.current || 0) + " → " + String(modelData.suggested || 0); color: Number(modelData.suggested || 0) < Number(modelData.current || 0) ? root.accent : root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: Number(modelData.suggested || 0) < Number(modelData.current || 0) }
-              Button { visible: Number(modelData.suggested || 0) !== Number(modelData.current || 0); text: "Apply"; onClicked: if (root.service) root.service.setSchedulers(modelData.node, modelData.suggested) }
+              Text { textFormat: Text.PlainText; Layout.fillWidth: true; text: String(modelData.node || ""); color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideMiddle }
+              Text { textFormat: Text.PlainText; text: String(modelData.current || 0) + " → " + String(modelData.suggested || 0); color: Number(modelData.suggested || 0) < Number(modelData.current || 0) ? root.accent : root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: Number(modelData.suggested || 0) < Number(modelData.current || 0) }
+              Button { visible: Number(modelData.suggested || 0) !== Number(modelData.current || 0); text: "Review"; onClicked: root.openInvestigation("budget") }
             }
           }
-          Text { width: parent.width; text: "Suggestions use current run-queue demand and are reversible with Restore; they are not persisted across VM restart."; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+          Text { textFormat: Text.PlainText; width: parent.width; text: "Review all proposed changes together in a 30-second budget trial. Recommendations are advisory, not automatic throttling."; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
 
           PanelSeparator { width: parent.width; foreground: root.fg }
           PanelSectionHeader { width: parent.width; text: "LOCAL RUNTIMES"; foreground: root.fg; fontFamily: Style.font.family }
@@ -284,19 +321,19 @@ Item {
               color: Util.alpha(root.fg, 0.04); borderSpec: Border.flat(Util.alpha(root.fg, 0.10), 1); radius: Style.cornerRadius
               Column {
                 id: localRow; anchors.fill: parent; anchors.margins: Style.space(9); spacing: Style.space(3)
-                Text { width: parent.width; text: modelData.cwd ? String(modelData.cwd).split("/").pop() || ("PID " + modelData.pid) : "PID " + modelData.pid; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideMiddle }
-                Text { width: parent.width; text: "PID " + modelData.pid + "  ·  " + root.bytes(modelData.rss_bytes) + (modelData.cpu_percent === null || modelData.cpu_percent === undefined ? "" : "  ·  " + Number(modelData.cpu_percent).toFixed(1) + "% CPU"); color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
-                Text { width: parent.width; text: modelData.os_only ? "OS visibility only" : ("Deep attached · " + String(modelData.node_name || "distributed node")); color: modelData.os_only ? root.dim : root.accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                Text { textFormat: Text.PlainText; width: parent.width; text: modelData.cwd ? String(modelData.cwd).split("/").pop() || ("PID " + modelData.pid) : "PID " + modelData.pid; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideMiddle }
+                Text { textFormat: Text.PlainText; width: parent.width; text: "PID " + modelData.pid + "  ·  " + root.bytes(modelData.rss_bytes) + (modelData.cpu_percent === null || modelData.cpu_percent === undefined ? "" : "  ·  " + Number(modelData.cpu_percent).toFixed(1) + "% CPU"); color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                Text { textFormat: Text.PlainText; width: parent.width; text: modelData.os_only ? "OS visibility only" : ("Deep attached · " + String(modelData.node_name || "distributed node")); color: modelData.os_only ? root.dim : root.accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
               }
             }
           }
 
           PanelSeparator { width: parent.width; foreground: root.fg }
           PanelSectionHeader { width: parent.width; text: "ALERTS"; foreground: root.fg; fontFamily: Style.font.family }
-          Text { visible: root.alerts.length === 0; width: parent.width; text: "No active alerts"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+          Text { textFormat: Text.PlainText; visible: root.alerts.length === 0; width: parent.width; text: "No active alerts"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
           Repeater {
             model: root.alerts
-            Text {
+            Text { textFormat: Text.PlainText;
               required property var modelData
               width: hostColumn.width
               text: (modelData.severity === "critical" ? "!! " : "! ") + modelData.title + "\n" + modelData.message
@@ -307,10 +344,10 @@ Item {
 
           PanelSeparator { width: parent.width; foreground: root.fg }
           PanelSectionHeader { width: parent.width; text: "RECENT EVENTS"; foreground: root.fg; fontFamily: Style.font.family }
-          Text { visible: !(root.snapshotData.events || []).length; width: parent.width; text: "No recent node or Deep Event signals"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+          Text { textFormat: Text.PlainText; visible: !(root.snapshotData.events || []).length; width: parent.width; text: "No recent node or Deep Event signals"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
           Repeater {
             model: (root.snapshotData.events || []).slice(0, 12)
-            Text {
+            Text { textFormat: Text.PlainText;
               required property var modelData
               width: hostColumn.width
               text: root.eventText(modelData)
@@ -321,7 +358,7 @@ Item {
         }
       }
 
-      Rectangle { Layout.fillHeight: true; Layout.preferredWidth: 1; color: Util.alpha(root.fg, 0.12) }
+      Rectangle { visible: dashboardGrid.columns > 1; Layout.fillHeight: true; Layout.preferredWidth: 1; color: Util.alpha(root.fg, 0.12) }
 
       Flickable {
         Layout.fillWidth: true
@@ -358,7 +395,7 @@ Item {
             }
           }
 
-          Text {
+          Text { textFormat: Text.PlainText;
             visible: root.nodes.length === 0
             width: parent.width
             text: "The local BEAM VMs above are not distributed nodes, so BEAM Deck cannot inspect OTP internals yet. Restart the development VM with a node name, for example:\n\niex --sname my_app -S mix phx.server"
@@ -384,12 +421,12 @@ Item {
       readonly property var node: root.selected()
       visible: node !== null
 
-      Text { width: parent.width; text: nd.node ? nd.node.name : ""; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true; elide: Text.ElideRight }
-      Text { visible: nd.node && !nd.node.attached; width: parent.width; text: "Node discovered but not attached: " + String(nd.node.error || "authentication/unreachable"); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
+      Text { textFormat: Text.PlainText; width: parent.width; text: nd.node ? nd.node.name : ""; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true; elide: Text.ElideRight }
+      Text { textFormat: Text.PlainText; visible: nd.node && !nd.node.attached; width: parent.width; text: "Node discovered but not attached: " + String(nd.node.error || "authentication/unreachable"); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
 
       GridLayout {
         visible: nd.node && nd.node.attached
-        width: parent.width; columns: 4; columnSpacing: Style.space(12); rowSpacing: Style.space(5)
+        width: parent.width; columns: width >= Style.space(580) ? 4 : 2; columnSpacing: Style.space(12); rowSpacing: Style.space(5)
         Metric { title: "OTP"; value: nd.node ? String(nd.node.otp || "—") : "—" }
         Metric { title: "ELIXIR"; value: nd.node && nd.node.elixir ? nd.node.elixir : "BEAM" }
         Metric { title: "PROCESSES"; value: nd.node ? Number(nd.node.processes || 0).toLocaleString() : "0"; meta: nd.node ? root.percent(nd.node.processes, nd.node.process_limit) : "" }
@@ -413,7 +450,7 @@ Item {
             width: Style.space(28); height: Style.space(22); radius: Style.space(3)
             color: Util.alpha(root.accent, 0.10 + Math.min(0.82, Number(modelData.utilization || 0) * 0.82))
             border.width: 1; border.color: Util.alpha(root.fg, 0.10)
-            Text { anchors.centerIn: parent; text: String(modelData.id); color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+            Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: String(modelData.id); color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.caption }
           }
         }
       }
@@ -425,9 +462,16 @@ Item {
         ceiling: nd.node ? Math.max(Number(nd.node.schedulers_online || 1), 1) : 1
       }
 
+      Flow {
+        visible: nd.node && nd.node.attached
+        width: parent.width; spacing: Style.space(6)
+        Button { text: "ETS lens"; onClicked: root.openInvestigation("ets", nd.node.name) }
+        Button { text: "Pin node"; onClicked: if (root.service) root.service.pinNode(nd.node.name) }
+        Button { text: "Budget trial"; onClicked: root.openInvestigation("budget") }
+      }
       PanelSeparator { visible: nd.node && nd.node.attached; width: parent.width; foreground: root.fg }
       PanelSectionHeader { visible: nd.node && nd.node.attached; width: parent.width; text: "MEMORY"; foreground: root.fg; fontFamily: Style.font.family }
-      Row {
+      Flow {
         visible: nd.node && nd.node.attached
         width: parent.width; spacing: Style.space(8)
         MemoryPill { label: "Processes"; value: nd.node ? root.bytes((nd.node.memory || {}).processes || 0) : "—" }
@@ -446,7 +490,7 @@ Item {
         Button { text: nd.node && nd.node.deep_events_active ? "Stop events" : "Deep events"; enabled: !!nd.node.deep_events_capable; onClicked: if (root.service) root.service.deepEvents(nd.node.name, !nd.node.deep_events_active) }
         Button { text: "Restore"; onClicked: if (root.service) root.service.restore(nd.node.name) }
       }
-      Text { visible: nd.node && nd.node.process_scan_error; width: parent.width; text: "Process scan: " + nd.node.process_scan_error; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+      Text { textFormat: Text.PlainText; visible: nd.node && nd.node.process_scan_error; width: parent.width; text: "Process scan: " + nd.node.process_scan_error; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
       Repeater {
         model: nd.node && nd.node.hot_processes ? nd.node.hot_processes.slice(0, 12) : []
         BorderSurface {
@@ -457,17 +501,17 @@ Item {
           borderSpec: Border.flat(Util.alpha(root.fg, 0.10), 1); radius: Style.cornerRadius
           RowLayout {
             id: hotRow; anchors.fill: parent; anchors.margins: Style.space(7); spacing: Style.space(7)
-            Text {
+            Text { textFormat: Text.PlainText;
               id: hotText; Layout.fillWidth: true
               text: (modelData.name || modelData.pid) + "   mailbox " + Number(modelData.mailbox || 0).toLocaleString() + "   mem " + root.bytes(modelData.memory_bytes || 0) + "   reds " + Number(modelData.reductions || 0).toLocaleString() + "\n" + String(modelData.current_function || "") + "   " + modelData.pid
               color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight
             }
-            Button { text: "GC"; enabled: String(modelData.pid || "").indexOf("<") === 0; onClicked: if (root.service) root.service.collectGc(nd.node.name, modelData.pid) }
+            Button { text: "Inspect / GC"; enabled: !root.stale && String(modelData.pid || "").indexOf("<") === 0; onClicked: root.openInvestigation("process", nd.node.name, modelData.pid) }
           }
         }
       }
 
-      Text {
+      Text { textFormat: Text.PlainText;
         visible: nd.node && (nd.node.restart_churn || []).length > 0
         width: parent.width
         text: "Registered-name churn: " + (nd.node ? nd.node.restart_churn.map(function(c) { return c.name + " ×" + c.count }).join("  ·  ") : "")
@@ -475,24 +519,25 @@ Item {
       }
 
       PanelSeparator { visible: nd.node && nd.node.attached; width: parent.width; foreground: root.fg }
-      PanelSectionHeader { visible: nd.node && nd.node.attached; width: parent.width; text: "RUNTIME CONTROLS · UNTIL VM RESTART"; foreground: root.fg; fontFamily: Style.font.family }
-      Row {
+      PanelSectionHeader { visible: nd.node && nd.node.attached; width: parent.width; text: "RUNTIME CONTROLS / ORIGINAL-VALUE RESTORE"; foreground: root.fg; fontFamily: Style.font.family }
+      Flow {
         visible: nd.node && nd.node.attached
+        width: parent.width
         spacing: Style.space(8)
-        Text { anchors.verticalCenter: parent.verticalCenter; text: "Normal schedulers"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+        Text { textFormat: Text.PlainText; text: "Normal schedulers"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
         SpinBox { id: schedSpin; from: 1; to: nd.node ? Math.max(1, nd.node.schedulers || 1) : 1; value: nd.node ? Math.max(1, nd.node.schedulers_online || 1) : 1 }
-        Button { text: "Apply"; onClicked: if (root.service) root.service.setSchedulers(nd.node.name, schedSpin.value) }
-        Text { anchors.verticalCenter: parent.verticalCenter; text: "Dirty CPU"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+        Button { text: "Apply"; enabled: !root.stale; onClicked: if (root.service) root.service.setSchedulers(nd.node.name, schedSpin.value) }
+        Text { textFormat: Text.PlainText; text: "Dirty CPU"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
         SpinBox { id: dirtySpin; from: 1; to: nd.node ? Math.max(1, nd.node.dirty_cpu_schedulers || 1) : 1; value: nd.node ? Math.max(1, nd.node.dirty_cpu_schedulers_online || 1) : 1 }
-        Button { text: "Apply"; onClicked: if (root.service) root.service.setDirtySchedulers(nd.node.name, dirtySpin.value) }
+        Button { text: "Apply"; enabled: !root.stale; onClicked: if (root.service) root.service.setDirtySchedulers(nd.node.name, dirtySpin.value) }
         Button { text: "Startup flags"; onClicked: if (root.service) root.service.launchProfile(schedSpin.value, dirtySpin.value) }
       }
 
       PanelSeparator { visible: nd.node && nd.node.attached; width: parent.width; foreground: root.fg }
       PanelSectionHeader { visible: nd.node && nd.node.attached; width: parent.width; text: "TOPOLOGY"; foreground: root.fg; fontFamily: Style.font.family }
-      Text { visible: nd.node && nd.node.attached; width: parent.width; text: nd.node && nd.node.peers && nd.node.peers.length ? (nd.node.name + " sees  " + nd.node.peers.join("   ·   ")) : "No connected peer nodes reported"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-      Text { visible: nd.node && nd.node.attached && (nd.node.expected_peers || []).length > 0; width: parent.width; text: "Expected: " + nd.node.expected_peers.join("   ·   "); color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-      Text { visible: nd.node && nd.node.attached && ((nd.node.expected_peers || []).filter(function(peer) { return (nd.node.peers || []).indexOf(peer) < 0 })).length > 0; width: parent.width; text: "Missing expected: " + (nd.node.expected_peers || []).filter(function(peer) { return (nd.node.peers || []).indexOf(peer) < 0 }).join("   ·   "); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; wrapMode: Text.WordWrap }
+      Text { textFormat: Text.PlainText; visible: nd.node && nd.node.attached; width: parent.width; text: nd.node && nd.node.peers && nd.node.peers.length ? (nd.node.name + " sees  " + nd.node.peers.join("   ·   ")) : "No connected peer nodes reported"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+      Text { textFormat: Text.PlainText; visible: nd.node && nd.node.attached && (nd.node.expected_peers || []).length > 0; width: parent.width; text: "Expected: " + nd.node.expected_peers.join("   ·   "); color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+      Text { textFormat: Text.PlainText; visible: nd.node && nd.node.attached && ((nd.node.expected_peers || []).filter(function(peer) { return (nd.node.peers || []).indexOf(peer) < 0 })).length > 0; width: parent.width; text: "Missing expected: " + (nd.node.expected_peers || []).filter(function(peer) { return (nd.node.peers || []).indexOf(peer) < 0 }).join("   ·   "); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; wrapMode: Text.WordWrap }
     }
   }
 
@@ -501,15 +546,15 @@ Item {
     property string value: ""
     property bool warning: false
     width: parent ? parent.width : 100; implicitHeight: Math.max(statLabel.implicitHeight, statValue.implicitHeight)
-    Text { id: statLabel; anchors.left: parent.left; text: parent.label; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
-    Text { id: statValue; anchors.right: parent.right; text: parent.value; color: parent.warning ? root.urgent : root.fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: parent.warning }
+    Text { textFormat: Text.PlainText; id: statLabel; anchors.left: parent.left; text: parent.label; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+    Text { textFormat: Text.PlainText; id: statValue; anchors.right: parent.right; text: parent.value; color: parent.warning ? root.urgent : root.fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: parent.warning }
   }
   component Metric: ColumnLayout {
     property string title: ""; property string value: ""; property string meta: ""
     Layout.fillWidth: true
-    Text { text: parent.title; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-    Text { text: parent.value; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.subtitle; font.bold: true }
-    Text { visible: parent.meta !== ""; text: parent.meta; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+    Text { textFormat: Text.PlainText; text: parent.title; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+    Text { textFormat: Text.PlainText; text: parent.value; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.subtitle; font.bold: true }
+    Text { textFormat: Text.PlainText; visible: parent.meta !== ""; text: parent.meta; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
   }
   component MemoryPill: BorderSurface {
     id: pill
@@ -520,13 +565,13 @@ Item {
       id: memCol
       anchors.centerIn: parent
       spacing: Style.space(2)
-      Text {
+      Text { textFormat: Text.PlainText;
         text: pill.label
         color: root.dim
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
       }
-      Text {
+      Text { textFormat: Text.PlainText;
         text: pill.value
         color: root.fg
         font.family: Style.font.family

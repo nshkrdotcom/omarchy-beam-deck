@@ -4,13 +4,10 @@ defmodule BeamDeck.Remote do
   @timeout 1_500
 
   def connect(node) when is_atom(node) do
-    case Node.connect(node) do
-      true -> :ok
-      false -> {:error, :pang}
-      :ignored -> {:error, :not_alive}
+    case call_raw(node, :erlang, :node, [], 1_500) do
+      {:ok, ^node} -> :ok
+      _ -> {:error, :unreachable}
     end
-  rescue
-    error -> {:error, {:exception, Exception.message(error)}}
   end
 
   def inspect_node(node, opts \\ %{}) do
@@ -35,6 +32,7 @@ defmodule BeamDeck.Remote do
         erts: text(sys[:version]),
         elixir: text(elixir),
         os_pid: call(node, :os, :getpid, [], "") |> text() |> int_text(),
+        creation: call(node, :erlang, :system_info, [:creation], nil),
         uptime_ms: num(sys[:uptime]),
         processes: num(sys[:process_count]),
         process_limit: num(sys[:process_limit]),
@@ -56,7 +54,8 @@ defmodule BeamDeck.Remote do
         applications: apps,
         peers: peers,
         observer_backend: observer_backend?,
-        deep_events_capable: otp_int(sys[:otp_release]) >= 28
+        deep_events_capable: otp_int(sys[:otp_release]) >= 28,
+        capabilities: %{process_inspect: true, process_binary_info: true, supervisor_focus: true, ets_inspect: true, scheduler_wall_time: true, deep_events: otp_int(sys[:otp_release]) >= 28}
       }
 
       node_map =
@@ -170,7 +169,7 @@ defmodule BeamDeck.Remote do
 
   def proc_row({:etop_proc_info, pid, mem, reds, name, _runtime, current_function, mailbox}) do
     %{
-      pid: inspect(pid),
+      pid: pid_text(pid),
       memory_bytes: mem,
       reductions: reds,
       name: term(name),
@@ -267,9 +266,19 @@ defmodule BeamDeck.Remote do
     %{id: id, utilization: utilization}
   end
 
-  def trigger_gc(node, pid_string) do
-    with {:ok, pid} <- parse_pid(node, pid_string),
-         do: call_raw(node, :erlang, :garbage_collect, [pid])
+  def trigger_gc(node, pid_string, expected_creation \\ nil) do
+    with {:ok, creation} <- call_raw(node, :erlang, :system_info, [:creation]),
+         true <- is_nil(expected_creation) or creation == expected_creation,
+         {:ok, pid} <- parse_pid(node, pid_string) do
+      case call_raw(node, :erlang, :garbage_collect, [pid]) do
+        {:ok, true} -> {:ok, true}
+        {:ok, false} -> {:error, :process_exited}
+        _ -> {:error, :gc_unconfirmed}
+      end
+    else
+      false -> {:error, :target_restarted}
+      _ -> {:error, :process_unavailable}
+    end
   end
 
   def peers(node), do: all_peers(node)
@@ -289,17 +298,19 @@ defmodule BeamDeck.Remote do
   end
 
   def call_raw(node, mod, fun, args, timeout \\ @timeout) do
-    {:ok, :erpc.call(node, mod, fun, args, timeout)}
+    deadline = Process.get(:beam_deck_rpc_deadline)
+    timeout = if is_integer(deadline), do: min(timeout, deadline - System.monotonic_time(:millisecond)), else: timeout
+    if timeout > 0, do: {:ok, :erpc.call(node, mod, fun, args, timeout)}, else: {:error, :deadline}
   catch
     :error, reason -> {:error, reason}
     :exit, reason -> {:error, reason}
   end
 
-  defp parse_pid(node, text) when is_binary(text) do
+  def parse_pid(node, text) when is_binary(text) do
     # list_to_pid is node-local; invoke it remotely rather than constructing a
     # foreign pid in the helper node.
-    case call_raw(node, :erlang, :list_to_pid, [String.to_charlist(text)]) do
-      {:ok, pid} -> {:ok, pid}
+    case if(BeamDeck.Protocol.pid?(text), do: call_raw(node, :erlang, :list_to_pid, [String.to_charlist(text)]), else: {:error, :invalid_pid}) do
+      {:ok, pid} when is_pid(pid) -> {:ok, pid}
       error -> error
     end
   end
@@ -375,4 +386,30 @@ defmodule BeamDeck.Remote do
   defp term(value), do: inspect(value)
   defp mfa({mod, fun, arity}) when is_atom(mod) and is_atom(fun), do: "#{mod}.#{fun}/#{arity}"
   defp mfa(value), do: term(value)
+  def pid_text(pid) when is_pid(pid) do
+    # The first printed component is the observer's node index, not target PID identity.
+    pid |> :erlang.pid_to_list() |> List.to_string() |> String.replace(~r/^<\d+\./, "<0.")
+  end
+  def pid_text(_), do: ""
+
+  def utilization_sample(node) do
+    # OTP owns the enable/disable pair in ONE RPC process, including its exit path.
+    case call_raw(node, :scheduler, :utilization, [1], 2_500) do
+      {:ok, rows} when is_list(rows) ->
+        for {kind, id, utilization, _percent} <- rows,
+            kind in [:normal, :cpu], is_integer(id), is_number(utilization),
+            do: %{id: id, kind: Atom.to_string(kind), utilization: min(max(utilization, 0.0), 1.0)}
+      _ -> []
+    end
+  end
+
+  def identity(node) do
+    with {:ok, creation} when is_integer(creation) <- call_raw(node, :erlang, :system_info, [:creation]),
+         {:ok, pid} when is_list(pid) <- call_raw(node, :os, :getpid, []) do
+      {:ok, %{creation: creation, os_pid: List.to_string(pid)}}
+    else
+      _ -> {:error, :identity_unavailable}
+    end
+  end
+
 end

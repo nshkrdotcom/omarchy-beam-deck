@@ -10,6 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y jq
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - run: ./test/static.sh
 
   beam:
@@ -38,6 +41,7 @@ jobs:
         run: mix test
       - working-directory: daemon
         run: BEAM_DECK_INTEGRATION=1 mix test
+      - run: python3 test/live-protocol.py
 
   lint:
     runs-on: ubuntu-latest

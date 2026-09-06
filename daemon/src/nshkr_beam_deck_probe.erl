@@ -24,13 +24,14 @@ stop(Pid) when is_pid(Pid) ->
 
 init(Parent, Options, Caller) ->
     process_flag(trap_exit, true),
+    process_flag(message_queue_data, off_heap),
     Ref = erlang:monitor(process, Parent),
     try
         Session = trace:session_create(nshkr_beam_deck, self(), []),
         ok = enable(Session, Options),
         Caller ! {self(), ready},
         Parent ! {beam_deck_probe, node(), started, self()},
-        loop(Parent, Ref, Session)
+        loop(Parent, Ref, Session, {erlang:monotonic_time(millisecond), 0, 0})
     catch
         C:R ->
             Caller ! {self(), error, {C,R}},
@@ -47,18 +48,42 @@ enable(Session, O) ->
     trace:system(Session, busy_dist_port, true),
     ok.
 
-loop(Parent, Ref, Session) ->
+
+loop(Parent, Ref, Session, {Window, Count, Dropped}) ->
     receive
         {monitor, Who, Kind, Info} ->
-            Parent ! {beam_deck_event, node(), Kind, printable(Who), printable(Info), erlang:system_time(millisecond)},
-            loop(Parent, Ref, Session);
+            Now = erlang:monotonic_time(millisecond),
+            {Start, Used, Lost} = case Now - Window >= 1000 of
+                true ->
+                    case Dropped > 0 of
+                        true -> Parent ! {beam_deck_event, node(), events_dropped, <<"probe">>, Dropped, erlang:system_time(millisecond)};
+                        false -> ok
+                    end,
+                    {Now, 0, 0};
+                false -> {Window, Count, Dropped}
+            end,
+            {NextUsed, NextLost} = case Used < 100 of
+                true ->
+                    Parent ! {beam_deck_event, node(), Kind, printable(Who, 0), printable(Info, 0), erlang:system_time(millisecond)},
+                    {Used + 1, Lost};
+                false -> {Used, Lost + 1}
+            end,
+            case process_info(self(), message_queue_len) of
+                {message_queue_len, Size} when Size > 10000 ->
+                    trace:session_destroy(Session),
+                    Parent ! {beam_deck_event, node(), probe_overloaded, <<"probe">>, Size, erlang:system_time(millisecond)},
+                    ok;
+                _ -> loop(Parent, Ref, Session, {Start, NextUsed, NextLost})
+            end;
         stop -> trace:session_destroy(Session), ok;
         {'DOWN', Ref, process, Parent, _} -> trace:session_destroy(Session), ok;
-        _Other -> loop(Parent, Ref, Session)
+        _Other -> loop(Parent, Ref, Session, {Window, Count, Dropped})
     end.
 
-printable(P) when is_pid(P); is_port(P); is_reference(P) -> list_to_binary(io_lib:format("~p", [P]));
-printable(V) when is_tuple(V) -> list_to_tuple([printable(X) || X <- tuple_to_list(V)]);
-printable(V) when is_list(V) -> [printable(X) || X <- V];
-printable(V) when is_map(V) -> maps:map(fun(_K, X) -> printable(X) end, V);
-printable(V) -> V.
+printable(_V, Depth) when Depth > 8 -> <<"truncated">>;
+printable(P, _Depth) when is_pid(P); is_port(P); is_reference(P) -> list_to_binary(io_lib:format("~p", [P]));
+printable(V, Depth) when is_tuple(V) -> [printable(X, Depth + 1) || X <- lists:sublist(tuple_to_list(V), 32)];
+printable(V, Depth) when is_list(V) -> [printable(X, Depth + 1) || X <- lists:sublist(V, 32)];
+printable(V, Depth) when is_map(V) -> maps:from_list([{K, printable(X, Depth + 1)} || {K, X} <- lists:sublist(maps:to_list(V), 32)]);
+printable(V, _Depth) when is_binary(V), byte_size(V) > 512 -> binary:part(V, 0, 512);
+printable(V, _Depth) -> V.

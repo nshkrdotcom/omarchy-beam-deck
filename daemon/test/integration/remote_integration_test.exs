@@ -12,7 +12,7 @@ defmodule BeamDeck.RemoteIntegrationTest do
 
     case :peer.start(%{
            name: :beam_deck_test_target,
-           args: [~c"-setcookie", ~c"beam_deck_test_cookie"]
+           args: [~c"+S", ~c"3:3", ~c"+SDcpu", ~c"1:1", ~c"+SDio", ~c"1", ~c"-setcookie", ~c"beam_deck_test_cookie"]
          }) do
       {:ok, peer, node} ->
         on_exit(fn ->
@@ -40,6 +40,7 @@ defmodule BeamDeck.RemoteIntegrationTest do
 
   test "scheduler mutation is live and reversible", %{node: node} do
     original = Remote.call(node, :erlang, :system_info, [:schedulers_online], 1)
+    on_exit(fn -> Remote.set_flag(node, :schedulers_online, original) end)
     target = min(original, 1)
     assert {:ok, ^original} = Remote.set_flag(node, :schedulers_online, target)
     assert Remote.call(node, :erlang, :system_info, [:schedulers_online], 0) == target

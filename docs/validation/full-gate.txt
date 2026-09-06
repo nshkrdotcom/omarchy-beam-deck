@@ -1,0 +1,96 @@
+./test/static.sh
+qml delimiter checks: ok
+QML embedded JavaScript bodies parsed: 89 (type/import/render checks still require Quickshell)
+TAP version 13
+# Subtest: safe defaults cover every optional 1.1 collection
+ok 1 - safe defaults cover every optional 1.1 collection
+  ---
+  duration_ms: 1.246884
+  type: 'test'
+  ...
+# Subtest: job updates are immutable and terminal results cannot regress
+ok 2 - job updates are immutable and terminal results cannot regress
+  ---
+  duration_ms: 0.298038
+  type: 'test'
+  ...
+# Subtest: request identity, kind and node protect a newly selected target
+ok 3 - request identity, kind and node protect a newly selected target
+  ---
+  duration_ms: 0.130176
+  type: 'test'
+  ...
+# Subtest: job history is count and age bounded
+ok 4 - job history is count and age bounded
+  ---
+  duration_ms: 0.396386
+  type: 'test'
+  ...
+# Subtest: historical, disconnected and stale snapshots cannot mutate
+ok 5 - historical, disconnected and stale snapshots cannot mutate
+  ---
+  duration_ms: 0.149775
+  type: 'test'
+  ...
+# Subtest: notification content remains data in fixed argv
+ok 6 - notification content remains data in fixed argv
+  ---
+  duration_ms: 0.265409
+  type: 'test'
+  ...
+# Subtest: formatters do not invent zeros for missing data
+ok 7 - formatters do not invent zeros for missing data
+  ---
+  duration_ms: 0.164878
+  type: 'test'
+  ...
+# Subtest: returning live invalidates late historical results
+ok 8 - returning live invalidates late historical results
+  ---
+  duration_ms: 0.084537
+  type: 'test'
+  ...
+# Subtest: search works for node, name and label without mutating input
+ok 9 - search works for node, name and label without mutating input
+  ---
+  duration_ms: 0.296295
+  type: 'test'
+  ...
+# Subtest: process reports never stringify unrecognized payload fields
+ok 10 - process reports never stringify unrecognized payload fields
+  ---
+  duration_ms: 0.397437
+  type: 'test'
+  ...
+# Subtest: frame diff explicitly labels noncomparable hot sets
+ok 11 - frame diff explicitly labels noncomparable hot sets
+  ---
+  duration_ms: 0.273761
+  type: 'test'
+  ...
+# Subtest: canceling the panel preserves noninteractive export jobs
+ok 12 - canceling the panel preserves noninteractive export jobs
+  ---
+  duration_ms: 0.176706
+  type: 'test'
+  ...
+# Subtest: process actions require a fresh captured report from the same VM incarnation
+ok 13 - process actions require a fresh captured report from the same VM incarnation
+  ---
+  duration_ms: 0.145699
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 59.790676
+repository contracts: versions, configuration parity, command wiring, privacy boundaries and documentation present
+script checks: ok
+static checks: ok
+ERROR: mix not on PATH; release validation has NOT passed. Run make static separately.
+make: *** [Makefile:33: check] Error 127

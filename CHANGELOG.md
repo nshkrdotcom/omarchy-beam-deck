@@ -6,6 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+
+## [1.1.0] - 2026-09-05
+
+Implementation candidate; see HANDOFF for unrun BEAM/desktop acceptance.
+
+### Added
+
+- Conservative process/atom/port capacity forecasts and binary/ETS growth-only signals with explicit fit/sample evidence.
+- Deduplicated incident lifecycle, labeled evidence correlation, nearby recorder context, critical transition notification intents and bounded cooldown.
+- Compact in-memory flight recorder, sequence-stable range selection, restart-aware diffs and private allowlisted diagnostics ZIP export.
+- Focused argument-free process/ancestry/shared-binary metadata, metadata-only ETS inspection, persistent exact node/registered-name pins and closed-panel targeted observations.
+- Whole-local-budget leased scheduler trials, sticky Keep/Revert status, conditional rollback and retained failure recovery/first-original Restore.
+- Local PID/start-time disappearance tracking and matched bounded crash-header triage with one delayed retry.
+- Triage/recorder/process/ETS/watchlist/budget investigation workspace with request-specific jobs, historical read-only mode, capture-age and VM-incarnation action protection.
+- New pure/regression/real-peer test sources, production JavaScript state tests and an actual-launcher private-EPMD protocol harness.
+
+### Changed
+
+- Separate collection/diagnostic/control ownership; bounded queues, deadlines, async pin validation and urgent control recovery bypass.
+- Additive protocol-v1 envelopes, strict bounded JSON decoding using OTP 27, private writes and stronger export/cookie redaction.
+- Scheduler utilization sampled within one remote caller lifetime instead of relying on a transient RPC flag owner.
+- Helper minimum is OTP 27 / Elixir 1.18; runtime target application dependencies remain zero. All configuration/default/version and operator/security/validation documentation updated.
+- Full release gate fails when required tools are missing instead of implying partial checks are release acceptance.
+
+
 ## [1.0.0] - 2026-09-05
 
 ### Added
@@ -24,5 +49,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Bounded in-memory history with full-window downsampling.
 - Real OTP peer integration tests and multi-version GitHub Actions matrix.
 
-[Unreleased]: https://github.com/nshkrdotcom/omarchy-beam-deck/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/nshkrdotcom/omarchy-beam-deck/compare/v1.1.0...HEAD
 [1.0.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/releases/tag/v1.0.0
+
+[1.1.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/compare/v1.0.0...v1.1.0

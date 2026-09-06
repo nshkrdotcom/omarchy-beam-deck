@@ -3,8 +3,9 @@ defmodule BeamDeck.DeepEvents do
 
   @probe :nshkr_beam_deck_probe
 
-  def start(node, thresholds) do
-    with {:ok, {_mod, binary, _file}} <- object_code(),
+  def start(node, thresholds, parent \\ self()) do
+    with {:ok, false} <- BeamDeck.Remote.call_raw(node, :code, :is_loaded, [@probe]),
+         {:ok, {_mod, binary, _file}} <- object_code(),
          {:ok, {:module, @probe}} <-
            BeamDeck.Remote.call_raw(node, :code, :load_binary, [
              @probe,
@@ -12,7 +13,7 @@ defmodule BeamDeck.DeepEvents do
              binary
            ]),
          opts <- atomize_thresholds(thresholds) do
-      case BeamDeck.Remote.call_raw(node, @probe, :start, [self(), opts], 6_000) do
+      case BeamDeck.Remote.call_raw(node, @probe, :start, [parent, opts], 6_000) do
         {:ok, {:ok, pid}} when is_pid(pid) ->
           {:ok, pid}
 
@@ -26,9 +27,10 @@ defmodule BeamDeck.DeepEvents do
   end
 
   def stop(node, pid) do
-    _ = BeamDeck.Remote.call_raw(node, @probe, :stop, [pid], 3_000)
-    unload(node)
-    :ok
+    case BeamDeck.Remote.call_raw(node, @probe, :stop, [pid], 3_000) do
+      {:ok, :ok} -> unload(node)
+      _ -> {:error, :stop_unconfirmed}
+    end
   end
 
   defp unload(node) do

@@ -1,128 +1,84 @@
-# Architecture
+# BEAM Deck 1.1 architecture
 
-## Design constraints
+## Scope and ownership
 
-BEAM Deck is built around five constraints:
-
-1. Omarchy's shell is a long-running Quickshell process, so heavy runtime introspection must not execute in QML.
-2. One Linux host can run many independent BEAM VMs, each with its own scheduler pool and VM limits.
-3. Not every local BEAM is distributed, so OS census and deep OTP attachment are separate capabilities.
-4. Erlang distribution already supplies the correct remote-control semantics; BEAM Deck does not reimplement the distribution protocol.
-5. Topology/health claims must be evidence-backed: unconfigured missing edges are not called partitions, and Supervisor-private restart thresholds are not guessed.
-
-## Omarchy side
-
-`manifest.json` declares `service`, `bar-widget`, and `panel` entry points under plugin id `nshkr.beam-deck`.
-
-`qml/Service.qml` is the single owner of the helper process and latest snapshot. It starts `bin/beam-deckd`, parses JSONL, forwards mutation commands, exposes terminal helpers, and registers the `nshkr.beam-deck` Omarchy IPC target.
-
-`qml/BarWidget.qml` reads that shared service state and renders only the compact runtime/alert surface. It never starts its own telemetry worker.
-
-`qml/Panel.qml` implements `open(payloadJson)` and `close()`. The panel provides host budget, node detail, process pathology, runtime events, topology, recent history, and reversible controls. Opening/closing drives the daemon's inspection session so expensive scans and scheduler-wall-time instrumentation are not always on.
-
-## Helper launch and missing-runtime behavior
-
-`bin/beam-deckd` works before BEAM exists. If `erl`, `elixir`, or `mix` is unavailable, it emits a synthetic `runtime_missing` snapshot from POSIX shell and periodically rechecks. If the long-running Omarchy shell has a stale `PATH`, it can discover a global Mise toolchain and re-enter through `mise exec`.
-
-When available, the dependency-free Elixir helper is compiled under XDG cache and started as a hidden, intentionally tiny distribution node:
+The Omarchy plugin stays `nshkr.beam-deck`, with one service, one fixed-slot bar widget and one panel. This is a local development control surface, not an in-app APM agent, permanent target service, cluster federation layer or generic arbitrary-RPC console.
 
 ```text
-+S 1:1
-+SDcpu 1:1
-+SDio 1
--hidden
+Omarchy shell / Quickshell
+  Service.qml -> beam-deckd -> dedicated JSONL fd + stdin commands
+    BarWidget.qml             BeamDeck supervision tree
+    Panel.qml                 |-- DiagnosticTasks / CollectionTasks
+      Investigation.qml       |-- Diagnostics (bounded job queue)
+      TrialBar.qml            |-- BudgetTrial (control + recovery owner)
+      DeckState.js            |-- Daemon (snapshot/evidence/protocol owner)
+                              `-- Input (bounded command parser)
+
+read-only collection workers -> /proc + trusted OTP erpc
+explicit focused workers    -> process metadata / ETS metadata / bounded dump prefix
+explicit Deep Events        -> temporary isolated target trace-session probe
+BudgetTrial                 -> conditional scheduler flag changes and restoration
+explicit local persistence  -> watchlist / diagnostic ZIP / existing helper log
 ```
 
-File descriptor 3 is reserved for protocol JSON. Ordinary Mix/ERTS/Logger output is redirected to `~/.local/state/beam-deck/beam-deckd.log`, preventing distribution diagnostics from corrupting the QML JSON stream.
+`rest_for_one` orders task supervisors, queue, control owner, daemon and input. Failure of a lower-level owner restarts dependents; normal shutdown stops input/daemon before the budget owner. Budget control uses a longer supervised shutdown allowance to attempt restoration. No guarantee is made for untrappable helper/host loss.
 
-## Local OS census
+## Transport and lifecycle
 
-`BeamDeck.Procfs` scans numeric `/proc` entries whose `comm` starts with `beam`, excluding the helper's own OS PID. It records PID, command, cwd, state, RSS/virtual memory, threads, and sampled CPU usage.
+The Bash launcher applies `umask 077`, selects the direct or Mise toolchain, compiles into XDG cache and starts a small hidden distribution node. Normal VM/Mix output goes to the private state log; protocol output uses inherited fd 3. A missing toolchain emits an additive protocol-v1 onboarding envelope without Erlang. The minimum helper baseline is OTP 27 / Elixir 1.18 because JSON is implemented by OTP's built-in `json` module.
 
-Command-line capture redacts cookie values in both separated and inline `-setcookie` / `--cookie` forms before the data enters a snapshot.
+`Input` limits a command before parsing, accepts string keys, and never atomizes external commands, PIDs or fields. EOF requests normal application shutdown. `Daemon` emits sanitized structured messages. Quickshell owns one helper, keeps last successful state on errors and retries an exited helper with bounded backoff. A session identifier prevents old jobs/frame selections from being treated as results of a new helper.
 
-For attached local distributed nodes, `os:getpid/0` is queried remotely and correlated back to `/proc`; this marks the exact local runtime row as deeply attached rather than trying to infer identity from names or command lines.
+## Collection is not input handling
 
-## Discovery and authentication
+`Daemon` dispatches a single collection task instead of calling remote APIs inside its poll callback. Collection has a 15-second owner deadline, a shared six-second remote candidate budget, four concurrent candidate workers and bounded remote calls. Candidate admission rotates so an unreachable prefix cannot permanently monopolize the budget. One completed collection feeds the new snapshot; timeout retains the last successful snapshot and produces an error instead of invented healthy zeros.
 
-`BeamDeck.Discovery` combines:
+Discovery considers local EPMD, configured names and observed peers, not address ranges. Configuration/candidate sets are capped; newly admitted node-name atoms are lifetime-bounded. Command targets use existing atoms and must be observed attached/fresh where required. Local budget eligibility additionally requires corroborating the target's OS PID in the local census. Exact hostname aliases avoid treating a matching first DNS component as proof of locality. Tunnels and PID namespaces remain operator considerations.
 
-- local EPMD registrations;
-- explicitly configured node names;
-- visible/hidden peers learned from attached nodes.
+Light collection captures VM capacity/memory/topology and local PID/start-time identities. Deep process scans occur at the open-panel cadence. Old process evidence is preserved between deep scans only within a matching VM incarnation/uptime sequence. Closing the panel never initiates a new full process/ETS/stack/binary scan solely for 1.1; pins use targeted lookups.
 
-There is no LAN sweep. Candidate node strings are syntax-validated before atom conversion. The helper is excluded by its `beam_deck_` prefix.
+The old one-shot RPC wall-time toggle is not used for utilization. `scheduler:utilization(1)` owns measurement in a single remote caller lifetime, with capability failure shown as unavailable. This avoids relying on a system-flag reference that dies when its RPC process exits. The legacy API wrapper remains for compatibility/tests, not as a cross-poll measurement lease.
 
-A configured node may specify:
+## Pure evidence pipeline
 
-- `cookie_env`: environment-variable **name** containing its cookie;
-- `required`: whether unavailability is critical;
-- `expected_peers`: directional adjacency contracts used for missing-link warnings.
+`History` stores bounded newest-first light samples. `Forecast` examines only the latest continuous per-node/per-metric segment, applies exponentially weighted linear regression and reports the exact sample/span/slope/fit/stability evidence. Hard-limit ETA exists only for process/atom/port limits; binary/ETS signals are growth-only. Confidence is a fit-quality summary, not calibrated probability.
 
-The secret itself is not stored in plugin configuration.
+`RestartChurn` tracks registered-name PID changes without guessing Supervisor intensity. `FlightRecorder` stores allowlisted compact frames, not the whole recursive snapshot. Frame sequence is independent of wall-clock ordering; selected export ranges follow sequence even after time adjustments. Frame IDs are session-local. Diffs suppress node counter comparisons across incarnation changes and mark missing comparable deep samples.
 
-Short-name mode is the default. `BEAM_DECK_LONGNAMES=1` switches the helper to long-name mode; a single v1.0.0 helper intentionally does not bridge unrelated short- and long-name universes simultaneously.
+`Incidents` combines raw alerts, forecasts, selected events, nearby recorder process/scheduler observations, pin problems, budget failures and local exit/dump evidence. Incident identity deduplicates the same symptom family/node/metric or subject. Observed/correlated/heuristic labels are preserved at evidence level. Two quiet completed polls resolve an incident; bounded resolved retention supports context without storing history forever. Notification intent derives from critical transitions, not every repeated critical sample.
 
-## Deep inspection
+The recorder is pushed before incident correlation so a referenced nearest frame actually exists. A last-frame ID is captured for runtime disappearance before the next frame is written. Full recorder frames and job history are never embedded in routine snapshots.
 
-`BeamDeck.Remote.inspect_node/2` connects using normal Erlang distribution. It prefers `observer_backend:sys_info/0` for coherent limits/runtime/memory data, with public `erlang:system_info`, `erlang:statistics`, and `erlang:memory` fallbacks.
+## Focused diagnostics
 
-Process enumeration runs only on the independent deep cadence while the panel is open. `observer_backend:procs_info/1` streams `etop_proc_info` chunks to the helper; BEAM Deck computes a bounded union of top mailbox, memory, and reduction consumers plus a bounded registered-name/PID fingerprint set used for churn detection. A configured process-count cap prevents accidental huge scans.
+`Diagnostics` has bounded active/queued work, one remote diagnostic per node, caller ownership, per-job deadlines, duplicate-ID rejection and cancellation. Its tasks return data to the daemon; they never write protocol output directly. Panel close cancels interactive process/ETS/frame/diff work. Exports and safety-relevant work are not discarded merely because a panel hides. Runtime control owns its journal outside cancelable diagnostic workers.
 
-Light polls preserve the most recent process sample instead of rescanning the process table.
+`Diagnostics.Process` queries a field allowlist, a bounded argument-free stack and only the single `$ancestors` dictionary key. There is no `sys:get_state`, mailbox extraction or full-dictionary fallback. Supervisor enrichment uses `which_child/2` when available; older releases use a bounded `count_children`/`which_children` fallback only for a small child set. Binary summaries aggregate reference metadata; identifiers, addresses and contents are discarded before presentation.
 
-## Host scheduler budget
+`Diagnostics.Ets` enumerates table identifiers, then reads a capped/concurrent metadata set. It converts words with the target's word size and reports scan/cap/unavailable counts. No table contents operation is called. Native `ets:all`, process binary-reference lists and observer process enumeration may allocate/transfer their native list before a helper-side cap applies. A worker deadline/cap is not a hard target-memory allocation limit; sensitive or extremely large VMs need operator judgment.
 
-Host pressure and recommendations include **only attached local nodes**. Remote cluster schedulers never contribute to the workstation denominator/numerator.
+`Watchlist` persists normalized node/name identity, not PID, via `PrivateFile`. Adding a process pin performs asynchronous existing-name resolution; the daemon mailbox is not held by a remote lookup. Closed-panel observations use existing-atom lookup, `whereis`, and a small metadata list. Missing, unavailable and deferred remain distinct. Rotation plus a shared targeted-poll budget bounds steady-state cost.
 
-If online local schedulers do not exceed logical host CPUs, recommendations preserve current values. If oversubscribed, `BeamDeck.Budget` computes a bounded recommendation weighted by current run-queue demand, never raises a node above its current online count, and preserves at least one normal scheduler per local attached node when feasible.
+## Control state machine
 
-The recommendation is advisory until the user explicitly applies it.
+`BudgetTrial` is the single owner of scheduler changes, first-original values, trial timer and rollback failures. A trial must match the entire current local proposal, panel epoch and per-node incarnation/current value. Apply and rollback progress one node at a time, allowing the control mailbox to service close/Keep/Revert between bounded remote steps. The journal is written before requesting a mutation because timeout does not prove no side effect.
 
-## Scheduler utilization and controls
+States: `applying -> active -> kept`, or `applying/active -> reverting -> reverted|rollback_failed`. Explicit recovery retries a failed journal. Kept values are still in the first-original map. A conflicting external value is not overwritten; failed entries remain recoverable. Keep/Revert bypass the generic diagnostics queue. Normal shutdown, panel close for an unkept trial, lease expiry, partial apply and daemon-owner loss trigger the documented restoration behavior.
 
-While the panel is open, BEAM Deck enables `scheduler_wall_time` on nodes that permit it, retains the old setting, and computes per-scheduler utilization from active/total counter deltas. Closing the panel restores nodes that previously had the instrumentation disabled; nodes that already had it enabled remain enabled.
+A caller-visible timeout does not destroy the control owner's knowledge. GC is separate, explicit, and process-incarnation-gated by the UI and daemon. There is no automatic workload throttling or automatic GC remediation.
 
-The only normal live VM controls are:
+## Deep Events and crash triage
 
-- `schedulers_online`;
-- `dirty_cpu_schedulers_online`.
+The namespaced Erlang probe is the only BEAM Deck bytecode intentionally loaded into a target. It checks module collision, uses an isolated OTP 28 trace session, monitors the daemon owner, rate-limits forwarded metadata and stops on overload. Stop acknowledgement precedes delete/soft-purge on normal teardown. Abrupt helper loss destroys the session via parent monitoring but can leave inert module code; see Security/Handoff rather than promising impossible remote unload guarantees.
 
-`erlang:system_flag/2` returns each pre-mutation value, which is retained for explicit **Restore** and best-effort normal helper shutdown. SIGKILL is explicitly outside that cleanup guarantee.
+`CrashDump` compares local PID plus start-time identity, then checks only that runtime's cached cwd. Fingerprints include device/inode/size/mtime/ctime. File descriptor identity is rechecked, read size is capped, and only selected header/scheduler/memory fields survive parsing. At most one delayed retry handles missing/unchanged/unmatched files. Disappearance is observed; the nearby dump match is correlation, not causal proof.
 
-Process/port/atom limits remain startup-profile concerns; BEAM Deck never silently raises them.
+## Persistence and presentation
 
-## Pathology alerts and restart churn
+Only normalized watchlist state and explicit exports are new disk data. Export uses OTP ZIP, a fixed entry allowlist, per-frame redaction and a 16-MiB size ceiling. `PrivateFile` uses private directories, exclusive temporary files, file sync and atomic rename; an owner monitor removes temporaries on task death where the helper remains alive. Parent-directory races by a same-UID attacker are outside the trust model.
 
-The alert layer derives transparent warnings from current/raw values and retained samples:
+`DeckState.js` contains tested pure UI state rules, formatting and fixed notification argv construction. `Investigation.qml` uses bounded rows, progressive evidence disclosure, selectable plaintext and explicit requests. A visible historical/live boundary, stale-data age, job-specific results, process identity checks and sticky trial controls matter more than decorative animation. All theme/geometry/import/render acceptance remains a real-desktop gate, not established by delimiter or embedded-JavaScript checks.
 
-- local scheduler oversubscription;
-- process table utilization;
-- atom table utilization;
-- run queue per online scheduler;
-- mailbox absolute size and growth rate;
-- required configured node unavailable;
-- configured expected peer missing;
-- repeated registered-name PID replacement within the rolling churn window.
+## Upstream contracts used
 
-BEAM Deck does not scrape private Supervisor state and therefore does not claim an exact `max_restarts/max_seconds` countdown.
-
-## Node lifecycle and topology
-
-The helper subscribes to `net_kernel:monitor_nodes/2` for all node types and requests node-down reasons. `nodeup`/`nodedown` events are retained in the bounded recent-event list and trigger an immediate reconciliation poll.
-
-The topology snapshot contains each node's reported `sees` peers plus configured `expected` and computed `missing` lists. Only explicitly expected-but-missing links generate partition-like warnings.
-
-## Deep Events
-
-OTP 28+ Deep Events are opt-in. The helper loads its own namespaced `nshkr_beam_deck_probe` object code into the target node, starts a target-local process, creates an isolated `trace:system/3` session, enables the configured long-GC/long-schedule/mailbox/large-heap/busy-port monitors, and forwards normalized events.
-
-Startup uses a readiness handshake: the UI marks events active only after the remote trace session has initialized. Disable/panel-close synchronously stops the probe, then deletes and soft-purges its module. The probe also monitors the helper PID so loss of its parent tears down the trace session.
-
-OTP 27 keeps all ordinary inspection functionality but does not expose this Deep Events mode.
-
-## History
-
-`BeamDeck.History` retains a bounded newest-first window in memory. The snapshot exports a chronological, endpoint-preserving downsample (maximum 120 points by default) spanning that **whole retained window**, keeping the QML payload bounded without making the graph represent only the newest tail.
-
-No database or persistent telemetry store is used.
+Official OTP documentation: `erlang:process_info/2`, `erlang:system_info/1`, `erpc`, `scheduler`, `supervisor`, `trace`, `ets`, `json`, `zip`. Sources consulted are catalogued in [the implementation review](IMPLEMENTATION-1.1.md). Their runtime behavior is covered by authored peer tests but was not executable in the implementation container.

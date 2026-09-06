@@ -9,21 +9,51 @@
   "process_usage_warn": 0.8,
   "atom_usage_warn": 0.8,
   "run_queue_per_scheduler_warn": 1.0,
+  "nodes": [],
+  "flight_recorder_points": 150,
+  "incident_retention_ms": 300000,
+  "critical_notification_cooldown_ms": 300000,
+  "budget_trial_lease_ms": 30000,
+  "watchlist_max_entries": 64,
+  "watchlist_max_processes_per_node": 16,
+  "forecast": {
+    "enabled": true,
+    "min_samples": 12,
+    "min_span_ms": 60000,
+    "half_life_ms": 90000,
+    "min_r2": 0.8,
+    "min_stability": 0.7,
+    "info_eta_ms": 21600000,
+    "warning_eta_ms": 3600000,
+    "critical_eta_ms": 600000,
+    "binary_growth_min_bytes": 33554432,
+    "binary_growth_min_fraction": 0.2,
+    "ets_memory_growth_min_bytes": 33554432,
+    "ets_memory_growth_min_fraction": 0.2,
+    "ets_count_growth_min": 32,
+    "ets_count_growth_min_fraction": 0.2
+  },
+  "diagnostics": {
+    "max_concurrent_jobs": 2,
+    "max_queued_jobs": 16,
+    "per_node_remote_jobs": 1,
+    "process_timeout_ms": 1500,
+    "process_stack_frames": 20,
+    "process_ancestry_depth": 16,
+    "process_binary_entries": 5000,
+    "ets_timeout_ms": 5000,
+    "ets_max_tables": 256,
+    "ets_concurrency": 8,
+    "ets_top_rows": 50,
+    "crash_dump_read_bytes": 262144,
+    "crash_dump_match_window_ms": 30000,
+    "crash_dump_retry_ms": 2000
+  },
   "event_thresholds": {
     "long_gc_ms": 100,
     "long_schedule_ms": 100,
     "mailbox_enable": 5000,
     "mailbox_disable": 1000,
     "large_heap_words": 8000000
-  },
-  "nodes": [
-    {
-      "name": "worker@omen",
-      "cookie_env": "BEAM_DECK_OMEN_COOKIE",
-      "required": false,
-      "expected_peers": [
-        "api@workstation"
-      ]
-    }
-  ]
+  }
 }
