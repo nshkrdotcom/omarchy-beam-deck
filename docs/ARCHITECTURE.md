@@ -6,7 +6,7 @@ The Omarchy plugin stays `nshkr.beam-deck`, with one service, one fixed-slot bar
 
 ```text
 Omarchy shell / Quickshell
-  Service.qml -> beam-deckd -> dedicated JSONL fd + stdin commands
+  Service.qml -> beam-deckd -> private JSONL FIFO bridge + stdin commands
     BarWidget.qml             BeamDeck supervision tree
     Panel.qml                 |-- DiagnosticTasks / CollectionTasks
       Investigation.qml       |-- Diagnostics (bounded job queue)

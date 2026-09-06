@@ -37,6 +37,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- Replace the `/dev/fd/3` protocol reopen with a private FIFO bridge so launcher output remains reliable across exec/CI environments; configured protocol transport failures now fail closed instead of silently falling back into the private runtime log.
+
 - Make Flight Recorder View A/View B and Compare A → B mutually exclusive result modes so either action remains reliable regardless of which was used first while preserving the frozen A/B selection.
 - Prevent focused text fields, combo boxes, spin boxes, and other native controls from having editing/navigation keys stolen by the panel keyboard wrapper.
 - Remove the obsolete hand-centered/full-output panel geometry path and its associated layout/focus regressions.

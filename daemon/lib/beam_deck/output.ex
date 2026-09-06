@@ -10,8 +10,11 @@ defmodule BeamDeck.Output do
 
         path ->
           case File.open(path, [:write]) do
-            {:ok, io} -> io
-            _ -> :stdio
+            {:ok, io} ->
+              io
+
+            {:error, reason} ->
+              raise "protocol output unavailable: #{inspect(reason)}"
           end
       end
 
