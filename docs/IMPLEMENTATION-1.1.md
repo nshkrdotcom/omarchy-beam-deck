@@ -62,4 +62,4 @@ Primary documentation informed these implementation refinements; code/desktop ac
 
 ## Acceptance boundary
 
-This code is not labeled production-ready by passing a syntax-adjacent check. It must compile, be formatted, pass all old/new ExUnit and real-peer cases, Credo, Dialyzer, actual-launcher protocol tests, supported-version CI and real Omarchy UI/lifecycle/performance checks. The exact unrun status is carried forward in [HANDOFF](../HANDOFF.md); do not replace it with a generic "all features done" checklist.
+This code is not labeled production-ready by passing a syntax-adjacent check. It must compile, be formatted, pass all old/new ExUnit and real-peer cases, Credo, Dialyzer, actual-launcher protocol tests, supported-version CI and real Omarchy UI/lifecycle/performance checks. The exact validation status is maintained in [VALIDATION](VALIDATION.md); do not replace observed evidence with a generic "all features done" checklist.

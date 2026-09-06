@@ -2,7 +2,7 @@
 
 ## Meaning of this record
 
-Static checks and JavaScript behavior tests were run in a Debian 13 container with Node 22, Python 3, Bash and jq. Erlang/Elixir/Mix, Mise, Omarchy, Quickshell/Qt QML tools, Credo, Dialyzer and ShellCheck were unavailable. Package repository access failed; no runtime was installed. **No BEAM compilation, ExUnit/real OTP integration or UI rendering is claimed.** Exact final executed counts/results are recorded in [HANDOFF.md](../HANDOFF.md) and [the machine-readable check record](validation-results.json).
+Static checks and JavaScript behavior tests were run in a Debian 13 container with Node 22, Python 3, Bash and jq. Erlang/Elixir/Mix, Mise, Omarchy, Quickshell/Qt QML tools, Credo, Dialyzer and ShellCheck were unavailable. Package repository access failed; no runtime was installed. **No BEAM compilation, ExUnit/real OTP integration or UI rendering is claimed.** Executed counts/results are recorded in this validation record and [the machine-readable check record](validation-results.json).
 
 `make check` is intentionally fail-closed when Mix is missing. A static success must never be relabeled release acceptance. Source test declarations are not passed-test counts. Embedded JavaScript parsing does not validate QML imports, properties, layout, styling or runtime behavior.
 

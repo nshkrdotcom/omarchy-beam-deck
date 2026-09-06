@@ -60,7 +60,7 @@ const investigation = read("qml/Investigation.qml");
 const copyText = investigation.match(/component CopyText: TextEdit \{([\s\S]*?)\n  \}/);
 assert.ok(copyText, "CopyText component missing");
 assert.doesNotMatch(copyText[1], /\bimplicitHeight\s*:/, "TextEdit implicitHeight is read-only in Quickshell");
-for (const path of ["README.md", "SECURITY.md", "HANDOFF.md", "docs/ARCHITECTURE.md", "docs/PROTOCOL.md", "docs/CONFIGURATION.md", "docs/VALIDATION.md", "docs/IMPLEMENTATION-1.1.md"]) {
+for (const path of ["README.md", "SECURITY.md", "docs/ARCHITECTURE.md", "docs/PROTOCOL.md", "docs/CONFIGURATION.md", "docs/VALIDATION.md", "docs/IMPLEMENTATION-1.1.md"]) {
   assert.ok(fs.statSync(path).size > 200, `documentation missing: ${path}`);
 }
 const discoveryRegression = read("daemon/lib/beam_deck/discovery.ex");

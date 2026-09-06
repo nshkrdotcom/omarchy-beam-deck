@@ -56,4 +56,4 @@ A slogan/current-function string is bounded and sanitized, but can itself contai
 
 ## Reporting
 
-Do not post live cookies, unsanitized dumps, raw helper logs, private node names or production exports in a public issue. Reproduce with a disposable peer and distinctive fake secrets. A private security contact is not declared by this repository; use an available private maintainer channel rather than inventing one. Current unverified gates and known deployment limitations are in [HANDOFF.md](HANDOFF.md).
+Do not post live cookies, unsanitized dumps, raw helper logs, private node names or production exports in a public issue. Reproduce with a disposable peer and distinctive fake secrets. A private security contact is not declared by this repository; use an available private maintainer channel rather than inventing one. Current validation gates and known deployment limitations are in [docs/VALIDATION.md](docs/VALIDATION.md).
