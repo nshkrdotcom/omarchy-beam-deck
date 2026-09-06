@@ -2,6 +2,7 @@ defmodule BeamDeck.BudgetTrial do
   @moduledoc "Single owner for scheduler mutations, leases, original values and conditional rollback."
   use GenServer
   alias BeamDeck.{Discovery, Remote}
+  @coupled_dirty_flag :dirty_cpu_schedulers_online
   def start_link(_), do: GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   def panel(open, epoch, owner), do: GenServer.cast(__MODULE__, {:panel, open, epoch, owner})
 
@@ -183,25 +184,96 @@ defmodule BeamDeck.BudgetTrial do
     with {:ok, node} <- Discovery.existing_node(name),
          {:ok, identity} <- Remote.identity(node),
          {:ok, current} when is_integer(current) <-
-           Remote.call_raw(node, :erlang, :system_info, [flag]) do
-      entry = %{node: name, flag: flag, original: current, applied: value, identity: identity}
-      next = %{state | originals: remember(state.originals, entry)}
-      finish_set_flag(node, flag, value, entry, next)
+           Remote.call_raw(node, :erlang, :system_info, [flag]),
+         {:ok, entries} <- mutation_entries(node, name, flag, current, value, identity) do
+      next = %{state | originals: remember_all(state.originals, entries)}
+      finish_set_flag(node, flag, value, entries, next)
     else
       _ -> {:reply, {:error, :mutation_failed}, state}
     end
   end
 
-  defp finish_set_flag(node, flag, value, entry, state) do
+  defp finish_set_flag(node, flag, value, [entry | rest], state) do
     case Remote.set_flag(node, flag, value) do
       {:ok, old} ->
-        corrected = %{entry | original: old}
+        corrected = [%{entry | original: old} | rest]
 
-        {:reply, {:ok, %{previous: old, applied: value}},
-         %{state | originals: remember(state.originals, corrected)}}
+        case capture_coupled_applied(node, corrected) do
+          {:ok, observed} ->
+            [primary | _] = observed
+
+            {:reply, {:ok, %{previous: primary.original, applied: value}},
+             %{state | originals: remember_all(state.originals, observed)}}
+
+          {:error, _} ->
+            {:reply, {:error, :mutation_outcome_uncertain_use_restore},
+             %{state | originals: remember_all(state.originals, corrected)}}
+        end
 
       _ ->
         {:reply, {:error, :mutation_outcome_uncertain_use_restore}, state}
+    end
+  end
+
+  defp mutation_entries(
+         node,
+         name,
+         :schedulers_online,
+         current,
+         value,
+         identity
+       ) do
+    case Remote.call_raw(node, :erlang, :system_info, [@coupled_dirty_flag]) do
+      {:ok, dirty_current} when is_integer(dirty_current) ->
+        {:ok,
+         [
+           %{
+             node: name,
+             flag: :schedulers_online,
+             original: current,
+             applied: value,
+             identity: identity
+           },
+           %{
+             node: name,
+             flag: @coupled_dirty_flag,
+             original: dirty_current,
+             applied: nil,
+             identity: identity
+           }
+         ]}
+
+      _ ->
+        {:error, :coupled_scheduler_state_unavailable}
+    end
+  end
+
+  defp mutation_entries(_node, name, flag, current, value, identity) do
+    {:ok,
+     [
+       %{
+         node: name,
+         flag: flag,
+         original: current,
+         applied: value,
+         identity: identity
+       }
+     ]}
+  end
+
+  defp capture_coupled_applied(_node, [entry]), do: {:ok, [entry]}
+
+  defp capture_coupled_applied(node, [primary, dirty]) do
+    if dirty.flag == @coupled_dirty_flag do
+      case Remote.call_raw(node, :erlang, :system_info, [@coupled_dirty_flag]) do
+        {:ok, current} when is_integer(current) ->
+          {:ok, [primary, %{dirty | applied: current}]}
+
+        _ ->
+          {:error, :coupled_scheduler_state_unavailable}
+      end
+    else
+      {:ok, [primary, dirty]}
     end
   end
 
@@ -244,6 +316,7 @@ defmodule BeamDeck.BudgetTrial do
           {:error, reason} ->
             failure = %{
               node: entry.node,
+              flag: entry.flag,
               error: reason,
               original: entry.original,
               applied: entry.applied
@@ -297,40 +370,30 @@ defmodule BeamDeck.BudgetTrial do
     with {:ok, node} <- Discovery.existing_node(row.node),
          {:ok, identity} <- Remote.identity(node),
          {:ok, current} <- Remote.call_raw(node, :erlang, :system_info, [:schedulers_online]),
-         true <- current == row.current and identity == state.trial.targets[row.node] do
-      entry = %{
-        node: row.node,
-        flag: :schedulers_online,
-        original: current,
-        applied: row.suggested,
-        identity: identity
-      }
-
-      # Journal BEFORE requesting a side effect: an RPC timeout is not proof of no mutation.
-      next = %{
-        state
-        | trial: %{state.trial | journal: [entry | state.trial.journal]},
-          originals: remember(state.originals, entry)
-      }
+         true <- current == row.current and identity == state.trial.targets[row.node],
+         {:ok, entries} <-
+           mutation_entries(
+             node,
+             row.node,
+             :schedulers_online,
+             current,
+             row.suggested,
+             identity
+           ) do
+      # Journal both normal and coupled dirty scheduler state BEFORE the side
+      # effect. OTP may change dirty_cpu_schedulers_online as a consequence of
+      # changing schedulers_online.
+      next = put_trial_entries(state, entries)
 
       case Remote.set_flag(node, :schedulers_online, row.suggested) do
         {:ok, ^current} ->
-          send(self(), {:step, state.trial.trial_id})
-          notify(next)
-          next
+          finish_applied_row(next, node, entries)
 
         {:ok, actual_old} ->
-          corrected = %{entry | original: actual_old}
-          journal = [corrected | tl(next.trial.journal)]
-
-          start_rollback(
-            %{
-              next
-              | originals: remember(state.originals, corrected),
-                trial: %{next.trial | journal: journal}
-            },
-            :concurrent_change
-          )
+          [entry | rest] = entries
+          corrected = [%{entry | original: actual_old} | rest]
+          next = replace_trial_entries(next, length(entries), corrected)
+          start_rollback(next, :concurrent_change)
 
         _ ->
           start_rollback(next, :apply_failed)
@@ -338,6 +401,37 @@ defmodule BeamDeck.BudgetTrial do
     else
       _ -> start_rollback(state, :stale_target)
     end
+  end
+
+  defp finish_applied_row(state, node, entries) do
+    case capture_coupled_applied(node, entries) do
+      {:ok, observed} ->
+        next = replace_trial_entries(state, length(entries), observed)
+        send(self(), {:step, next.trial.trial_id})
+        notify(next)
+        next
+
+      {:error, _} ->
+        start_rollback(state, :apply_outcome_uncertain)
+    end
+  end
+
+  defp put_trial_entries(state, entries) do
+    %{
+      state
+      | originals: remember_all(state.originals, entries),
+        trial: %{state.trial | journal: entries ++ state.trial.journal}
+    }
+  end
+
+  defp replace_trial_entries(state, count, entries) do
+    journal = entries ++ Enum.drop(state.trial.journal, count)
+
+    %{
+      state
+      | originals: remember_all(state.originals, entries),
+        trial: %{state.trial | journal: journal}
+    }
   end
 
   defp start_rollback(%{trial: nil} = state, _reason), do: state
@@ -376,6 +470,12 @@ defmodule BeamDeck.BudgetTrial do
     end
   end
 
+  defp remember_all(originals, entries) do
+    Enum.reduce(entries, originals, fn entry, acc ->
+      remember(acc, entry)
+    end)
+  end
+
   defp after_rollback(originals, entry) do
     key = {entry.node, entry.flag}
 
@@ -391,10 +491,20 @@ defmodule BeamDeck.BudgetTrial do
   end
 
   defp restore_entries(originals, name) do
-    Enum.reduce(originals, {originals, []}, fn item, acc ->
+    originals
+    |> Enum.sort_by(fn {_key, entry} ->
+      {entry.node, restore_priority(entry.flag)}
+    end)
+    |> Enum.reduce({originals, []}, fn item, acc ->
       restore_named_entry(item, acc, name)
     end)
   end
+
+  # Restoring normal schedulers can itself affect dirty CPU scheduler state,
+  # therefore dirty CPU restoration must happen second.
+  defp restore_priority(:schedulers_online), do: 0
+  defp restore_priority(:dirty_cpu_schedulers_online), do: 1
+  defp restore_priority(_flag), do: 2
 
   defp restore_named_entry({key, %{node: node} = entry}, acc, target)
        when target == :all or node == target do
@@ -428,6 +538,9 @@ defmodule BeamDeck.BudgetTrial do
   end
 
   defp restore_current(_node, current, %{original: original}) when current == original, do: :ok
+
+  defp restore_current(_node, _current, %{applied: nil}),
+    do: {:error, :mutation_outcome_unknown}
 
   defp restore_current(_node, current, %{applied: applied}) when current != applied,
     do: {:error, :externally_changed}

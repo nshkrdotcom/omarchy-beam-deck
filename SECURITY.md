@@ -37,6 +37,8 @@ No UI field selects an arbitrary module/function/eval expression or arbitrary fi
 Scheduler changes and GC are explicit. A process report must be fresh and from the same VM incarnation for UI GC. The daemon rechecks the expected creation identity and attached target. PID lifetime can still change between observation and execution; process exit is handled as an error. There is no auto-GC or auto-apply incident playbook.
 
 A scheduler trial validates the complete local proposal and journals before mutation. Defaults give at most 30 seconds unless Keep is explicitly accepted. Panel closure, lease expiry, partial failure and owner loss begin rollback. Applied values and first-original values are retained by a dedicated control owner, not a disposable worker. An RPC timeout is treated as uncertain, not assumed to mean no mutation.
+OTP may automatically change `dirty_cpu_schedulers_online` when `schedulers_online` changes. BEAM Deck therefore journals both values before a normal-scheduler mutation and restores normal schedulers first, then dirty CPU schedulers, with the same VM-identity and external-change checks.
+
 
 Rollback checks VM identity and whether the present value is the one BEAM Deck applied (or already the original). It refuses to clobber an externally changed value. Failures retain recovery state and become visible incidents. Kept/manual values remain restorable; normal shutdown attempts restoration. **SIGKILL, power loss, partitions and helper/target crashes cannot be guaranteed reversible without a resident target guard, which this product intentionally does not install.** Do not use the feature as a production transactional resource manager.
 

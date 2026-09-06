@@ -364,6 +364,9 @@ omarchy-shell nshkr.beam-deck ping
 
 If you want a custom global binding beyond Omarchy's `Super+Ctrl+1–9` bar-position bindings, add it in your own Omarchy/Hyprland configuration. BEAM Deck does not silently modify desktop keybindings.
 
+
+The `status` IPC response is intentionally bounded for desktop IPC reliability. It reports onboarding, summary, bounded runtime/node operational fields, the current budget trial, and flight-recorder identity/counts rather than serializing the entire internal UI snapshot.
+
 ## Configuration
 
 BEAM Deck works with no user configuration for ordinary local discovery. A missing config uses bounded defaults; existing 1.0 settings deep-merge with the 1.1 defaults.

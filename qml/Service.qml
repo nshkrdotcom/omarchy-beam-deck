@@ -19,6 +19,7 @@ Item {
   property bool notificationBusy: false
   property string lastError: ""
   property string lastAction: ""
+  property bool budgetRequestPending: false
   property bool daemonRunning: daemon.running
   property bool panelOpen: false
   property int restartDelayMs: 1000
@@ -68,7 +69,12 @@ Item {
   function recorderFrame(id) { return request("recorder_frame", {frame_id:id}) }
   function compareFrames(from, to) { return request("compare_frames", {from_frame_id:from, to_frame_id:to}) }
   function exportBundle(from, to) { return request("export_bundle", {from_frame_id:from || null, to_frame_id:to || null}) }
-  function beginBudget(rows) { return mayMutate() ? request("budget_trial_begin", {rows:rows}) : "" }
+  function beginBudget(rows) {
+    if (!mayMutate()) return ""
+    budgetRequestPending = true
+    lastAction = "Starting budget trial… waiting for helper acknowledgement."
+    return request("budget_trial_begin", {rows:rows})
+  }
   function keepBudget(id) { return mayMutate() && send({cmd:"budget_trial_keep",trial_id:id}) }
   function revertBudget(id) { return send({cmd:"budget_trial_revert",trial_id:id}) }
   function pinNode(node) { return send({cmd:"watchlist_add",entry:{kind:"node",node:node,label:String(node).slice(0,80)}}) }
@@ -117,10 +123,19 @@ Item {
         lastAction = String(data.action || "") + ": " + (typeof data.result === "object" ? JSON.stringify(data.result) : String(data.result || ""))
       } else if (data.type === "job") {
         jobs = DeckState.acceptJob(jobs, data, Date.now())
-        if (["set_schedulers", "set_dirty_schedulers", "restore", "gc", "budget_trial_keep", "budget_trial_revert"].indexOf(data.kind) >= 0 && DeckState.terminal(data.status))
+        if (data.kind === "budget_trial_begin" && DeckState.terminal(data.status)) {
+          budgetRequestPending = false
+          lastAction = data.status === "complete"
+            ? "Budget trial accepted."
+            : "Budget trial failed" + (data.error ? ": " + data.error : ".")
+        } else if (["set_schedulers", "set_dirty_schedulers", "restore", "gc", "budget_trial_keep", "budget_trial_revert"].indexOf(data.kind) >= 0 && DeckState.terminal(data.status)) {
           lastAction = data.kind + ": " + (data.result && data.result.restored === false ? "RESTORE NOT CONFIRMED - " + JSON.stringify(data.result.failures || []) : data.status) + (data.error ? " - " + data.error : "")
+        }
       } else if (data.type === "budget_trial") {
+        budgetRequestPending = false
         snapshot = Object.assign({}, snapshot, {budget_trial:data.trial})
+        if (data.trial && data.trial.status === "active")
+          lastAction = "BUDGET TRIAL ACTIVE — automatic rollback in 30 seconds unless kept."
       } else if (data.type === "notification") {
         if (notificationQueue.length < 8) {
           notificationQueue = notificationQueue.concat([DeckState.notificationArgs(data)])
@@ -189,9 +204,68 @@ Item {
     }
   }
 
+  function ipcStatusSnapshot() {
+    var s = root.snapshot || {}
+    var host = s.host || {}
+    var recorder = s.flight_recorder || {}
+
+    var runtimes = (host.runtimes || []).slice(0, 64).map(function(r) {
+      return {
+        pid: r.pid,
+        node_name: r.node_name || null,
+        os_only: r.os_only === true,
+        state: r.state || null,
+        rss_bytes: r.rss_bytes || 0
+      }
+    })
+
+    var nodes = (s.nodes || []).slice(0, 64).map(function(n) {
+      return {
+        name: n.name || "",
+        attached: n.attached === true,
+        local: n.local === true,
+        required: n.required === true,
+        error: n.error || null,
+        otp: n.otp || null,
+        creation: n.creation || null,
+        processes: n.processes || 0,
+        ets: n.ets || 0,
+        schedulers: n.schedulers || 0,
+        schedulers_online: n.schedulers_online || 0,
+        dirty_cpu_schedulers: n.dirty_cpu_schedulers || 0,
+        dirty_cpu_schedulers_online: n.dirty_cpu_schedulers_online || 0,
+        deep_events_capable: n.deep_events_capable === true,
+        deep_events_active: n.deep_events_active === true,
+        capabilities: n.capabilities || {}
+      }
+    })
+
+    return {
+      type: "snapshot",
+      protocol: s.protocol || 1,
+      session_id: s.session_id || "",
+      at_ms: s.at_ms || 0,
+      onboarding: s.onboarding || {},
+      summary: s.summary || {},
+      config_error: s.config_error || null,
+      host: {
+        logical_cpus: host.logical_cpus || 0,
+        runtimes: runtimes
+      },
+      nodes: nodes,
+      budget: s.budget || [],
+      budget_trial: s.budget_trial || null,
+      flight_recorder: {
+        frame_count: recorder.frame_count || 0,
+        oldest_frame_id: recorder.oldest_frame_id || null,
+        newest_frame_id: recorder.newest_frame_id || null
+      }
+    }
+  }
+
   IpcHandler {
     target: "nshkr.beam-deck"
-    function status(): string { return JSON.stringify(root.snapshot) }
+    function status(): string { return JSON.stringify(root.ipcStatusSnapshot()) }
     function refresh(): string { root.refresh(); return "ok" }
     function open(): string { if (root.shell) root.shell.summon("nshkr.beam-deck", "{}"); return "ok" }
     function ping(): string { return "ok" }

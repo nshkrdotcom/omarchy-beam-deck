@@ -626,9 +626,15 @@ Item {
         Label { width:parent.width; text:"Without Keep, the trial expires after at most 30 seconds. Closing the panel also reverts. Keep ends the lease, not the original-value Restore capability. No helper can guarantee cleanup after SIGKILL, power loss or a partition." }
         Controls.CheckBox { width:parent.width; text:"I reviewed all proposed local scheduler changes"; checked:root.budgetConfirmed; onToggled:root.budgetConfirmed=checked }
         Button {
-          text:"Begin 30-second trial"
-          enabled:root.budgetConfirmed && root.service && !root.service.historicalMode && (root.snapshot.budget || []).some(function(r) { return r.current!==r.suggested }) && (!root.snapshot.budget_trial || ["kept","reverted"].indexOf(root.snapshot.budget_trial.status)>=0)
+          text:root.service && root.service.budgetRequestPending ? "Starting trial…" : "Begin 30-second trial"
+          enabled:root.budgetConfirmed && root.service && !root.service.budgetRequestPending && !root.service.historicalMode && (root.snapshot.budget || []).some(function(r) { return r.current!==r.suggested }) && (!root.snapshot.budget_trial || ["kept","reverted"].indexOf(root.snapshot.budget_trial.status)>=0)
           onClicked:{ root.service.beginBudget(root.snapshot.budget); root.budgetConfirmed=false }
+        }
+        Label {
+          width:parent.width
+          visible:root.service && root.service.budgetRequestPending
+          color:root.accent
+          text:"Starting budget trial — waiting for helper acknowledgement."
         }
         Label { width:parent.width; visible:!(root.snapshot.budget || []).length; text:"No eligible local nodes. Remote scheduler counts never consume this host's CPU budget." }
       }

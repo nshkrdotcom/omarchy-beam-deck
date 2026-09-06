@@ -45,6 +45,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Keep historical recorder A/B selections stable while live collection continues and clear historical selection when returning to live/helper state changes instead of silently rebinding it to newer frames.
 - Preserve exact recorder sequence semantics across wall-clock/NTP changes so range ordering and exports cannot be inverted by timestamp regression.
 
+- Bound the desktop `status` IPC projection so large live snapshots cannot intermittently exceed the Quickshell local-socket response path.
+- Restore OTP-coupled dirty CPU scheduler state alongside normal scheduler state for explicit Revert, lease expiry, panel-close rollback, Keep + Restore, and manual scheduler Restore.
+
 ## [1.0.0] - 2026-09-05
 
 ### Added

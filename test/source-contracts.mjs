@@ -31,6 +31,18 @@ const defaults = JSON.parse(source.replaceAll("%{", "{").replaceAll("=>", ":").r
 assert.deepEqual(JSON.parse(read("config/config.example.json")), defaults);
 const daemon = read("daemon/lib/beam_deck/daemon.ex");
 const ui = read("qml/Investigation.qml") + read("qml/Service.qml") + read("qml/TrialBar.qml");
+const serviceStatusSource = read("qml/Service.qml");
+assert.ok(serviceStatusSource.includes("function ipcStatusSnapshot()"));
+assert.ok(serviceStatusSource.includes("property bool budgetRequestPending: false"));
+assert.ok(serviceStatusSource.includes('lastAction = "Starting budget trial… waiting for helper acknowledgement."'));
+assert.ok(read("qml/Investigation.qml").includes('"Starting trial…"'));
+
+assert.ok(serviceStatusSource.includes(
+  'function status(): string { return JSON.stringify(root.ipcStatusSnapshot()) }'
+));
+assert.ok(!serviceStatusSource.includes(
+  'function status(): string { return JSON.stringify(root.snapshot) }'
+));
 for (const cmd of ["inspect_process", "inspect_ets", "recorder_frame", "compare_frames", "export_bundle", "watchlist_add", "watchlist_remove", "budget_trial_begin", "budget_trial_keep", "budget_trial_revert"]) {
   assert.ok(daemon.includes('"' + cmd + '"'), `daemon missing ${cmd}`);
   assert.ok(ui.includes('"' + cmd + '"'), `UI missing ${cmd}`);

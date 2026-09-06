@@ -164,6 +164,102 @@ defmodule BeamDeck.V11IntegrationTest do
     assert schedulers(c.node) == 3
   end
 
+  @tag timeout: 40_000
+  test "normal scheduler mutations restore OTP-coupled dirty CPU scheduler state" do
+    start_supervised!(BudgetTrial)
+    {:ok, peer, node} = scheduler_coupling_peer()
+
+    on_exit(fn ->
+      if Process.alive?(peer), do: :peer.stop(peer)
+    end)
+
+    c = %{node: node, name: Atom.to_string(node)}
+    assert_scheduler_pair(node, 8, 4)
+
+    {rows, budget, nodes} = proposal(c, 8)
+
+    # Explicit Revert.
+    BudgetTrial.panel(true, 10, self())
+    assert {:ok, trial} = BudgetTrial.begin(rows, budget, nodes, 10, 30_000)
+    assert_scheduler_pair(node, 1, 1)
+    assert {:ok, _} = BudgetTrial.revert(trial.trial_id)
+    TestPeer.eventually(fn -> BudgetTrial.status().status == "reverted" end)
+    assert_scheduler_pair(node, 8, 4)
+
+    # Panel-close rollback.
+    BudgetTrial.panel(true, 11, self())
+    assert {:ok, _} = BudgetTrial.begin(rows, budget, nodes, 11, 30_000)
+    assert_scheduler_pair(node, 1, 1)
+    BudgetTrial.panel(false, 12, self())
+    TestPeer.eventually(fn -> BudgetTrial.status().status == "reverted" end)
+    assert_scheduler_pair(node, 8, 4)
+
+    # Lease expiry.
+    BudgetTrial.panel(true, 13, self())
+    assert {:ok, _} = BudgetTrial.begin(rows, budget, nodes, 13, 5_000)
+    assert_scheduler_pair(node, 1, 1)
+    TestPeer.eventually(fn -> BudgetTrial.status().status == "reverted" end, 350)
+    assert BudgetTrial.status().reason == :lease_expired
+    assert_scheduler_pair(node, 8, 4)
+
+    # Keep followed by first-original Restore.
+    BudgetTrial.panel(true, 14, self())
+    assert {:ok, kept_trial} = BudgetTrial.begin(rows, budget, nodes, 14, 30_000)
+    assert_scheduler_pair(node, 1, 1)
+    assert {:ok, %{status: "kept"}} = BudgetTrial.keep(kept_trial.trial_id)
+    assert_scheduler_pair(node, 1, 1)
+    assert {:ok, %{restored: true}} = BudgetTrial.restore(c.name)
+    assert_scheduler_pair(node, 8, 4)
+
+    # Legacy/manual normal-scheduler control has the same coupled guarantee.
+    BudgetTrial.panel(true, 15, self())
+
+    assert {:ok, %{previous: 8, applied: 1}} =
+             BudgetTrial.set(c.name, :schedulers_online, 1)
+
+    assert_scheduler_pair(node, 1, 1)
+    assert {:ok, %{restored: true}} = BudgetTrial.restore(c.name)
+    assert_scheduler_pair(node, 8, 4)
+  end
+
+  defp scheduler_coupling_peer do
+    name =
+      String.to_atom("bd_scheduler_coupling_#{System.unique_integer([:positive])}")
+
+    :peer.start(%{
+      name: name,
+      wait_boot: 15_000,
+      args: [
+        ~c"+S",
+        ~c"8:8",
+        ~c"+SDcpu",
+        ~c"4:4",
+        ~c"+SDio",
+        ~c"1",
+        ~c"-setcookie",
+        ~c"beam_deck_test_cookie"
+      ]
+    })
+  end
+
+  defp assert_scheduler_pair(node, normal, dirty) do
+    assert Remote.call(
+             node,
+             :erlang,
+             :system_info,
+             [:schedulers_online],
+             nil
+           ) == normal
+
+    assert Remote.call(
+             node,
+             :erlang,
+             :system_info,
+             [:dirty_cpu_schedulers_online],
+             nil
+           ) == dirty
+  end
+
   defp proposal(c, current \\ 3) do
     {[%{"node" => c.name, "current" => current, "suggested" => 1}],
      [%{node: c.name, current: current, suggested: 1}],
