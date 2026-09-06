@@ -42,6 +42,8 @@ defmodule BeamDeck.RemoteIntegrationTest do
     assert info.process_limit >= info.processes
     assert info.schedulers >= info.schedulers_online
     assert is_list(info.hot_processes)
+    assert info.hot_processes != []
+    refute Map.has_key?(info, :process_scan_error)
     assert is_list(info.registered_processes)
     assert info.os_pid > 0
     assert is_map(info.memory)

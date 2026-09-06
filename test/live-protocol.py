@@ -41,6 +41,8 @@ class Wire:
         self.selector = selectors.DefaultSelector()
         self.selector.register(process.stdout, selectors.EVENT_READ)
         self.messages = 0
+        self.last_snapshot = None
+        self.errors = []
 
     def send(self, command: dict) -> None:
         self.process.stdin.write(json.dumps(command).encode() + b"\n")
@@ -55,6 +57,14 @@ class Wire:
                 value = json.loads(line)
                 assert isinstance(value, dict) and isinstance(value.get("type"), str)
                 self.messages += 1
+                if value.get("type") == "snapshot":
+                    self.last_snapshot = value
+                elif value.get("type") == "error":
+                    self.errors.append({
+                        "error": value.get("error"),
+                        "reason": value.get("reason"),
+                    })
+                    self.errors = self.errors[-8:]
                 if predicate(value):
                     return value
             if self.process.poll() is not None:
@@ -65,7 +75,25 @@ class Wire:
                     raise AssertionError("daemon protocol closed unexpectedly")
                 self.buffer += data
                 assert len(self.buffer) <= 32 * 1024 * 1024, "unbounded protocol line"
-        raise AssertionError("timed out awaiting real daemon protocol response")
+        safe = {"messages": self.messages, "errors": self.errors}
+        if self.last_snapshot:
+            safe["onboarding"] = self.last_snapshot.get("onboarding")
+            safe["nodes"] = [
+                {
+                    "name": n.get("name"),
+                    "attached": n.get("attached"),
+                    "local": n.get("local"),
+                    "error": n.get("error"),
+                    "process_scan_error": n.get("process_scan_error"),
+                    "hot_processes_count": len(n.get("hot_processes") or []),
+                    "hot_processes_at_ms": n.get("hot_processes_at_ms"),
+                }
+                for n in self.last_snapshot.get("nodes", [])
+            ]
+        raise AssertionError(
+            "timed out awaiting real daemon protocol response; safe_state="
+            + json.dumps(safe, sort_keys=True)
+        )
 
     def job(self, command: dict) -> dict:
         self.send(command)
