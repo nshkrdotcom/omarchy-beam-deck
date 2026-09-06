@@ -98,74 +98,67 @@ defmodule BeamDeck.CrashDump do
 
   def parse_header(bytes) do
     lines = String.split(bytes, "\n")
-
-    header =
-      lines
-      |> Enum.drop(1)
-      |> Enum.take_while(&(not String.starts_with?(&1, "=")))
-      |> Enum.take(80)
-
-    get = fn prefix ->
-      case Enum.find(header, &String.starts_with?(&1, prefix)) do
-        nil -> nil
-        line -> line |> String.replace_prefix(prefix, "") |> String.trim() |> Redaction.text(512)
-      end
-    end
+    header = header_lines(lines)
 
     base = %{
       dump_header: Enum.at(lines, 0),
       dump_timestamp: Redaction.text(Enum.at(header, 0, ""), 120),
-      slogan: get.("Slogan:"),
-      system_version: get.("System version:"),
-      compiled: get.("Compiled:")
+      slogan: header_value(header, "Slogan:"),
+      system_version: header_value(header, "System version:"),
+      compiled: header_value(header, "Compiled:")
     }
 
-    {extra, _section} =
-      Enum.reduce(Enum.take(lines, 2_000), {%{}, :none}, fn line, {acc, section} ->
-        cond do
-          String.starts_with?(line, "=scheduler:") ->
-            {acc, :scheduler}
-
-          line == "=memory" ->
-            {acc, :memory}
-
-          String.starts_with?(line, "=") ->
-            {acc, :none}
-
-          section == :scheduler and String.starts_with?(line, "Current Process:") ->
-            {Map.put_new(
-               acc,
-               :current_process,
-               line
-               |> String.replace_prefix("Current Process:", "")
-               |> String.trim()
-               |> Redaction.text(120)
-             ), section}
-
-          section == :scheduler and String.starts_with?(line, "Current Function:") ->
-            {Map.put_new(
-               acc,
-               :current_function,
-               line
-               |> String.replace_prefix("Current Function:", "")
-               |> String.trim()
-               |> Redaction.text(255)
-             ), section}
-
-          section == :memory and Regex.match?(~r/^(total|processes|binary|ets): [0-9]+$/, line) ->
-            [key, value] = String.split(line, ": ", parts: 2)
-            memory = Map.put(acc[:memory] || %{}, key, String.to_integer(value))
-            {Map.put(acc, :memory, memory), section}
-
-          true ->
-            {acc, section}
-        end
-      end)
-
     base
-    |> Map.merge(extra)
+    |> Map.merge(section_metadata(lines))
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)
     |> Map.new()
     |> Redaction.sanitize()
   end
+
+  defp header_lines(lines) do
+    lines
+    |> Enum.drop(1)
+    |> Enum.take_while(&(not String.starts_with?(&1, "=")))
+    |> Enum.take(80)
+  end
+
+  defp header_value(header, prefix) do
+    case Enum.find(header, &String.starts_with?(&1, prefix)) do
+      nil -> nil
+      line -> line |> String.replace_prefix(prefix, "") |> String.trim() |> Redaction.text(512)
+    end
+  end
+
+  defp section_metadata(lines) do
+    {metadata, _section} =
+      Enum.reduce(Enum.take(lines, 2_000), {%{}, :none}, &section_line/2)
+
+    metadata
+  end
+
+  defp section_line("=memory", {metadata, _section}), do: {metadata, :memory}
+  defp section_line("=scheduler:" <> _rest, {metadata, _section}), do: {metadata, :scheduler}
+  defp section_line("=" <> _rest, {metadata, _section}), do: {metadata, :none}
+
+  defp section_line("Current Process:" <> value, {metadata, :scheduler}) do
+    value = value |> String.trim() |> Redaction.text(120)
+    {Map.put_new(metadata, :current_process, value), :scheduler}
+  end
+
+  defp section_line("Current Function:" <> value, {metadata, :scheduler}) do
+    value = value |> String.trim() |> Redaction.text(255)
+    {Map.put_new(metadata, :current_function, value), :scheduler}
+  end
+
+  defp section_line(line, {metadata, :memory}) do
+    if Regex.match?(~r/^(total|processes|binary|ets): [0-9]+$/, line) do
+      [key, value] = String.split(line, ": ", parts: 2)
+      memory = Map.put(metadata[:memory] || %{}, key, String.to_integer(value))
+      {Map.put(metadata, :memory, memory), :memory}
+    else
+      {metadata, :memory}
+    end
+  end
+
+  defp section_line(_line, state), do: state
 end

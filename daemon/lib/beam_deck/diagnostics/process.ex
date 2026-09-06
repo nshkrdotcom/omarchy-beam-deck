@@ -132,32 +132,38 @@ defmodule BeamDeck.Diagnostics.Process do
     # OTP 27+ supports this single-key form. Never fall back to a full dictionary.
     case rpc(node, :erlang, :process_info, [pid, {:dictionary, :"$ancestors"}], deadline) do
       {:ok, {{:dictionary, :"$ancestors"}, ancestors}} when is_list(ancestors) ->
-        selected = Enum.take(ancestors, opts["process_ancestry_depth"])
-
-        {rows, _child} =
-          Enum.map_reduce(selected, pid, fn ancestor, child ->
-            case ancestor_pid(node, ancestor, deadline) do
-              {:ok, parent} ->
-                focused = child_info(node, parent, child, deadline)
-
-                {%{pid: Remote.pid_text(parent), name: ancestor_name(ancestor), child: focused},
-                 parent}
-
-              _ ->
-                {%{name: ancestor_name(ancestor), status: "unavailable"}, child}
-            end
-          end)
-
-        warnings =
-          if length(ancestors) > length(selected), do: ["Ancestry depth capped."], else: []
-
-        {rows, warnings}
+        ancestry_rows(node, pid, ancestors, opts, deadline)
 
       {:ok, {{:dictionary, :"$ancestors"}, :undefined}} ->
         {[], []}
 
       _ ->
         {[], ["Focused ancestry is unavailable; no dictionary fallback was attempted."]}
+    end
+  end
+
+  defp ancestry_rows(node, pid, ancestors, opts, deadline) do
+    selected = Enum.take(ancestors, opts["process_ancestry_depth"])
+
+    {rows, _child} =
+      Enum.map_reduce(selected, pid, fn ancestor, child ->
+        ancestry_row(node, ancestor, child, deadline)
+      end)
+
+    warnings =
+      if length(ancestors) > length(selected), do: ["Ancestry depth capped."], else: []
+
+    {rows, warnings}
+  end
+
+  defp ancestry_row(node, ancestor, child, deadline) do
+    case ancestor_pid(node, ancestor, deadline) do
+      {:ok, parent} ->
+        focused = child_info(node, parent, child, deadline)
+        {%{pid: Remote.pid_text(parent), name: ancestor_name(ancestor), child: focused}, parent}
+
+      _ ->
+        {%{name: ancestor_name(ancestor), status: "unavailable"}, child}
     end
   end
 

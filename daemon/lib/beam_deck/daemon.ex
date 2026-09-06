@@ -268,38 +268,7 @@ defmodule BeamDeck.Daemon do
 
   def handle_cast({:command, command, args}, state)
       when command in ["set_schedulers", "set_dirty_schedulers", "restore", "gc"] do
-    name = args["node"]
-
-    with true <- state.panel_open, {:ok, node} <- authorized_node(name, state) do
-      observed = Enum.find(snapshot_nodes(state), &(&1.name == name))
-      expected = args["expected_creation"] || observed[:creation]
-
-      action = fn ->
-        with {:ok, %{creation: creation}} <- Remote.identity(node),
-             true <- creation == expected do
-          case command do
-            "set_schedulers" ->
-              BudgetTrial.set(name, :schedulers_online, args["value"])
-
-            "set_dirty_schedulers" ->
-              BudgetTrial.set(name, :dirty_cpu_schedulers_online, args["value"])
-
-            "restore" ->
-              BudgetTrial.restore(name)
-
-            "gc" ->
-              Remote.trigger_gc(node, args["pid"], expected)
-          end
-        else
-          _ -> {:error, :target_restarted_or_unavailable}
-        end
-      end
-
-      submit(action_id(), command, name, action, interactive: false, timeout: 10_000)
-    else
-      _ -> emit_action(command, name, %{error: "fresh_attached_node_and_open_panel_required"})
-    end
-
+    run_mutation(command, args, state)
     {:noreply, state}
   end
 
@@ -327,26 +296,10 @@ defmodule BeamDeck.Daemon do
   end
 
   def handle_cast({:command, "watchlist_add", %{"entry" => entry}}, state) do
-    if entry["kind"] == "registered_process" and is_binary(entry["name"]) do
-      with {:ok, normalized} <- Watchlist.normalize(entry),
-           {:ok, node} <- authorized_node(normalized["node"], state) do
-        submit(
-          action_id(),
-          "_watchlist_resolve",
-          normalized["node"],
-          fn ->
-            case Watchlist.resolve(node, normalized["name"]) do
-              %{status: "present", pid: pid} -> {:ok, %{entry: normalized, pid: pid}}
-              _ -> {:error, :pin_not_currently_observed}
-            end
-          end,
-          interactive: false,
-          timeout: 2_000
-        )
-
-        {:noreply, state}
-      else
-        _ -> update_watchlist({:error, :pin_not_currently_observed}, state)
+    if process_pin?(entry) do
+      case queue_process_pin(entry, state) do
+        :ok -> {:noreply, state}
+        {:error, reason} -> update_watchlist({:error, reason}, state)
       end
     else
       update_watchlist(
@@ -365,38 +318,108 @@ defmodule BeamDeck.Daemon do
     {:noreply, state}
   end
 
+  defp run_mutation(command, args, state) do
+    name = args["node"]
+
+    case mutation_target(name, state) do
+      {:ok, node, expected} ->
+        action = fn -> execute_mutation(command, args, name, node, expected) end
+        submit(action_id(), command, name, action, interactive: false, timeout: 10_000)
+
+      :error ->
+        emit_action(command, name, %{error: "fresh_attached_node_and_open_panel_required"})
+    end
+  end
+
+  defp mutation_target(name, state) do
+    with true <- state.panel_open,
+         {:ok, node} <- authorized_node(name, state),
+         observed when not is_nil(observed) <-
+           Enum.find(snapshot_nodes(state), &(&1.name == name)) do
+      {:ok, node, observed[:creation]}
+    else
+      _ -> :error
+    end
+  end
+
+  defp execute_mutation(command, args, name, node, observed_creation) do
+    expected = args["expected_creation"] || observed_creation
+
+    with {:ok, %{creation: creation}} <- Remote.identity(node),
+         true <- creation == expected do
+      mutation_result(command, args, name, node, expected)
+    else
+      _ -> {:error, :target_restarted_or_unavailable}
+    end
+  end
+
+  defp mutation_result("set_schedulers", args, name, _node, _expected),
+    do: BudgetTrial.set(name, :schedulers_online, args["value"])
+
+  defp mutation_result("set_dirty_schedulers", args, name, _node, _expected),
+    do: BudgetTrial.set(name, :dirty_cpu_schedulers_online, args["value"])
+
+  defp mutation_result("restore", _args, name, _node, _expected), do: BudgetTrial.restore(name)
+
+  defp mutation_result("gc", args, _name, node, expected),
+    do: Remote.trigger_gc(node, args["pid"], expected)
+
+  defp process_pin?(entry) do
+    entry["kind"] == "registered_process" and is_binary(entry["name"])
+  end
+
+  defp queue_process_pin(entry, state) do
+    with {:ok, normalized} <- Watchlist.normalize(entry),
+         {:ok, node} <- authorized_node(normalized["node"], state) do
+      submit(
+        action_id(),
+        "_watchlist_resolve",
+        normalized["node"],
+        fn -> resolve_process_pin(node, normalized) end,
+        interactive: false,
+        timeout: 2_000
+      )
+
+      :ok
+    else
+      _ -> {:error, :pin_not_currently_observed}
+    end
+  end
+
+  defp resolve_process_pin(node, normalized) do
+    case Watchlist.resolve(node, normalized["name"]) do
+      %{status: "present", pid: pid} -> {:ok, %{entry: normalized, pid: pid}}
+      _ -> {:error, :pin_not_currently_observed}
+    end
+  end
+
   defp start_probe(state, name) do
     case authorized_node(name, state) do
-      {:ok, node} ->
-        owner = self()
-
-        submit(
-          action_id(),
-          "_probe_start",
-          name,
-          fn ->
-            case DeepEvents.start(
-                   node,
-                   state.config["event_thresholds"],
-                   owner
-                 ) do
-              {:ok, pid} -> {:ok, %{name: name, pid: pid}}
-              _ -> {:error, :probe_unavailable}
-            end
-          end,
-          interactive: false,
-          timeout: 10_000
-        )
-
-      _ ->
-        emit_action(
-          "deep_events",
-          name,
-          %{error: "fresh_attached_node_required"}
-        )
+      {:ok, node} -> queue_probe_start(node, name, state)
+      _ -> emit_action("deep_events", name, %{error: "fresh_attached_node_required"})
     end
 
     state
+  end
+
+  defp queue_probe_start(node, name, state) do
+    owner = self()
+
+    submit(
+      action_id(),
+      "_probe_start",
+      name,
+      fn -> probe_start_result(node, name, owner, state.config["event_thresholds"]) end,
+      interactive: false,
+      timeout: 10_000
+    )
+  end
+
+  defp probe_start_result(node, name, owner, thresholds) do
+    case DeepEvents.start(node, thresholds, owner) do
+      {:ok, pid} -> {:ok, %{name: name, pid: pid}}
+      _ -> {:error, :probe_unavailable}
+    end
   end
 
   @impl true
@@ -411,78 +434,79 @@ defmodule BeamDeck.Daemon do
     :ok
   end
 
-  defp submit_job(command, args, state) do
-    id = args["request_id"]
+  defp submit_job("inspect_process" = command, args, state) do
     opts = state.config["diagnostics"]
 
-    case command do
-      "inspect_process" ->
-        remote_job(
-          id,
-          command,
-          args["node"],
-          state,
-          fn node ->
-            ProcessDiagnostics.inspect_process(node, args["pid"], opts)
-          end,
-          opts["process_timeout_ms"] + 1_000
+    remote_job(
+      args["request_id"],
+      command,
+      args["node"],
+      state,
+      fn node -> ProcessDiagnostics.inspect_process(node, args["pid"], opts) end,
+      opts["process_timeout_ms"] + 1_000
+    )
+  end
+
+  defp submit_job("inspect_ets" = command, args, state) do
+    opts = state.config["diagnostics"]
+
+    remote_job(
+      args["request_id"],
+      command,
+      args["node"],
+      state,
+      fn node -> EtsDiagnostics.inspect_tables(node, args["sort"] || "memory", opts) end,
+      opts["ets_timeout_ms"] + 1_000
+    )
+  end
+
+  defp submit_job("recorder_frame" = command, args, state) do
+    submit(args["request_id"], command, nil, fn ->
+      FlightRecorder.get(state.recorder, args["frame_id"])
+    end)
+  end
+
+  defp submit_job("compare_frames" = command, args, state) do
+    submit(args["request_id"], command, nil, fn ->
+      FlightRecorder.compare(state.recorder, args["from_frame_id"], args["to_frame_id"])
+    end)
+  end
+
+  defp submit_job("export_bundle" = command, args, state) do
+    submit(
+      args["request_id"],
+      command,
+      nil,
+      fn ->
+        Bundle.export(
+          state.snapshot || %{},
+          state.recorder,
+          args["from_frame_id"],
+          args["to_frame_id"]
         )
+      end,
+      interactive: false,
+      timeout: 30_000
+    )
+  end
 
-      "inspect_ets" ->
-        remote_job(
-          id,
-          command,
-          args["node"],
-          state,
-          fn node ->
-            EtsDiagnostics.inspect_tables(node, args["sort"] || "memory", opts)
-          end,
-          opts["ets_timeout_ms"] + 1_000
+  defp submit_job("budget_trial_begin" = command, args, state) do
+    submit(
+      args["request_id"],
+      command,
+      "_control",
+      fn ->
+        BudgetTrial.begin(
+          args["rows"],
+          (state.snapshot && state.snapshot.budget) || [],
+          snapshot_nodes(state),
+          state.panel_epoch,
+          state.config["budget_trial_lease_ms"]
         )
-
-      "recorder_frame" ->
-        submit(id, command, nil, fn -> FlightRecorder.get(state.recorder, args["frame_id"]) end)
-
-      "compare_frames" ->
-        submit(id, command, nil, fn ->
-          FlightRecorder.compare(state.recorder, args["from_frame_id"], args["to_frame_id"])
-        end)
-
-      "export_bundle" ->
-        submit(
-          id,
-          command,
-          nil,
-          fn ->
-            Bundle.export(
-              state.snapshot || %{},
-              state.recorder,
-              args["from_frame_id"],
-              args["to_frame_id"]
-            )
-          end,
-          interactive: false,
-          timeout: 30_000
-        )
-
-      "budget_trial_begin" ->
-        submit(
-          id,
-          command,
-          "_control",
-          fn ->
-            BudgetTrial.begin(
-              args["rows"],
-              (state.snapshot && state.snapshot.budget) || [],
-              snapshot_nodes(state),
-              state.panel_epoch,
-              state.config["budget_trial_lease_ms"]
-            )
-          end,
-          interactive: false,
-          timeout: 30_000
-        )
-    end
+      end,
+      interactive: false,
+      timeout: 30_000
+    )
   end
 
   defp remote_job(id, kind, name, state, fun, timeout) do
@@ -536,25 +560,36 @@ defmodule BeamDeck.Daemon do
   defp stop_probes(state), do: Enum.reduce(Map.keys(state.probes), state, &stop_probe(&2, &1))
 
   defp stop_probe(state, name) do
-    if pid = state.probes[name] do
-      with {:ok, node} <- Discovery.existing_node(name) do
+    case state.probes[name] do
+      nil -> :ok
+      pid -> queue_probe_stop(name, pid)
+    end
+
+    state
+  end
+
+  defp queue_probe_stop(name, pid) do
+    case Discovery.existing_node(name) do
+      {:ok, node} ->
         submit(
           action_id(),
           "_probe_stop",
           name,
-          fn ->
-            case DeepEvents.stop(node, pid) do
-              :ok -> {:ok, %{name: name}}
-              _ -> {:error, :probe_stop_unconfirmed}
-            end
-          end,
+          fn -> probe_stop_result(node, pid, name) end,
           interactive: false,
           timeout: 8_000
         )
-      end
-    end
 
-    state
+      _ ->
+        :ok
+    end
+  end
+
+  defp probe_stop_result(node, pid, name) do
+    case DeepEvents.stop(node, pid) do
+      :ok -> {:ok, %{name: name}}
+      _ -> {:error, :probe_stop_unconfirmed}
+    end
   end
 
   defp collect(state) do
@@ -617,39 +652,51 @@ defmodule BeamDeck.Daemon do
            max_process_scan: state.config["max_process_scan"],
            scheduler_wall_time: false
          ) do
-      {:ok, info} ->
-        old = previous[info.name]
-
-        info =
-          if not deep and not is_nil(old) and is_integer(old[:uptime_ms]) and
-               info.uptime_ms >= old.uptime_ms and info[:creation] == old[:creation] do
-            Enum.reduce(
-              [
-                :hot_processes,
-                :registered_processes,
-                :hot_processes_at_ms,
-                :process_scan_error,
-                :scheduler_utilization
-              ],
-              info,
-              fn key, acc ->
-                if Map.has_key?(old, key), do: Map.put(acc, key, old[key]), else: acc
-              end
-            )
-          else
-            info
-          end
-
-        utilization =
-          if deep, do: Remote.utilization_sample(node), else: info[:scheduler_utilization] || []
-
-        info
-        |> Map.merge(Discovery.metadata(state.config, node))
-        |> Map.put(:scheduler_utilization, utilization)
-
-      {:error, _} ->
-        unattached(node, state.config, "authentication_or_unreachable")
+      {:ok, info} -> enrich_candidate(node, info, state, previous, deep)
+      {:error, _} -> unattached(node, state.config, "authentication_or_unreachable")
     end
+  end
+
+  defp enrich_candidate(node, info, state, previous, deep) do
+    previous_info = previous[info.name]
+    info = carry_deep_sample(info, previous_info, deep)
+
+    utilization =
+      if deep, do: Remote.utilization_sample(node), else: info[:scheduler_utilization] || []
+
+    info
+    |> Map.merge(Discovery.metadata(state.config, node))
+    |> Map.put(:scheduler_utilization, utilization)
+  end
+
+  defp carry_deep_sample(info, _previous, true), do: info
+  defp carry_deep_sample(info, nil, false), do: info
+
+  defp carry_deep_sample(info, previous, false) do
+    if reusable_deep_sample?(info, previous) do
+      Enum.reduce(deep_sample_keys(), info, &copy_if_present(previous, &1, &2))
+    else
+      info
+    end
+  end
+
+  defp reusable_deep_sample?(info, previous) do
+    is_integer(previous[:uptime_ms]) and info.uptime_ms >= previous.uptime_ms and
+      info[:creation] == previous[:creation]
+  end
+
+  defp deep_sample_keys do
+    [
+      :hot_processes,
+      :registered_processes,
+      :hot_processes_at_ms,
+      :process_scan_error,
+      :scheduler_utilization
+    ]
+  end
+
+  defp copy_if_present(previous, key, info) do
+    if Map.has_key?(previous, key), do: Map.put(info, key, previous[key]), else: info
   end
 
   defp unattached(node, config, error) do
@@ -667,6 +714,23 @@ defmodule BeamDeck.Daemon do
     |> Map.merge(Discovery.metadata(config, node))
   end
 
+  defp queue_crash_triage(exit, state) do
+    frame = List.first(state.recorder.frames)
+    exit = Map.put(exit, :last_frame_id, if(frame, do: frame.frame_id, else: nil))
+
+    case submit(
+           "crash:#{exit.id}",
+           "_crash",
+           nil,
+           fn -> {:ok, CrashDump.triage(exit, state.config["diagnostics"])} end,
+           interactive: false,
+           timeout: 8_000
+         ) do
+      :ok -> exit
+      _ -> Map.put(exit, :status, "triage_unavailable")
+    end
+  end
+
   defp incorporate(state, telemetry) do
     at = telemetry.at_ms
 
@@ -681,23 +745,7 @@ defmodule BeamDeck.Daemon do
 
     exits = CrashDump.disappeared(state.procfs, telemetry.host, at)
 
-    exits =
-      Enum.map(exits, fn exit ->
-        frame = List.first(state.recorder.frames)
-        exit = Map.put(exit, :last_frame_id, if(frame, do: frame.frame_id, else: nil))
-
-        case submit(
-               "crash:#{exit.id}",
-               "_crash",
-               nil,
-               fn -> {:ok, CrashDump.triage(exit, state.config["diagnostics"])} end,
-               interactive: false,
-               timeout: 8_000
-             ) do
-          :ok -> exit
-          _ -> Map.put(exit, :status, "triage_unavailable")
-        end
-      end)
+    exits = Enum.map(exits, &queue_crash_triage(&1, state))
 
     retained =
       Enum.filter(state.crash_triage, &(at - &1.at_ms <= state.config["incident_retention_ms"]))

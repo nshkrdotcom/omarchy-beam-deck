@@ -16,27 +16,46 @@ defmodule BeamDeck.BudgetTrial do
   def restore(name), do: GenServer.call(__MODULE__, {:restore, name}, 10_000)
 
   def validate(rows, budget, nodes) do
-    normalized =
-      Enum.map(rows, fn row ->
-        %{node: row["node"], current: row["current"], suggested: row["suggested"]}
-      end)
+    normalized = Enum.map(rows, &normalize_row/1)
 
-    eligible =
-      Enum.all?(normalized, fn row ->
-        node = Enum.find(nodes, &(&1.name == row.node))
-
-        not is_nil(node) and node[:attached] == true and node[:local] == true and
-          node[:schedulers_online] == row.current and
-          is_integer(row.suggested) and row.suggested >= 1 and row.suggested <= row.current
-      end)
-
-    if eligible and length(rows) in 1..16 and
-         length(Enum.uniq_by(normalized, & &1.node)) == length(rows) and
-         Enum.sort_by(normalized, & &1.node) == Enum.sort_by(budget, & &1.node) do
+    if valid_budget?(rows, normalized, budget, nodes) do
       {:ok, normalized}
     else
       {:error, :stale_or_unsafe_budget}
     end
+  end
+
+  defp normalize_row(row) do
+    %{node: row["node"], current: row["current"], suggested: row["suggested"]}
+  end
+
+  defp valid_budget?(rows, normalized, budget, nodes) do
+    length(rows) in 1..16 and unique_nodes?(normalized) and
+      Enum.all?(normalized, &eligible_row?(&1, nodes)) and
+      same_budget?(normalized, budget)
+  end
+
+  defp unique_nodes?(rows) do
+    length(Enum.uniq_by(rows, & &1.node)) == length(rows)
+  end
+
+  defp same_budget?(rows, budget) do
+    Enum.sort_by(rows, & &1.node) == Enum.sort_by(budget, & &1.node)
+  end
+
+  defp eligible_row?(row, nodes) do
+    case Enum.find(nodes, &(&1.name == row.node)) do
+      nil ->
+        false
+
+      node ->
+        node[:attached] == true and node[:local] == true and
+          node[:schedulers_online] == row.current and valid_suggestion?(row)
+    end
+  end
+
+  defp valid_suggestion?(row) do
+    is_integer(row.suggested) and row.suggested >= 1 and row.suggested <= row.current
   end
 
   @impl true
@@ -141,26 +160,7 @@ defmodule BeamDeck.BudgetTrial do
     if busy?(state) do
       {:reply, {:error, :trial_active}, state}
     else
-      with {:ok, node} <- Discovery.existing_node(name),
-           {:ok, identity} <- Remote.identity(node),
-           {:ok, current} when is_integer(current) <-
-             Remote.call_raw(node, :erlang, :system_info, [flag]) do
-        entry = %{node: name, flag: flag, original: current, applied: value, identity: identity}
-        next = %{state | originals: remember(state.originals, entry)}
-
-        case Remote.set_flag(node, flag, value) do
-          {:ok, old} ->
-            corrected = %{entry | original: old}
-
-            {:reply, {:ok, %{previous: old, applied: value}},
-             %{next | originals: remember(state.originals, corrected)}}
-
-          _ ->
-            {:reply, {:error, :mutation_outcome_uncertain_use_restore}, next}
-        end
-      else
-        _ -> {:reply, {:error, :mutation_failed}, state}
-      end
+      set_flag(name, flag, value, state)
     end
   end
 
@@ -176,6 +176,32 @@ defmodule BeamDeck.BudgetTrial do
           else: {:ok, %{restored: false, failures: failures}}
 
       {:reply, result, %{state | originals: originals}}
+    end
+  end
+
+  defp set_flag(name, flag, value, state) do
+    with {:ok, node} <- Discovery.existing_node(name),
+         {:ok, identity} <- Remote.identity(node),
+         {:ok, current} when is_integer(current) <-
+           Remote.call_raw(node, :erlang, :system_info, [flag]) do
+      entry = %{node: name, flag: flag, original: current, applied: value, identity: identity}
+      next = %{state | originals: remember(state.originals, entry)}
+      finish_set_flag(node, flag, value, entry, next)
+    else
+      _ -> {:reply, {:error, :mutation_failed}, state}
+    end
+  end
+
+  defp finish_set_flag(node, flag, value, entry, state) do
+    case Remote.set_flag(node, flag, value) do
+      {:ok, old} ->
+        corrected = %{entry | original: old}
+
+        {:reply, {:ok, %{previous: old, applied: value}},
+         %{state | originals: remember(state.originals, corrected)}}
+
+      _ ->
+        {:reply, {:error, :mutation_outcome_uncertain_use_restore}, state}
     end
   end
 
@@ -365,19 +391,26 @@ defmodule BeamDeck.BudgetTrial do
   end
 
   defp restore_entries(originals, name) do
-    Enum.reduce(originals, {originals, []}, fn {key, entry}, {acc, failures} ->
-      if name == :all or entry.node == name do
-        case restore_entry(entry) do
-          :ok ->
-            {Map.delete(acc, key), failures}
-
-          {:error, error} ->
-            {acc, [%{node: entry.node, flag: entry.flag, error: error} | failures]}
-        end
-      else
-        {acc, failures}
-      end
+    Enum.reduce(originals, {originals, []}, fn item, acc ->
+      restore_named_entry(item, acc, name)
     end)
+  end
+
+  defp restore_named_entry({key, %{node: node} = entry}, acc, target)
+       when target == :all or node == target do
+    restore_selected_entry(key, entry, acc)
+  end
+
+  defp restore_named_entry(_item, acc, _target), do: acc
+
+  defp restore_selected_entry(key, entry, {originals, failures}) do
+    case restore_entry(entry) do
+      :ok ->
+        {Map.delete(originals, key), failures}
+
+      {:error, error} ->
+        {originals, [%{node: entry.node, flag: entry.flag, error: error} | failures]}
+    end
   end
 
   defp restore_entry(entry) do
@@ -387,28 +420,29 @@ defmodule BeamDeck.BudgetTrial do
          {:ok, identity} <- Remote.identity(node),
          true <- identity == entry.identity,
          {:ok, current} <- Remote.call_raw(node, :erlang, :system_info, [entry.flag]) do
-      cond do
-        current == entry.original ->
-          :ok
-
-        current != entry.applied ->
-          {:error, :externally_changed}
-
-        true ->
-          case Remote.set_flag(node, entry.flag, entry.original) do
-            {:ok, _} ->
-              if Remote.call(node, :erlang, :system_info, [entry.flag], nil) == entry.original,
-                do: :ok,
-                else: {:error, :restore_unconfirmed}
-
-            _ ->
-              {:error, :restore_failed}
-          end
-      end
+      restore_current(node, current, entry)
     else
       false -> {:error, :vm_identity_changed}
       _ -> {:error, :node_unavailable}
     end
+  end
+
+  defp restore_current(_node, current, %{original: original}) when current == original, do: :ok
+
+  defp restore_current(_node, current, %{applied: applied}) when current != applied,
+    do: {:error, :externally_changed}
+
+  defp restore_current(node, _current, entry) do
+    case Remote.set_flag(node, entry.flag, entry.original) do
+      {:ok, _} -> confirm_restore(node, entry)
+      _ -> {:error, :restore_failed}
+    end
+  end
+
+  defp confirm_restore(node, entry) do
+    if Remote.call(node, :erlang, :system_info, [entry.flag], nil) == entry.original,
+      do: :ok,
+      else: {:error, :restore_unconfirmed}
   end
 
   defp public(nil), do: nil

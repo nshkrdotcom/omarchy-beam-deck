@@ -41,35 +41,50 @@ defmodule BeamDeck.Forecast do
   defp value(n, key), do: n[key]
 
   defp segment(history, name, {key, limit, _label}) do
-    {points, _} =
-      Enum.reduce_while(history, {[], nil}, fn frame, {acc, newer} ->
-        n = Enum.find(frame[:nodes] || [], &(&1.name == name))
-        valid = n && n[:attached] && is_number(value(n, key)) && is_number(n[:uptime_ms])
-
-        continuous =
-          valid &&
-            (is_nil(newer) or
-               (n.uptime_ms <= newer.uptime_ms and n[:creation] == newer.creation and
-                  frame.at_ms < newer.at_ms and
-                  frame.at_ms >= newer.at_ms - 120_000 and
-                  (is_nil(limit) or n[limit] == newer.limit)))
-
-        if continuous do
-          point = %{
-            at_ms: frame.at_ms,
-            value: value(n, key),
-            uptime_ms: n.uptime_ms,
-            creation: n[:creation],
-            limit: n[limit]
-          }
-
-          {:cont, {[point | acc], point}}
-        else
-          {:halt, {acc, newer}}
-        end
+    {points, _newer} =
+      Enum.reduce_while(history, {[], nil}, fn frame, acc ->
+        segment_frame(frame, acc, name, key, limit)
       end)
 
     points
+  end
+
+  defp segment_frame(frame, {acc, newer}, name, key, limit) do
+    node = Enum.find(frame[:nodes] || [], &(&1.name == name))
+
+    if continuous_point?(node, frame, newer, key, limit) do
+      point = segment_point(node, frame, key, limit)
+      {:cont, {[point | acc], point}}
+    else
+      {:halt, {acc, newer}}
+    end
+  end
+
+  defp continuous_point?(nil, _frame, _newer, _key, _limit), do: false
+
+  defp continuous_point?(node, _frame, nil, key, _limit) do
+    valid_point?(node, key)
+  end
+
+  defp continuous_point?(node, frame, newer, key, limit) do
+    valid_point?(node, key) and node.uptime_ms <= newer.uptime_ms and
+      node[:creation] == newer.creation and frame.at_ms < newer.at_ms and
+      frame.at_ms >= newer.at_ms - 120_000 and
+      (is_nil(limit) or node[limit] == newer.limit)
+  end
+
+  defp valid_point?(node, key) do
+    node[:attached] == true and is_number(value(node, key)) and is_number(node[:uptime_ms])
+  end
+
+  defp segment_point(node, frame, key, limit) do
+    %{
+      at_ms: frame.at_ms,
+      value: value(node, key),
+      uptime_ms: node.uptime_ms,
+      creation: node[:creation],
+      limit: node[limit]
+    }
   end
 
   defp estimate(points, name, {key, limit_key, label}, f) do
@@ -103,26 +118,8 @@ defmodule BeamDeck.Forecast do
   end
 
   defp finish(base, _first, limit, _key, limit_key, f) when not is_nil(limit_key) do
-    if is_number(limit) and limit > base.current and limit > 0 do
-      eta = round((limit - base.current) / base.rate_per_second * 1_000)
-
-      if eta <= f["info_eta_ms"] do
-        severity =
-          cond do
-            eta <= f["critical_eta_ms"] -> "critical"
-            eta <= f["warning_eta_ms"] -> "warning"
-            true -> "info"
-          end
-
-        Map.merge(base, %{
-          kind: "capacity",
-          limit: limit,
-          eta_ms: round(eta),
-          severity: severity,
-          summary:
-            "#{base.metric} may reach the configured hard limit if the observed trend continues"
-        })
-      end
+    if capacity_available?(base, limit) do
+      capacity_forecast(base, limit, f)
     end
   end
 
@@ -147,6 +144,33 @@ defmodule BeamDeck.Forecast do
         growth: delta,
         summary: "Sustained #{base.metric} growth; this is not an exhaustion forecast"
       })
+    end
+  end
+
+  defp capacity_available?(base, limit) do
+    is_number(limit) and limit > base.current and limit > 0
+  end
+
+  defp capacity_forecast(base, limit, f) do
+    eta = round((limit - base.current) / base.rate_per_second * 1_000)
+
+    if eta <= f["info_eta_ms"] do
+      Map.merge(base, %{
+        kind: "capacity",
+        limit: limit,
+        eta_ms: eta,
+        severity: capacity_severity(eta, f),
+        summary:
+          "#{base.metric} may reach the configured hard limit if the observed trend continues"
+      })
+    end
+  end
+
+  defp capacity_severity(eta, f) do
+    cond do
+      eta <= f["critical_eta_ms"] -> "critical"
+      eta <= f["warning_eta_ms"] -> "warning"
+      true -> "info"
     end
   end
 

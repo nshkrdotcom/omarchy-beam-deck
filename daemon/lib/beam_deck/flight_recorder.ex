@@ -157,71 +157,66 @@ defmodule BeamDeck.FlightRecorder do
       )
 
   defp node_diff(left, right) do
-    a = Map.new(left, &{&1.name, &1})
-    b = Map.new(right, &{&1.name, &1})
+    before = Map.new(left, &{&1.name, &1})
+    after_nodes = Map.new(right, &{&1.name, &1})
 
-    (Map.keys(a) ++ Map.keys(b))
+    (Map.keys(before) ++ Map.keys(after_nodes))
     |> Enum.uniq()
     |> Enum.sort()
-    |> Enum.map(fn name ->
-      old = a[name]
-      new = b[name]
-
-      change =
-        cond do
-          is_nil(old) ->
-            "added"
-
-          is_nil(new) ->
-            "removed"
-
-          old[:attached] != new[:attached] ->
-            "attachment_changed"
-
-          is_integer(old[:creation]) and old[:creation] != new[:creation] ->
-            "restarted"
-
-          is_integer(old[:uptime_ms]) and is_integer(new[:uptime_ms]) and
-              new.uptime_ms < old.uptime_ms ->
-            "restarted"
-
-          true ->
-            "retained"
-        end
-
-      base = %{node: name, change: change}
-
-      if old && new do
-        old_pids = Enum.map(old[:hot_processes] || [], & &1.pid)
-        new_pids = Enum.map(new[:hot_processes] || [], & &1.pid)
-
-        deep =
-          old[:attached] == true and new[:attached] == true and change != "restarted" and
-            is_integer(old[:hot_processes_at_ms]) and is_integer(new[:hot_processes_at_ms])
-
-        comparable = change == "retained" and old[:attached] == true and new[:attached] == true
-        baseline = if comparable, do: old, else: %{}
-
-        Map.merge(base, %{
-          delta: delta(baseline, new, ~w(processes atoms ports ets run_queue schedulers_online)a),
-          memory_delta:
-            delta(
-              baseline[:memory] || %{},
-              new[:memory] || %{},
-              ~w(total binary ets processes code)a
-            ),
-          hot_set_comparable: deep,
-          hot_entered: if(deep, do: new_pids -- old_pids, else: []),
-          hot_left: if(deep, do: old_pids -- new_pids, else: []),
-          restart_churn: new[:restart_churn] || [],
-          restart_churn_delta:
-            churn_delta(baseline[:restart_churn] || [], new[:restart_churn] || [], comparable)
-        })
-      else
-        base
-      end
-    end)
+    |> Enum.map(fn name -> node_change(name, before[name], after_nodes[name]) end)
   end
+
+  defp node_change(name, nil, _new), do: %{node: name, change: "added"}
+  defp node_change(name, _old, nil), do: %{node: name, change: "removed"}
+
+  defp node_change(name, old, new) do
+    change = change_kind(old, new)
+    comparable = comparable_nodes?(old, new, change)
+    baseline = if comparable, do: old, else: %{}
+    deep = deep_comparable?(old, new, change)
+
+    Map.merge(%{node: name, change: change}, %{
+      delta: delta(baseline, new, ~w(processes atoms ports ets run_queue schedulers_online)a),
+      memory_delta:
+        delta(baseline[:memory] || %{}, new[:memory] || %{}, ~w(total binary ets processes code)a),
+      hot_set_comparable: deep,
+      hot_entered: hot_delta(new, old, deep),
+      hot_left: hot_delta(old, new, deep),
+      restart_churn: new[:restart_churn] || [],
+      restart_churn_delta:
+        churn_delta(baseline[:restart_churn] || [], new[:restart_churn] || [], comparable)
+    })
+  end
+
+  defp change_kind(old, new) do
+    cond do
+      old[:attached] != new[:attached] -> "attachment_changed"
+      restarted?(old, new) -> "restarted"
+      true -> "retained"
+    end
+  end
+
+  defp restarted?(old, new) do
+    (is_integer(old[:creation]) and old[:creation] != new[:creation]) or
+      (is_integer(old[:uptime_ms]) and is_integer(new[:uptime_ms]) and
+         new.uptime_ms < old.uptime_ms)
+  end
+
+  defp comparable_nodes?(old, new, change) do
+    change == "retained" and old[:attached] == true and new[:attached] == true
+  end
+
+  defp deep_comparable?(old, new, change) do
+    old[:attached] == true and new[:attached] == true and change != "restarted" and
+      is_integer(old[:hot_processes_at_ms]) and is_integer(new[:hot_processes_at_ms])
+  end
+
+  defp hot_delta(left, right, true) do
+    Enum.map(left[:hot_processes] || [], & &1.pid) --
+      Enum.map(right[:hot_processes] || [], & &1.pid)
+  end
+
+  defp hot_delta(_left, _right, false), do: []
 
   defp churn_delta(old, new, comparable) do
     before = Map.new(old, &{&1.name, &1.count})

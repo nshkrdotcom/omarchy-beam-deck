@@ -81,28 +81,52 @@ defmodule BeamDeck.Watchlist do
   def normalize(entry) when is_map(entry) do
     kind = entry["kind"]
     node = entry["node"]
-    name = if(kind == "node", do: "", else: entry["name"] || "")
-    label = entry["label"] || if(kind == "node", do: node, else: name)
+    name = normalized_name(kind, entry["name"])
+    label = entry["label"] || default_label(kind, node, name)
 
-    if kind in ["node", "registered_process"] and BeamDeck.Protocol.node_name?(node) and
-         is_binary(label) and String.valid?(label) and String.printable?(label) and
-         byte_size(label) <= 80 and
-         (kind == "node" or
-            (is_binary(name) and byte_size(name) in 1..255 and String.valid?(name) and
-               String.printable?(name))) do
-      identity = Enum.join([kind, node, name], "\0")
-
-      id =
-        "pin-" <>
-          (:crypto.hash(:sha256, identity) |> Base.encode16(case: :lower) |> binary_part(0, 20))
-
-      {:ok, %{"id" => id, "kind" => kind, "node" => node, "name" => name, "label" => label}}
+    if valid_pin?(kind, node, name, label) do
+      {:ok, normalized_pin(kind, node, name, label)}
     else
       {:error, :invalid_pin}
     end
   end
 
   def normalize(_), do: {:error, :invalid_pin}
+
+  defp normalized_name("node", _name), do: ""
+  defp normalized_name(_kind, name), do: name || ""
+
+  defp default_label("node", node, _name), do: node
+  defp default_label(_kind, _node, name), do: name
+
+  defp valid_pin?(kind, node, name, label) do
+    kind in ["node", "registered_process"] and BeamDeck.Protocol.node_name?(node) and
+      valid_label?(label) and valid_pin_name?(kind, name)
+  end
+
+  defp valid_label?(label) do
+    is_binary(label) and String.valid?(label) and String.printable?(label) and
+      byte_size(label) <= 80
+  end
+
+  defp valid_pin_name?("node", _name), do: true
+
+  defp valid_pin_name?("registered_process", name) do
+    is_binary(name) and byte_size(name) in 1..255 and String.valid?(name) and
+      String.printable?(name)
+  end
+
+  defp valid_pin_name?(_kind, _name), do: false
+
+  defp normalized_pin(kind, node, name, label) do
+    identity = Enum.join([kind, node, name], "\0")
+
+    id =
+      "pin-" <>
+        (:crypto.hash(:sha256, identity) |> Base.encode16(case: :lower) |> binary_part(0, 20))
+
+    %{"id" => id, "kind" => kind, "node" => node, "name" => name, "label" => label}
+  end
 
   defp observed?(entry, nodes) do
     case Enum.find(nodes, &(&1.name == entry["node"])) do

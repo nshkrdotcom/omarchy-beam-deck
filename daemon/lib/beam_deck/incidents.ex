@@ -56,9 +56,13 @@ defmodule BeamDeck.Incidents do
   end
 
   defp alert_conditions(snapshot, recorder) do
-    Enum.flat_map(snapshot[:alerts] || [], fn alert ->
-      if is_list(alert[:missing]) and alert.missing != [] do
-        Enum.map(alert.missing, fn peer ->
+    Enum.flat_map(snapshot[:alerts] || [], &alert_condition_rows(&1, snapshot, recorder))
+  end
+
+  defp alert_condition_rows(alert, snapshot, recorder) do
+    case alert[:missing] do
+      missing when is_list(missing) and missing != [] ->
+        Enum.map(missing, fn peer ->
           alert
           |> Map.put(:missing_peer, peer)
           |> Map.put(
@@ -67,196 +71,77 @@ defmodule BeamDeck.Incidents do
           )
           |> from_alert(snapshot, recorder)
         end)
-      else
+
+      _ ->
         [from_alert(alert, snapshot, recorder)]
-      end
-    end)
+    end
   end
 
   defp watch_conditions(snapshot, config) do
     entries = get_in(snapshot, [:watchlist, :entries]) || []
+    Enum.flat_map(entries, &watch_condition(&1, snapshot, config))
+  end
 
-    Enum.flat_map(entries, fn pin ->
-      status = pin["status"]
-      mailbox = pin["mailbox"] || 0
+  defp watch_condition(pin, snapshot, config) do
+    status = pin["status"]
+    mailbox = pin["mailbox"] || 0
 
-      cond do
-        status == "present" and mailbox >= config["mailbox_warn"] ->
-          severity = if mailbox >= config["mailbox_critical"], do: "critical", else: "warning"
+    cond do
+      status == "present" and mailbox >= config["mailbox_warn"] ->
+        [watched_mailbox_condition(pin, mailbox, snapshot, config)]
 
-          [
-            from_alert(
-              %{
-                id: "#{pin["node"]}.#{pin["pid"]}.mailbox",
-                node: pin["node"],
-                process: pin["pid"],
-                title: "Watched mailbox pressure",
-                message: "#{pin["label"]} has #{mailbox} queued messages.",
-                severity: severity
-              },
-              snapshot
-            )
-          ]
+      status in ["missing", "node_unavailable"] ->
+        [unavailable_watch_condition(pin, status)]
 
-        status in ["missing", "node_unavailable"] ->
-          [
-            %{
-              id: "watch:#{pin["id"]}",
-              family: "watch",
-              node: pin["node"],
-              subject: nil,
-              title: "Watched identity unavailable",
-              summary: "#{pin["label"]}: #{status}. A stop or restart may be intentional.",
-              severity: "warning",
-              evidence_class: "observed",
-              evidence: [%{class: "observed", text: "Targeted registered-name lookup: #{status}"}],
-              actions: actions(pin["node"], nil, "watch")
-            }
-          ]
+      true ->
+        []
+    end
+  end
 
-        true ->
-          []
-      end
-    end)
+  defp watched_mailbox_condition(pin, mailbox, snapshot, config) do
+    severity = if mailbox >= config["mailbox_critical"], do: "critical", else: "warning"
+
+    from_alert(
+      %{
+        id: "#{pin["node"]}.#{pin["pid"]}.mailbox",
+        node: pin["node"],
+        process: pin["pid"],
+        title: "Watched mailbox pressure",
+        message: "#{pin["label"]} has #{mailbox} queued messages.",
+        severity: severity
+      },
+      snapshot
+    )
+  end
+
+  defp unavailable_watch_condition(pin, status) do
+    %{
+      id: "watch:#{pin["id"]}",
+      family: "watch",
+      node: pin["node"],
+      subject: nil,
+      title: "Watched identity unavailable",
+      summary: "#{pin["label"]}: #{status}. A stop or restart may be intentional.",
+      severity: "warning",
+      evidence_class: "observed",
+      evidence: [%{class: "observed", text: "Targeted registered-name lookup: #{status}"}],
+      actions: actions(pin["node"], nil, "watch")
+    }
   end
 
   defp from_alert(alert, snapshot, recorder \\ nil) do
     node = alert[:node] || "host"
-    subject = alert[:process]
-
-    {family, metric} =
-      cond do
-        String.ends_with?(alert.id, ".process_limit") ->
-          {"resource", "processes"}
-
-        String.ends_with?(alert.id, ".atom_limit") ->
-          {"resource", "atoms"}
-
-        String.ends_with?(alert.id, ".port_limit") ->
-          {"resource", "ports"}
-
-        String.contains?(alert.id, ".mailbox") ->
-          {"mailbox", subject || "node"}
-
-        String.contains?(alert.id, ".run_queue") ->
-          {"runq", "node"}
-
-        String.contains?(alert.id, ".restart_churn.") ->
-          {"restart", alert.id}
-
-        String.contains?(alert.id, ".expected_peers") ->
-          {"link", alert[:missing_peer] || "expected"}
-
-        true ->
-          {"condition", alert.id}
-      end
-
+    {family, metric} = alert_family(alert)
     candidate = Enum.find(snapshot[:nodes] || [], &(&1.name == node))
-
-    registered =
-      if family == "restart" and candidate do
-        name = String.replace_prefix(alert.id, "#{node}.restart_churn.", "")
-        Enum.find(candidate[:registered_processes] || [], &(&1.name == name))
-      end
-
-    subject = if registered, do: registered.pid, else: subject
-
-    related =
-      (snapshot[:events] || [])
-      |> Enum.filter(fn event ->
-        event[:node] == node and event[:at_ms] >= snapshot.at_ms - 15_000 and
-          event[:at_ms] <= snapshot.at_ms and
-          (is_nil(subject) or family == "restart" or event[:subject] == subject) and
-          event[:kind] in [
-            "long_gc",
-            "long_schedule",
-            "long_message_queue",
-            "busy_dist_port",
-            "nodedown",
-            "nodeup"
-          ]
-      end)
-      |> Enum.take(6)
-
-    evidence =
-      [%{class: "observed", at_ms: snapshot.at_ms, text: alert.message}] ++
-        Enum.map(
-          related,
-          &%{
-            class: "correlated",
-            at_ms: &1.at_ms,
-            text: "Nearby #{&1.kind}; temporal association, not proven cause."
-          }
-        )
-
-    evidence =
-      if registered,
-        do:
-          evidence ++
-            [
-              %{
-                class: "observed",
-                at_ms: snapshot.at_ms,
-                text:
-                  "Registered name now resolves to #{registered.pid}; replacements are sampled, not Supervisor intensity.",
-                count: alert[:count],
-                window_ms: 30_000,
-                subject: registered.pid
-              }
-            ],
-        else: evidence
-
-    evidence =
-      if (family == "runq" and candidate) && (candidate[:scheduler_utilization] || []) != [],
-        do:
-          evidence ++
-            [
-              %{
-                class: "correlated",
-                at_ms: candidate[:hot_processes_at_ms],
-                text: "Nearby scheduler utilization sample",
-                schedulers: Enum.take(candidate[:scheduler_utilization] || [], 256)
-              }
-            ],
-        else: evidence
-
-    nearest =
-      case BeamDeck.FlightRecorder.nearest_deep(
-             recorder,
-             node,
-             snapshot.at_ms,
-             10_000,
-             candidate && candidate[:creation]
-           ) do
-        {:ok, frame} -> frame
-        _ -> nil
-      end
-
-    sampled = if nearest, do: nearest.node, else: candidate
-
-    hot =
-      if sampled && is_integer(sampled[:hot_processes_at_ms]) &&
-           abs(snapshot.at_ms - sampled.hot_processes_at_ms) <= 10_000,
-         do: sampled[:hot_processes] || [],
-         else: []
-
-    hot = if family == "mailbox", do: Enum.filter(hot, &(&1.pid == subject)), else: hot
-    hot = Enum.take(hot, 3)
-
-    evidence =
-      if family in ["runq", "mailbox"] and hot != [],
-        do:
-          evidence ++
-            [
-              %{
-                class: "correlated",
-                text: "Nearby sampled hot processes",
-                processes: hot,
-                at_ms: sampled[:hot_processes_at_ms],
-                frame_id: nearest && nearest.frame_id
-              }
-            ],
-        else: evidence
+    registered = registered_restart(alert, node, family, candidate)
+    subject = resolved_subject(alert[:process], registered)
+    related = related_events(snapshot, node, subject, family)
+    evidence = alert_evidence(alert, snapshot, related)
+    evidence = add_registered_evidence(evidence, alert, snapshot, registered)
+    evidence = add_scheduler_evidence(evidence, snapshot, family, candidate)
+    nearest = nearest_deep_frame(recorder, node, snapshot, candidate)
+    {sampled, hot} = sampled_hot_processes(nearest, candidate, snapshot, family, subject)
+    evidence = add_hot_evidence(evidence, family, hot, sampled, nearest)
 
     %{
       id: "#{family}:#{node}:#{metric}",
@@ -270,9 +155,181 @@ defmodule BeamDeck.Incidents do
       evidence: evidence,
       actions:
         enriched_actions(node, subject, family, candidate, hot, registered) ++
-          if(nearest, do: [%{kind: "view_frame", frame_id: nearest.frame_id}], else: [])
+          frame_action(nearest)
     }
   end
+
+  defp alert_family(alert) do
+    resource_family(alert.id) || non_resource_alert_family(alert)
+  end
+
+  defp resource_family(id) do
+    cond do
+      String.ends_with?(id, ".process_limit") -> {"resource", "processes"}
+      String.ends_with?(id, ".atom_limit") -> {"resource", "atoms"}
+      String.ends_with?(id, ".port_limit") -> {"resource", "ports"}
+      true -> nil
+    end
+  end
+
+  defp non_resource_alert_family(alert) do
+    cond do
+      String.contains?(alert.id, ".mailbox") ->
+        {"mailbox", alert[:process] || "node"}
+
+      String.contains?(alert.id, ".run_queue") ->
+        {"runq", "node"}
+
+      String.contains?(alert.id, ".restart_churn.") ->
+        {"restart", alert.id}
+
+      String.contains?(alert.id, ".expected_peers") ->
+        {"link", alert[:missing_peer] || "expected"}
+
+      true ->
+        {"condition", alert.id}
+    end
+  end
+
+  defp registered_restart(_alert, _node, family, _candidate) when family != "restart", do: nil
+  defp registered_restart(_alert, _node, _family, nil), do: nil
+
+  defp registered_restart(alert, node, "restart", candidate) do
+    name = String.replace_prefix(alert.id, "#{node}.restart_churn.", "")
+    Enum.find(candidate[:registered_processes] || [], &(&1.name == name))
+  end
+
+  defp resolved_subject(subject, nil), do: subject
+  defp resolved_subject(_subject, registered), do: registered.pid
+
+  defp related_events(snapshot, node, subject, family) do
+    (snapshot[:events] || [])
+    |> Enum.filter(&related_event?(&1, snapshot.at_ms, node, subject, family))
+    |> Enum.take(6)
+  end
+
+  defp related_event?(event, at_ms, node, subject, family) do
+    event[:node] == node and event[:at_ms] >= at_ms - 15_000 and event[:at_ms] <= at_ms and
+      related_subject?(event, subject, family) and related_kind?(event[:kind])
+  end
+
+  defp related_subject?(_event, nil, _family), do: true
+  defp related_subject?(_event, _subject, "restart"), do: true
+  defp related_subject?(event, subject, _family), do: event[:subject] == subject
+
+  defp related_kind?(kind) do
+    kind in [
+      "long_gc",
+      "long_schedule",
+      "long_message_queue",
+      "busy_dist_port",
+      "nodedown",
+      "nodeup"
+    ]
+  end
+
+  defp alert_evidence(alert, snapshot, related) do
+    [%{class: "observed", at_ms: snapshot.at_ms, text: alert.message}] ++
+      Enum.map(
+        related,
+        &%{
+          class: "correlated",
+          at_ms: &1.at_ms,
+          text: "Nearby #{&1.kind}; temporal association, not proven cause."
+        }
+      )
+  end
+
+  defp add_registered_evidence(evidence, _alert, _snapshot, nil), do: evidence
+
+  defp add_registered_evidence(evidence, alert, snapshot, registered) do
+    evidence ++
+      [
+        %{
+          class: "observed",
+          at_ms: snapshot.at_ms,
+          text:
+            "Registered name now resolves to #{registered.pid}; replacements are sampled, not Supervisor intensity.",
+          count: alert[:count],
+          window_ms: 30_000,
+          subject: registered.pid
+        }
+      ]
+  end
+
+  defp add_scheduler_evidence(evidence, _snapshot, family, _candidate) when family != "runq",
+    do: evidence
+
+  defp add_scheduler_evidence(evidence, _snapshot, "runq", nil), do: evidence
+
+  defp add_scheduler_evidence(evidence, _snapshot, "runq", candidate) do
+    case candidate[:scheduler_utilization] || [] do
+      [] ->
+        evidence
+
+      schedulers ->
+        evidence ++
+          [
+            %{
+              class: "correlated",
+              at_ms: candidate[:hot_processes_at_ms],
+              text: "Nearby scheduler utilization sample",
+              schedulers: Enum.take(schedulers, 256)
+            }
+          ]
+    end
+  end
+
+  defp nearest_deep_frame(recorder, node, snapshot, candidate) do
+    case BeamDeck.FlightRecorder.nearest_deep(
+           recorder,
+           node,
+           snapshot.at_ms,
+           10_000,
+           candidate_creation(candidate)
+         ) do
+      {:ok, frame} -> frame
+      _ -> nil
+    end
+  end
+
+  defp candidate_creation(nil), do: nil
+  defp candidate_creation(candidate), do: candidate[:creation]
+
+  defp sampled_hot_processes(nearest, candidate, snapshot, family, subject) do
+    sampled = if nearest, do: nearest.node, else: candidate
+    hot = recent_hot_processes(sampled, snapshot.at_ms)
+    hot = if family == "mailbox", do: Enum.filter(hot, &(&1.pid == subject)), else: hot
+    {sampled, Enum.take(hot, 3)}
+  end
+
+  defp recent_hot_processes(nil, _at_ms), do: []
+
+  defp recent_hot_processes(sampled, at_ms) do
+    if is_integer(sampled[:hot_processes_at_ms]) and
+         abs(at_ms - sampled.hot_processes_at_ms) <= 10_000,
+       do: sampled[:hot_processes] || [],
+       else: []
+  end
+
+  defp add_hot_evidence(evidence, family, hot, sampled, nearest)
+       when family in ["runq", "mailbox"] and hot != [] do
+    evidence ++
+      [
+        %{
+          class: "correlated",
+          text: "Nearby sampled hot processes",
+          processes: hot,
+          at_ms: sampled[:hot_processes_at_ms],
+          frame_id: nearest && nearest.frame_id
+        }
+      ]
+  end
+
+  defp add_hot_evidence(evidence, _family, _hot, _sampled, _nearest), do: evidence
+
+  defp frame_action(nil), do: []
+  defp frame_action(frame), do: [%{kind: "view_frame", frame_id: frame.frame_id}]
 
   defp from_forecast(f) do
     %{
@@ -303,59 +360,72 @@ defmodule BeamDeck.Incidents do
   end
 
   defp crash_conditions(snapshot) do
-    for c <- snapshot[:crash_triage] || [], snapshot.at_ms - c.at_ms <= 60_000 do
-      matched = c[:status] == "matched"
-
-      %{
-        id: "exit:#{c.id}",
-        family: "runtime_exit",
-        node: c[:node],
-        subject: c[:pid],
-        title:
-          if(matched,
-            do: "Runtime exit with crash-dump evidence",
-            else: "Local runtime disappeared"
-          ),
-        summary:
-          if(matched,
-            do: c[:slogan] || "Matched bounded crash-dump header",
-            else: "Observed OS process disappearance; normal shutdown is possible."
-          ),
-        severity: if(matched, do: "critical", else: "info"),
-        evidence_class: "observed",
-        evidence:
-          [
-            %{
-              class: "observed",
-              at_ms: c.at_ms,
-              status: c[:status],
-              text: "Local OS process identity disappeared.",
-              frame_id: c[:last_frame_id],
-              header: Map.take(c, [:slogan, :system_version, :dump_timestamp])
-            }
-          ] ++
-            Enum.map(
-              Enum.filter(snapshot[:events] || [], fn e ->
-                e[:kind] == "nodedown" and e[:node] == c[:node] and
-                  abs(e.at_ms - c.at_ms) <= 30_000
-              end)
-              |> Enum.take(3),
-              &%{
-                class: "correlated",
-                at_ms: &1.at_ms,
-                text: "Nearby node-down event; crash cause is not inferred.",
-                info: &1[:info]
-              }
-            ),
-        actions:
-          [%{kind: "export_bundle"}] ++
-            if(c[:last_frame_id],
-              do: [%{kind: "view_frame", frame_id: c.last_frame_id}],
-              else: []
-            )
-      }
+    for crash <- snapshot[:crash_triage] || [], snapshot.at_ms - crash.at_ms <= 60_000 do
+      crash_condition(crash, snapshot)
     end
   end
+
+  defp crash_condition(crash, snapshot) do
+    matched = crash[:status] == "matched"
+
+    %{
+      id: "exit:#{crash.id}",
+      family: "runtime_exit",
+      node: crash[:node],
+      subject: crash[:pid],
+      title: crash_title(matched),
+      summary: crash_summary(crash, matched),
+      severity: if(matched, do: "critical", else: "info"),
+      evidence_class: "observed",
+      evidence: crash_evidence(crash, snapshot),
+      actions: crash_actions(crash)
+    }
+  end
+
+  defp crash_title(true), do: "Runtime exit with crash-dump evidence"
+  defp crash_title(false), do: "Local runtime disappeared"
+
+  defp crash_summary(crash, true), do: crash[:slogan] || "Matched bounded crash-dump header"
+
+  defp crash_summary(_crash, false),
+    do: "Observed OS process disappearance; normal shutdown is possible."
+
+  defp crash_evidence(crash, snapshot) do
+    [
+      %{
+        class: "observed",
+        at_ms: crash.at_ms,
+        status: crash[:status],
+        text: "Local OS process identity disappeared.",
+        frame_id: crash[:last_frame_id],
+        header: Map.take(crash, [:slogan, :system_version, :dump_timestamp])
+      }
+    ] ++ nearby_node_down_evidence(crash, snapshot)
+  end
+
+  defp nearby_node_down_evidence(crash, snapshot) do
+    (snapshot[:events] || [])
+    |> Enum.filter(&nearby_node_down?(&1, crash))
+    |> Enum.take(3)
+    |> Enum.map(
+      &%{
+        class: "correlated",
+        at_ms: &1.at_ms,
+        text: "Nearby node-down event; crash cause is not inferred.",
+        info: &1[:info]
+      }
+    )
+  end
+
+  defp nearby_node_down?(event, crash) do
+    event[:kind] == "nodedown" and event[:node] == crash[:node] and
+      abs(event.at_ms - crash.at_ms) <= 30_000
+  end
+
+  defp crash_actions(%{last_frame_id: frame_id}) when not is_nil(frame_id),
+    do: [%{kind: "export_bundle"}, %{kind: "view_frame", frame_id: frame_id}]
+
+  defp crash_actions(_crash), do: [%{kind: "export_bundle"}]
 
   defp trial_conditions(%{budget_trial: %{status: "rollback_failed"} = trial}) do
     [
@@ -431,43 +501,45 @@ defmodule BeamDeck.Incidents do
       item
       | title: BeamDeck.Redaction.text(item.title, 120),
         summary: BeamDeck.Redaction.text(item.summary, 512),
-        evidence:
-          Enum.flat_map(sorted, & &1.evidence)
-          |> Enum.uniq()
-          |> Enum.take(12)
-          |> Enum.map(fn e ->
-            kind =
-              cond do
-                e[:class] == "heuristic" ->
-                  "forecast"
-
-                Map.has_key?(e, :header) ->
-                  "crash_dump"
-
-                Map.has_key?(e, :frame_id) or Map.has_key?(e, :processes) or
-                    Map.has_key?(e, :schedulers) ->
-                  "recorder"
-
-                e[:class] == "correlated" ->
-                  "deep_event"
-
-                true ->
-                  "alert"
-              end
-
-            Map.merge(
-              %{
-                kind: kind,
-                at_ms: e[:at_ms] || item.at_ms,
-                subject: e[:subject] || item.subject,
-                summary: BeamDeck.Redaction.text(e[:text] || item.summary, 512),
-                ref: e[:frame_id]
-              },
-              e
-            )
-          end),
+        evidence: merged_evidence(sorted, item),
         actions: Enum.flat_map(sorted, & &1.actions) |> Enum.uniq() |> Enum.take(8)
     }
+  end
+
+  defp merged_evidence(sorted, item) do
+    sorted
+    |> Enum.flat_map(& &1.evidence)
+    |> Enum.uniq()
+    |> Enum.take(12)
+    |> Enum.map(&normalize_evidence(&1, item))
+  end
+
+  defp normalize_evidence(evidence, item) do
+    Map.merge(
+      %{
+        kind: evidence_kind(evidence),
+        at_ms: evidence[:at_ms] || item.at_ms,
+        subject: evidence[:subject] || item.subject,
+        summary: BeamDeck.Redaction.text(evidence[:text] || item.summary, 512),
+        ref: evidence[:frame_id]
+      },
+      evidence
+    )
+  end
+
+  defp evidence_kind(evidence) do
+    cond do
+      evidence[:class] == "heuristic" -> "forecast"
+      Map.has_key?(evidence, :header) -> "crash_dump"
+      recorder_evidence?(evidence) -> "recorder"
+      evidence[:class] == "correlated" -> "deep_event"
+      true -> "alert"
+    end
+  end
+
+  defp recorder_evidence?(evidence) do
+    Map.has_key?(evidence, :frame_id) or Map.has_key?(evidence, :processes) or
+      Map.has_key?(evidence, :schedulers)
   end
 
   def notifications(current, previous, sent, now, config) do
