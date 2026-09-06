@@ -19,10 +19,14 @@ defmodule BeamDeck.MixProject do
   end
 
   defp deps do
-    [
-      {:dialyxir, "~> 1.4.7", only: [:dev], runtime: false},
-      {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false}
-    ]
+    if Mix.env() == :prod do
+      []
+    else
+      [
+        {:dialyxir, "~> 1.4.7", only: [:dev], runtime: false},
+        {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false}
+      ]
+    end
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]

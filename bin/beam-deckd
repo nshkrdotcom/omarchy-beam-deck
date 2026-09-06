@@ -76,88 +76,13 @@ if ! run_mix compile >>"$LOG" 2>&1; then
   exit 70
 fi
 
-# Keep JSONL protocol output physically separate from BEAM/Mix stdout/stderr.
-# Reopening an inherited descriptor through /dev/fd is not reliable across all
-# exec/runtime environments. A private FIFO provides an ordinary filesystem
-# endpoint to BEAM while a tiny bridge owns the launcher's original stdout.
-PROTOCOL_FIFO="$STATE_HOME/.protocol-${NODE_SUFFIX}.fifo"
+# Reserve fd 3 for the JSONL protocol and redirect ordinary VM/Mix output
+# to the private state log.
+exec 3>&1
+export BEAM_DECK_PROTOCOL_PATH=/dev/fd/3
 
-if [[ -e "$PROTOCOL_FIFO" ]]; then
-  rm -f -- "$PROTOCOL_FIFO"
-fi
-
-if ! mkfifo -m 600 -- "$PROTOCOL_FIFO"; then
-  printf '%s\n' '{"type":"error","error":"protocol_transport_failed","reason":"Could not create the private protocol transport."}'
-  exit 71
-fi
-
-bridge_pid=""
-vm_pid=""
-
-cleanup_protocol() {
-  trap - EXIT
-
-  if [[ -n "${vm_pid:-}" ]] && kill -0 "$vm_pid" 2>/dev/null; then
-    kill -TERM "$vm_pid" 2>/dev/null || true
-    wait "$vm_pid" 2>/dev/null || true
-  fi
-
-  if [[ -n "${bridge_pid:-}" ]] && kill -0 "$bridge_pid" 2>/dev/null; then
-    kill -TERM "$bridge_pid" 2>/dev/null || true
-    wait "$bridge_pid" 2>/dev/null || true
-  fi
-
-  rm -f -- "$PROTOCOL_FIFO"
-}
-
-trap cleanup_protocol EXIT
-trap 'exit 143' TERM
-trap 'exit 130' INT
-trap 'exit 129' HUP
-
-cat -- "$PROTOCOL_FIFO" &
-bridge_pid=$!
-
-# cat blocks opening the FIFO until BEAM opens the writer. It must still be
-# alive before launching the VM; otherwise opening the writer could block.
-sleep 0.02
-if ! kill -0 "$bridge_pid" 2>/dev/null; then
-  printf '%s\n' '{"type":"error","error":"protocol_transport_failed","reason":"Could not start the private protocol bridge."}'
-  exit 71
-fi
-
-export BEAM_DECK_PROTOCOL_PATH="$PROTOCOL_FIFO"
-
-# Keep this shell as lifecycle owner so a termination from Quickshell can also
-# terminate the VM and FIFO bridge. Explicit <&0 preserves the command channel.
 if [[ "$mode" == "mise" ]]; then
-  mise exec -- mix run --no-compile --no-halt <&0 >>"$LOG" 2>&1 &
+  exec mise exec -- mix run --no-compile --no-halt >>"$LOG" 2>&1
 else
-  mix run --no-compile --no-halt <&0 >>"$LOG" 2>&1 &
+  exec mix run --no-compile --no-halt >>"$LOG" 2>&1
 fi
-vm_pid=$!
-
-set +e
-wait "$vm_pid"
-rc=$?
-set -e
-vm_pid=""
-
-# The writer has closed. Let the bridge drain the final JSONL bytes, then
-# terminate it defensively if it has not observed EOF.
-for _ in $(seq 1 20); do
-  if ! kill -0 "$bridge_pid" 2>/dev/null; then
-    break
-  fi
-  sleep 0.05
-done
-
-if kill -0 "$bridge_pid" 2>/dev/null; then
-  kill -TERM "$bridge_pid" 2>/dev/null || true
-fi
-wait "$bridge_pid" 2>/dev/null || true
-bridge_pid=""
-
-trap - EXIT TERM INT HUP
-rm -f -- "$PROTOCOL_FIFO"
-exit "$rc"

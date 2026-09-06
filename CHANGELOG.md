@@ -8,47 +8,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- Dedicated Investigate workspace with Triage, Flight Recorder, Process, ETS Lens, Watchlist, and Budget Trial views.
-- Conservative process, atom, and port capacity forecasts plus binary/ETS growth signals with explicit sample, span, fit, stability, and evidence labeling.
-- Deduplicated incident lifecycle with observed/correlated/heuristic evidence, nearby recorder context, bounded critical-notification cooldowns, and allowlisted follow-up actions.
-- Compact in-memory Flight Recorder with exact frame identity, sequence-stable ranges, restart-aware diffs, and private allowlisted diagnostic ZIP export.
-- Flight Recorder range navigator with live RSS trace, alert/event markers, click/drag historical selection, draggable A/B endpoints, Last 1m and All retained presets, keyboard endpoint adjustment, explicit Go Live behavior, and exact frame/range actions.
-- Focused process diagnostics with ancestry, stack/current-function metadata, bounded shared-binary metadata, registered-name pinning, explicit refresh, and VM-incarnation-gated actions.
-- Metadata-only ETS inspection with bounded leaderboards, owner navigation, word-size-aware memory reporting, partial/capped result handling, and no key/value collection.
-- Persistent exact node and registered-process watchlist entries with targeted closed-panel observations and registered-name PID replacement tracking.
-- Whole-local-budget leased scheduler trials with sticky Keep/Restore state, first-original restoration, conditional rollback, lease expiry, and retained rollback failure recovery.
-- Local runtime disappearance tracking and bounded fresh `erl_crash.dump` header triage with PID/start-time identity checks, symlink refusal, fingerprint matching, and one delayed retry.
-- OTP 28+ opt-in Deep Events using isolated trace sessions and transient namespaced probe code with overload protection and ownership-aware cleanup.
-- Omarchy-native keyboard integration with Cockpit/Investigate mnemonics, arrow/Vim context navigation, editor-safe fallback handling, refresh, Go Live, close, and an in-panel shortcut guide.
-- Real OTP peer integration coverage, production JavaScript state tests, source contracts, and an actual-launcher private-EPMD protocol harness.
+* Investigate workspace with Triage, Flight Recorder, Process, ETS Lens, Watchlist, and Budget Trial views.
+* Capacity and resource-growth forecasting with evidence and confidence reporting.
+* Incident tracking with recorder context, notifications, and follow-up actions.
+* In-memory Flight Recorder with historical ranges, A/B comparison, presets, and private ZIP export.
+* Focused process inspection with ancestry, stack, binary metadata, and registered-process pinning.
+* Metadata-only ETS inspection with bounded sorting and owner information.
+* Persistent node and registered-process watchlists.
+* Leased scheduler budget trials with automatic rollback, Keep, and Restore.
+* Bounded local `erl_crash.dump` triage for disappeared runtimes.
+* OTP 28+ opt-in Deep Events tracing.
+* Omarchy-native keyboard navigation and shortcut guide.
+* Real OTP integration and launcher protocol coverage.
 
 ### Changed
 
-- Route the bar-launched cockpit through Omarchy's native `Panel` + `KeyboardPanel` contract so monitor, bar-edge, gap, focus, dismissal, and clamping geometry remain shell-owned.
-- Separate collection, diagnostics, and control ownership with bounded queues, per-node limits, deadlines, async watchlist validation, and urgent recovery/control serviceability.
-- Preserve protocol version 1 while adding bounded diagnostic/job/result envelopes and explicit unavailable/partial states.
-- Use strict bounded JSON decoding, private writes, stronger cookie/export redaction, and no arbitrary RPC/eval surface.
-- Sample scheduler utilization within one remote caller lifetime instead of relying on transient RPC flag ownership.
-- Keep the 2-second light telemetry cadence independent from user interaction; historical Flight Recorder selection is fixed by exact retained frame IDs rather than mutable timestamp dropdowns.
-- Rewrite the README around the complete 1.1 workflow, current keyboard controls, installation/update/removal, security boundaries, configuration, and Cockpit/Investigate operation.
-- Correct Omarchy IPC documentation so BEAM Deck service methods target `nshkr.beam-deck` directly while shell-level panel routing remains under the shell target.
-- Raise the supported helper baseline to OTP 27 / Elixir 1.18 while keeping monitored-application dependencies at zero.
-- Make the full release gate fail closed when required validation tools are missing rather than presenting partial static checks as release acceptance.
+* Moved the cockpit to Omarchy's native `Panel` and `KeyboardPanel` architecture.
+* Separated telemetry collection, diagnostics, and runtime-control ownership.
+* Hardened protocol parsing, private writes, cookie redaction, and export filtering.
+* Raised the helper baseline to OTP 27 / Elixir 1.18.
+* Expanded the release gate with compilation, integration, Credo, Dialyzer, and protocol validation.
 
 ### Fixed
 
-- Replace the `/dev/fd/3` protocol reopen with a private FIFO bridge so launcher output remains reliable across exec/CI environments; configured protocol transport failures now fail closed instead of silently falling back into the private runtime log.
-
-- Make Flight Recorder View A/View B and Compare A → B mutually exclusive result modes so either action remains reliable regardless of which was used first while preserving the frozen A/B selection.
-- Prevent focused text fields, combo boxes, spin boxes, and other native controls from having editing/navigation keys stolen by the panel keyboard wrapper.
-- Remove the obsolete hand-centered/full-output panel geometry path and its associated layout/focus regressions.
-- Fix the Investigation `TextEdit` implicit-height regression that could break panel interaction/rendering.
-- Eliminate unusable Flight Recorder FROM/TO timestamp dropdowns whose contents changed with every live telemetry refresh.
-- Keep historical recorder A/B selections stable while live collection continues and clear historical selection when returning to live/helper state changes instead of silently rebinding it to newer frames.
-- Preserve exact recorder sequence semantics across wall-clock/NTP changes so range ordering and exports cannot be inverted by timestamp regression.
-
-- Bound the desktop `status` IPC projection so large live snapshots cannot intermittently exceed the Quickshell local-socket response path.
-- Restore OTP-coupled dirty CPU scheduler state alongside normal scheduler state for explicit Revert, lease expiry, panel-close rollback, Keep + Restore, and manual scheduler Restore.
+* Fixed Flight Recorder View A/View B and Compare result switching.
+* Fixed keyboard handling for focused native controls.
+* Fixed panel geometry, focus, and dismissal regressions.
+* Fixed the Investigation `TextEdit` implicit-height failure.
+* Replaced unstable Flight Recorder timestamp selectors with retained frame ranges.
+* Preserved historical A/B selections while live collection continues.
+* Preserved recorder ordering across wall-clock changes.
+* Bounded desktop status IPC responses.
+* Restored dirty CPU scheduler state alongside normal scheduler rollback.
 
 ## [1.0.0] - 2026-09-05
 
