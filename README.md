@@ -337,17 +337,17 @@ BEAM Deck exposes the normal Omarchy shell surface for scripting, custom keybind
 omarchy-shell shell toggle nshkr.beam-deck '{}'
 
 # Open or close explicitly
-omarchy-shell shell open nshkr.beam-deck '{}'
-omarchy-shell shell close nshkr.beam-deck '{}'
+omarchy-shell shell summon nshkr.beam-deck '{}'
+omarchy-shell shell hide nshkr.beam-deck
 
 # Force an immediate telemetry refresh
-omarchy-shell shell refresh nshkr.beam-deck '{}'
+omarchy-shell nshkr.beam-deck refresh
 
 # Print the latest JSON snapshot
-omarchy-shell shell status nshkr.beam-deck '{}'
+omarchy-shell nshkr.beam-deck status
 
 # Ping the background service
-omarchy-shell shell ping nshkr.beam-deck '{}'
+omarchy-shell nshkr.beam-deck ping
 ```
 
 If you want a custom global binding beyond Omarchy's `Super+Ctrl+1–9` bar-position bindings, add it in your own Omarchy/Hyprland configuration. BEAM Deck does not silently modify desktop keybindings.

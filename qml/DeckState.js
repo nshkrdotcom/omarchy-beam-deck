@@ -110,3 +110,127 @@ function investigationTabShortcut(text) {
   var tabs={t:"triage",f:"recorder",p:"process",e:"ets",w:"pins",b:"budget"};
   return tabs[key] || null;
 }
+
+
+function recorderOptions(timeline, selectedFrom, selectedTo, bucketMs, maxItems) {
+  var rows = timeline || []
+  if (!rows.length) return []
+
+  var stride = Math.max(5000, Number(bucketMs || 30000))
+  var limit = Math.max(8, Number(maxItems || 20))
+  var chosen = {}
+
+  function add(index) {
+    if (index >= 0 && index < rows.length)
+      chosen[String(index)] = true
+  }
+
+  function count() {
+    return Object.keys(chosen).length
+  }
+
+  function indexFor(id) {
+    if (id === undefined || id === null || String(id) === "")
+      return -1
+
+    for (var i = 0; i < rows.length; i++)
+      if (String(rows[i].frame_id) === String(id))
+        return i
+
+    return -1
+  }
+
+  function addEvenly(indices, slots) {
+    if (slots <= 0 || !indices.length) return
+
+    var available = []
+    var seen = {}
+
+    for (var i = 0; i < indices.length; i++) {
+      var key = String(indices[i])
+      if (chosen[key] || seen[key]) continue
+      seen[key] = true
+      available.push(indices[i])
+    }
+
+    if (!available.length) return
+
+    if (available.length <= slots) {
+      for (var j = 0; j < available.length; j++)
+        add(available[j])
+      return
+    }
+
+    if (slots === 1) {
+      add(available[Math.floor(available.length / 2)])
+      return
+    }
+
+    for (var n = 0; n < slots; n++) {
+      var pos = Math.round(n * (available.length - 1) / (slots - 1))
+      add(available[pos])
+    }
+  }
+
+  // The actual retained boundaries and explicit user selections are sacred.
+  add(0)
+  add(rows.length - 1)
+  add(indexFor(selectedFrom))
+  add(indexFor(selectedTo))
+
+  // Preserve both sides of meaningful alert/event transitions.
+  var transitions = []
+
+  for (var i = 1; i < rows.length; i++) {
+    var previous = rows[i - 1]
+    var current = rows[i]
+
+    if (
+      Number(previous.alert_count || 0) !== Number(current.alert_count || 0) ||
+      Number(previous.event_count || 0) !== Number(current.event_count || 0)
+    ) {
+      transitions.push(i - 1)
+      transitions.push(i)
+    }
+  }
+
+  addEvenly(transitions, limit - count())
+
+  // Human navigation is time-based, not sample-count based. Pick one
+  // representative frame from each fixed wall-clock bucket.
+  var buckets = []
+  var previousBucket = null
+
+  for (var j = 0; j < rows.length; j++) {
+    var at = Number(rows[j].at_ms || 0)
+    var bucket = Math.floor(at / stride)
+
+    if (bucket !== previousBucket) {
+      buckets.push(j)
+      previousBucket = bucket
+    }
+  }
+
+  addEvenly(buckets, limit - count())
+
+  var result = []
+
+  for (var k = 0; k < rows.length; k++) {
+    if (!chosen[String(k)]) continue
+
+    var frame = rows[k]
+    var alerts = Number(frame.alert_count || 0)
+    var events = Number(frame.event_count || 0)
+
+    result.push({
+      id: frame.frame_id,
+      label:
+        time(frame.at_ms)
+        + "  |  " + alerts + " alert" + (alerts === 1 ? "" : "s")
+        + "  |  " + events + " event" + (events === 1 ? "" : "s")
+        + "  |  " + bytes(frame.beam_rss_bytes)
+    })
+  }
+
+  return result
+}

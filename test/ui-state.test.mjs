@@ -103,3 +103,55 @@ test('investigation keyboard shortcuts map each workspace without colliding with
   assert.equal(S.investigationTabShortcut('b'), 'budget');
   for (const reserved of ['r', 'g', 'h', 'j', 'k', 'l', 'x']) assert.equal(S.investigationTabShortcut(reserved), null);
 });
+
+
+test('recorder selector sparsifies dense timelines while preserving evidence endpoints', () => {
+  const timeline = Array.from({length: 150}, (_, i) => ({
+    frame_id: `f${i}`,
+    at_ms: 1700000000000 + i * 2000,
+    alert_count: i >= 60 && i < 70 ? 1 : 0,
+    event_count: i === 90 ? 1 : 0,
+    beam_rss_bytes: 1000000 + i
+  }));
+
+  const options = plain(S.recorderOptions(timeline, 'f37', 'f121', 30000, 20));
+  const ids = options.map(x => x.id);
+
+  assert.ok(options.length <= 20);
+  for (const id of [
+    'f0', 'f149',
+    'f37', 'f121',
+    'f59', 'f60',
+    'f69', 'f70',
+    'f89', 'f90', 'f91'
+  ]) {
+    assert.ok(ids.includes(id), `missing preserved frame ${id}`);
+  }
+});
+
+
+test('recorder selector keeps a stable time cadence as history fills', () => {
+  const timeline = Array.from({length: 150}, (_, i) => ({
+    frame_id: `q${i}`,
+    at_ms: 1700000000000 + i * 2000,
+    alert_count: 0,
+    event_count: 0,
+    beam_rss_bytes: 1000000
+  }));
+
+  const early = plain(S.recorderOptions(timeline.slice(0, 10), '', '', 30000, 20));
+  const middle = plain(S.recorderOptions(timeline.slice(0, 40), '', '', 30000, 20));
+  const full = plain(S.recorderOptions(timeline, '', '', 30000, 20));
+
+  // Ten two-second samples must not become ten human-facing choices.
+  assert.equal(early.length, 2);
+
+  // The selector grows by stable time buckets rather than exposing every poll.
+  assert.ok(middle.length <= 5);
+  assert.ok(full.length <= 12);
+
+  assert.equal(early[0].id, 'q0');
+  assert.equal(early[early.length - 1].id, 'q9');
+  assert.equal(full[0].id, 'q0');
+  assert.equal(full[full.length - 1].id, 'q149');
+});

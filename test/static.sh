@@ -36,9 +36,12 @@ grep -q 'PanelKeyCatcher {' qml/Panel.qml
 grep -q 'Keys.priority: Keys.AfterItem' qml/Panel.qml
 grep -q 'contentWidth: panel.fittedContentWidth' qml/Panel.qml
 grep -q 'contentHeight: panel.cappedContentHeight' qml/Panel.qml
-! grep -q 'PanelWindow {' qml/Panel.qml
-! grep -q 'WlrLayershell' qml/Panel.qml
-! grep -q 'Style.space(48)' qml/Panel.qml
+for forbidden in 'PanelWindow {' 'WlrLayershell' 'Style.space(48)'; do
+  if grep -q "$forbidden" qml/Panel.qml; then
+    printf 'forbidden legacy panel pattern found: %s\n' "$forbidden" >&2
+    exit 1
+  fi
+done
 
 grep -q 'selectByMouse: true' qml/Panel.qml
 grep -q 'selectByKeyboard: true' qml/Panel.qml

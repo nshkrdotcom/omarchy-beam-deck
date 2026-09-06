@@ -128,4 +128,22 @@ assert.match(keyboardInvestigation, /DeckState\.investigationTabShortcut\(text\)
 assert.match(keyboardInvestigation, /function cycleTab\(direction\)/);
 assert.match(keyboardInvestigation, /function keyboardMove\(dx, dy\)/);
 
+
+// recorder selector and IPC documentation contracts
+assert.match(ui, /DeckState\.recorderOptions\(timeline, fromFrame, toFrame, 30000, 20\)/);
+assert.match(read("README.md"), /omarchy-shell nshkr\.beam-deck ping/);
+assert.doesNotMatch(
+  read("README.md"),
+  /omarchy-shell shell (?:refresh|status|ping) nshkr\.beam-deck/
+);
+
+
+// recorder choices remain stable until explicit refresh
+const investigation = read("qml/Investigation.qml");
+assert.match(investigation, /property var recorderChoices:\s*\[\]/);
+assert.match(investigation, /function refreshRecorderChoices\(\)/);
+assert.match(investigation, /function options\(\) \{ return recorderChoices \}/);
+assert.match(investigation, /onTabChanged: if \(tab === "recorder"\) refreshRecorderChoices\(\)/);
+assert.match(investigation, /Refresh checkpoints/);
+
 console.log("repository contracts: versions, native bar-panel surface, keyboard navigation, configuration parity, command wiring, privacy boundaries and documentation present");

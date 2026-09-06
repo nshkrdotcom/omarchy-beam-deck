@@ -27,6 +27,8 @@ Item {
   property string exportRequest: ""
   property string fromFrame: ""
   property string toFrame: ""
+  property var recorderChoices: []
+  property double recorderChoicesAtMs: 0
   property string etsSort: "memory"
   readonly property var snapshot: service ? service.snapshot : DeckState.emptySnapshot()
   readonly property var jobs: service ? service.jobs : ({})
@@ -53,8 +55,12 @@ Item {
     var next = {}
     ;(snapshot.incidents || []).forEach(function(i) { if (root.expandedIncidents[i.id]) next[i.id] = true })
     expandedIncidents = next
+
+    if (tab === "recorder" && recorderChoices.length === 0 && timeline.length > 0)
+      refreshRecorderChoices()
   }
   onTargetNodeChanged: { processRequest = ""; etsRequest = ""; targetPid = ""; gcConfirmed = false }
+  onTabChanged: if (tab === "recorder") refreshRecorderChoices()
   onFrameResultChanged: if (frameResult && service) service.historicalMode = true
   Component.onCompleted: if (!targetNode && nodes.length) targetNode = nodes[0].name
 
@@ -107,10 +113,39 @@ Item {
     activate(nextTab, "", "")
     return true
   }
-  function options() { return timeline.map(function(f) { return {id:f.frame_id, label:DeckState.time(f.at_ms)+"  |  "+f.alert_count+" alerts  |  "+DeckState.bytes(f.beam_rss_bytes)} }) }
+  function recorderSpanMs() {
+    if (timeline.length < 2) return 0
+    return Math.max(
+      0,
+      Number(timeline[timeline.length - 1].at_ms || 0)
+        - Number(timeline[0].at_ms || 0)
+    )
+  }
+  function refreshRecorderChoices() {
+    var choices = DeckState.recorderOptions(timeline, fromFrame, toFrame, 16)
+    recorderChoices = choices
+    recorderChoicesAtMs = Date.now()
+
+    if (choices.length) {
+      if (!fromFrame || optionIndex(fromFrame) < 0)
+        fromFrame = choices[0].id
+
+      if (!toFrame || optionIndex(toFrame) < 0)
+        toFrame = choices[choices.length - 1].id
+    } else {
+      fromFrame = ""
+      toFrame = ""
+    }
+  }
+
+  function options() { return recorderChoices }
   function optionIndex(id) { var list = options(); for (var i=0;i<list.length;i++) if (list[i].id===id) return i; return -1 }
-  function selectedFrom() { return fromFrame || (timeline.length ? timeline[0].frame_id : "") }
-  function selectedTo() { return toFrame || (timeline.length ? timeline[timeline.length-1].frame_id : "") }
+  function selectedFrom() {
+    return fromFrame || (recorderChoices.length ? recorderChoices[0].id : "")
+  }
+  function selectedTo() {
+    return toFrame || (recorderChoices.length ? recorderChoices[recorderChoices.length - 1].id : "")
+  }
   function runExport(range) { if (service) exportRequest = service.exportBundle(range ? selectedFrom() : null, range ? selectedTo() : null) }
   function actionLabel(action) {
     if (action.label) return String(action.label).slice(0,60)
@@ -357,7 +392,12 @@ Item {
         id: recorderColumn
         width: recorderScroll.width; spacing: Style.space(12)
         Heading { text: "Flight recorder" }
-        Label { width: parent.width; text: (root.snapshot.flight_recorder || {}).frame_count+" retained frames. Retention is in memory; no recording is written unless you export. A historical selection is read-only." }
+        Label {
+          width: parent.width
+          text: "Checkpoints are frozen while this view is open. Use Refresh checkpoints to include newer recorder frames."
+        }
+        Label { width: parent.width; text: (root.snapshot.flight_recorder || {}).frame_count+" retained frames · "+DeckState.duration(root.recorderSpanMs())+" captured. "+"The recorder starts empty with the helper and fills a rolling in-memory window; nothing is written unless you export. Historical selections are read-only." }
+        Label { width: parent.width; visible: root.timeline.length > root.options().length; text: "Range controls use ~30-second checkpoints plus alert/event transitions. "+"All "+root.timeline.length+" retained frames remain in the recorder." }
         RowLayout {
           width: parent.width
           Label { text: "FROM" }
@@ -374,6 +414,7 @@ Item {
           Button { text:"Compare selected frames"; enabled:root.timeline.length>1; onClicked:root.diffRequest=root.service.compareFrames(root.selectedFrom(),root.selectedTo()) }
           Button { text:"Export selected range"; enabled:root.timeline.length>0; onClicked:root.runExport(true) }
           Button { text:"Return to live"; onClicked:root.returnLive() }
+          Button { text:"Refresh checkpoints"; onClicked:root.refreshRecorderChoices() }
         }
         Label { width:parent.width; text:root.jobText(root.frameJob,"Choose an explicit retained timestamp. Expired frames return an error, never a replacement frame.") }
         InfoCard {

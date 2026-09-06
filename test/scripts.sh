@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
-profile="$($ROOT/bin/beam-deck-profile --schedulers 8 --dirty-cpu 4 --dirty-io 2)"
+profile="$("$ROOT/bin/beam-deck-profile" --schedulers 8 --dirty-cpu 4 --dirty-io 2)"
 [[ "$profile" == 'ERL_FLAGS="+S 8:8 +SDcpu 4:4 +SDio 2"' ]]
 if "$ROOT/bin/beam-deck-profile" --schedulers 0 >/dev/null 2>&1; then
   echo "beam-deck-profile accepted zero schedulers" >&2
@@ -28,7 +28,10 @@ printf '%s\n' "$remsh_out" | grep -Fx -- '--cookie' >/dev/null
 printf '%s\n' "$remsh_out" | grep -Fx -- 'never-write-this-cookie' >/dev/null
 printf '%s\n' "$remsh_out" | grep -Fx -- '--remsh' >/dev/null
 printf '%s\n' "$remsh_out" | grep -Fx -- 'worker@omen' >/dev/null
-! grep -q 'never-write-this-cookie' "$tmp/config/beam-deck/config.json"
+if grep -q 'never-write-this-cookie' "$tmp/config/beam-deck/config.json"; then
+  echo "cookie leaked into config" >&2
+  exit 1
+fi
 
 # Simulate an Omarchy shell whose PATH has not refreshed after `mise use -g`.
 # No erl/elixir/mix binaries exist, but `mise exec` reports a usable selected
