@@ -134,6 +134,16 @@ Item {
   function recorderCapturedSpanMs() {
     return DeckState.recorderCapturedSpanMs(recorderDisplayTimeline)
   }
+  function viewRecorderFrame(id) {
+    if (!service || !id) return
+    diffRequest = ""
+    frameRequest = service.recorderFrame(id)
+  }
+  function compareRecorderRange() {
+    if (!service || !recorderPaused || !fromFrame || !toFrame || fromFrame === toFrame) return
+    frameRequest = ""
+    diffRequest = service.compareFrames(fromFrame, toFrame)
+  }
   function cycleTab(direction) {
     if (!direction) return
     var index = 0
@@ -171,7 +181,7 @@ Item {
   function runAction(action) {
     if (!service) return
     switch (action.kind) {
-      case "view_frame": tab="recorder"; frameRequest=service.recorderFrame(action.frame_id); break;
+      case "view_frame": tab="recorder"; viewRecorderFrame(action.frame_id); break;
       case "gc_process": activate("process", action.node, action.pid); break
       case "pin_process": service.pinProcess(action.node, action.name); break
       case "apply_budget_trial": activate("budget", "", ""); break
@@ -494,17 +504,17 @@ Item {
           Button {
             text:"View A"
             enabled:root.recorderPaused && !!root.fromFrame && root.service
-            onClicked:root.frameRequest=root.service.recorderFrame(root.fromFrame)
+            onClicked:root.viewRecorderFrame(root.fromFrame)
           }
           Button {
             text:"View B"
             enabled:root.recorderPaused && !!root.toFrame && root.service
-            onClicked:root.frameRequest=root.service.recorderFrame(root.toFrame)
+            onClicked:root.viewRecorderFrame(root.toFrame)
           }
           Button {
             text:"Compare A → B"
             enabled:root.recorderPaused && !!root.fromFrame && !!root.toFrame && root.fromFrame!==root.toFrame
-            onClicked:root.diffRequest=root.service.compareFrames(root.fromFrame,root.toFrame)
+            onClicked:root.compareRecorderRange()
           }
           Button {
             text:"Export range"

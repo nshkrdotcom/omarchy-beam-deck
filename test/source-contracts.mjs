@@ -149,4 +149,12 @@ assert.match(recorderTimelineSource, /ShiftModifier/);
 assert.match(read("qml/DeckState.js"), /function recorderOrderedRange\(/);
 assert.match(read("qml/DeckState.js"), /function recorderRangeLast\(/);
 
+
+// recorder view/compare result modes are mutually exclusive
+assert.match(investigationSource, /function viewRecorderFrame\(id\)\s*\{[\s\S]*?diffRequest = ""[\s\S]*?frameRequest = service\.recorderFrame\(id\)/);
+assert.match(investigationSource, /function compareRecorderRange\(\)\s*\{[\s\S]*?frameRequest = ""[\s\S]*?diffRequest = service\.compareFrames\(fromFrame, toFrame\)/);
+assert.match(investigationSource, /text:"View A"[\s\S]*?onClicked:root\.viewRecorderFrame\(root\.fromFrame\)/);
+assert.match(investigationSource, /text:"View B"[\s\S]*?onClicked:root\.viewRecorderFrame\(root\.toFrame\)/);
+assert.match(investigationSource, /text:"Compare A → B"[\s\S]*?onClicked:root\.compareRecorderRange\(\)/);
+
 console.log("repository contracts: versions, native bar-panel surface, keyboard navigation, configuration parity, command wiring, privacy boundaries and documentation present");
