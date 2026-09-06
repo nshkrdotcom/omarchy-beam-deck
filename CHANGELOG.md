@@ -6,12 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Omarchy-native keyboard integration for the BEAM Deck panel: mnemonic Cockpit/Investigate workspace shortcuts, arrow/Vim context navigation, editor-safe fallback handling, Go Live, refresh, and an in-panel shortcut guide.
+
+### Changed
+
+- Rewrite the README around the complete 1.1 workflow, clearer install/update/remove guidance, keyboard operation, security boundaries, and concise Cockpit/Investigate documentation.
+
 ### Fixed
 
 - Route the bar-launched cockpit through Omarchy's native `Panel` + `KeyboardPanel` contract instead of a hand-centered full-output layer surface, so monitor, bar-edge, gap, focus, dismissal and clamping geometry are shell-owned.
 
 
-## [1.1.0] - 2026-09-05
+## [1.1.0] - 2026-09-06
 
 Implementation candidate; see HANDOFF for unrun BEAM/desktop acceptance.
 

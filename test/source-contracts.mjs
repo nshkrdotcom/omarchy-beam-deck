@@ -118,4 +118,14 @@ const beamPanel = read("qml/Panel.qml");
 assert.match(beamPanel, /function nodePinned\(name\)/);
 assert.match(beamPanel, /Pinned node unavailable:/);
 
-console.log("repository contracts: versions, native bar-panel surface, configuration parity, command wiring, privacy boundaries and documentation present");
+const keyboardPanel = read("qml/Panel.qml");
+assert.match(keyboardPanel, /onMoveRequested:\s*function\(dx, dy\) \{ root\.keyboardMove\(dx, dy\) \}/);
+assert.match(keyboardPanel, /onTextKey:\s*function\(text\) \{ root\.handleShortcut\(text\) \}/);
+assert.match(keyboardPanel, /DeckState\.panelShortcut\(text\)/);
+assert.match(keyboardPanel, /text:\s*"Shortcuts"/);
+const keyboardInvestigation = read("qml/Investigation.qml");
+assert.match(keyboardInvestigation, /DeckState\.investigationTabShortcut\(text\)/);
+assert.match(keyboardInvestigation, /function cycleTab\(direction\)/);
+assert.match(keyboardInvestigation, /function keyboardMove\(dx, dy\)/);
+
+console.log("repository contracts: versions, native bar-panel surface, keyboard navigation, configuration parity, command wiring, privacy boundaries and documentation present");

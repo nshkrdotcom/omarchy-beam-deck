@@ -99,3 +99,14 @@ function diffText(diff) {
   lines.push("","New alerts: "+(diff.new_alerts || []).join(", "),"Resolved alerts: "+(diff.resolved_alerts || []).join(", "));
   return lines.join("\n");
 }
+
+function panelShortcut(text) {
+  var key=String(text || "").toLowerCase();
+  var actions={c:"cockpit",i:"investigate",r:"refresh",g:"live","?":"help"};
+  return actions[key] || null;
+}
+function investigationTabShortcut(text) {
+  var key=String(text || "").toLowerCase();
+  var tabs={t:"triage",f:"recorder",p:"process",e:"ets",w:"pins",b:"budget"};
+  return tabs[key] || null;
+}

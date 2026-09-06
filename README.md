@@ -5,56 +5,57 @@
 [![Platform](https://img.shields.io/badge/platform-Omarchy%20Quattro-purple.svg)](https://github.com/nshkrdotcom/omarchy-beam-deck)
 [![App Dependencies](https://img.shields.io/badge/app%20dependencies-0-brightgreen.svg)](#requirements-and-external-dependencies)
 
-**Host-aware runtime instrumentation, incident investigation, and diagnostics for Erlang and Elixir on Omarchy Quattro.**
+**A native Omarchy control surface for understanding what your Erlang and Elixir runtimes are doing right now — and what changed when something went wrong.**
 
-BEAM Deck is a host-aware cockpit and real-time monitoring suite for **Erlang & Elixir (BEAM/OTP)** designed natively for the **Omarchy Quattro** desktop environment. It automatically discovers local BEAM instances, attaches agentlessly to distributed nodes, surfaces runtime health and process bottlenecks, correlates incident evidence, records bounded historical context, visualizes cluster topology, and provides safe, reversible scheduler controls from the desktop status bar.
+BEAM Deck is an **agentless BEAM/OTP cockpit and investigation workspace for Omarchy Quattro**. It discovers local Erlang VMs from the host, attaches to reachable distributed nodes using standard OTP distribution, and turns runtime telemetry into a focused desktop workflow: host and node health, incidents, process and ETS diagnostics, bounded historical evidence, persistent watch targets, crash context, and reversible scheduler controls.
+
+It is intentionally local-first. You do not add a BEAM Deck dependency to the applications you monitor, ordinary inspection does not install a resident target agent, and mutating actions are explicit, live-state-gated, and designed to be reversible where OTP permits it.
 
 ![BEAM Deck preview](preview.png)
 
 ## Features
 
-- **Zero App Dependencies**: No Hex packages to add to your Phoenix or Elixir apps. Core deep telemetry is agentless and uses native OTP distribution.
-- **Automatic Host Census**: Detects local `beam.smp` processes via Linux `/proc`, including standard scripts, Phoenix servers, IEx sessions, and Livebooks—even with distribution disabled.
-- **Deep Node Telemetry**: Connect to named nodes to inspect process tables, atom usage, ports, ETS, run queues, scheduler state, and granular memory distribution.
-- **Incident Triage**: Turns alerts, runtime events, watchlist state, and conservative forecasts into prioritized incidents with evidence labeled as observed, correlated, or heuristic.
-- **Flight Recorder**: Keeps a bounded rolling history of compact runtime frames so you can compare state before and during a failure, inspect the last frame before a runtime disappeared, and export selected diagnostics.
-- **Focused Process Inspection**: Inspect one PID's status, bounded argument-free stack information, ancestry, and shared-binary reference summaries without collecting process messages or dictionaries.
-- **ETS Inspection**: Request bounded metadata-only ETS leaderboards by memory or element count, with explicit partial/capped results and owner inspection.
-- **Persistent Watchlist**: Pin exact nodes and registered process names locally. Registered-name pins resolve the current PID instead of assuming a transient PID is stable.
-- **Resource Forecasts**: Conservative process, atom, and port capacity projections surface only when the observed trajectory meets minimum evidence and stability requirements.
-- **Hot Process Watchdog**: Spot processes with high reductions, memory use, or mailbox growth, with an explicit one-click **Garbage Collection (GC)** action after refreshing live state.
-- **Reversible Scheduler Controls**: Adjust online normal and dirty CPU schedulers, restore the originally observed values, or use a bounded scheduler-budget trial that automatically reverts unless explicitly kept.
-- **Cluster Topology**: Visualize connected nodes, hidden nodes, and peers. Directional peer contracts help detect real link failures without conflating remote schedulers with local host capacity.
-- **Deep Events (OTP 28+)**: Opt-in isolated tracing through temporary namespaced trace sessions for long GCs, scheduling delays, mailbox growth, large heaps, and busy ports.
-- **Crash Triage**: When a local runtime disappears, BEAM Deck can perform a bounded local read of a fresh `erl_crash.dump` in the runtime's previously observed working directory.
-- **Private Diagnostic Export**: Manually export a bounded local ZIP containing selected recorder frames, incidents, events, current diagnostic state, and a privacy notice.
-- **Critical Desktop Notifications**: Critical incident transitions can surface through native desktop notifications with per-incident cooldowns.
-- **1-Click Interactive Shell**: Jump into a connected node with a floating `IEx remsh` terminal through Omarchy's terminal executor.
-- **Seamless Toolchain Onboarding**: If Erlang/Elixir are not installed, BEAM Deck guides you through Mise-based setup instead of repeatedly failing in the shell.
+- **Zero application dependencies** — no Hex package, instrumentation library, or BEAM Deck service is required inside the application being observed.
+- **Automatic host census** — discovers local `beam.smp` processes through Linux `/proc`, including non-distributed Erlang/Elixir workloads that cannot expose OTP internals.
+- **Deep OTP telemetry** — for named nodes, surfaces VM memory, process/atom/port capacity, run queues, scheduler state and utilization, ETS metadata, peer topology, hot processes, and runtime identity.
+- **Evidence-first incident triage** — groups active symptoms into incidents while keeping directly observed facts, nearby correlations, and heuristic forecasts visibly distinct.
+- **Flight recorder** — retains a bounded in-memory timeline of compact frames for before/after comparison, runtime-disappearance context, and selected-range export.
+- **Focused process diagnostics** — inspects one live PID with bounded status, argument-free stack metadata, focused ancestry, mailbox/memory/reductions, and shared-binary reference summaries without collecting messages or arbitrary process state.
+- **Metadata-only ETS lens** — ranks bounded table metadata by memory or element count and lets you pivot to the current table owner without reading keys or values.
+- **Persistent watchlist** — pins exact node names and registered process names; registered-name pins follow PID replacement instead of pretending PIDs are durable identities.
+- **Conservative resource forecasts** — shows process, atom, and port capacity trajectories only after minimum sample, time-span, fit, and stability gates are satisfied. Binary and ETS trends are growth signals, not fabricated exhaustion deadlines.
+- **Crash triage** — when a local runtime disappears, can correlate it with a fresh, bounded `erl_crash.dump` header from that runtime's previously observed working directory.
+- **Deep Events on OTP 28+** — explicitly enables a temporary isolated trace-session probe for long GC, long scheduling, mailbox growth, large heaps, and busy ports. Ordinary inspection does not require the probe.
+- **Reversible scheduler controls** — adjust online normal/dirty schedulers, restore original observed values, or trial the complete local scheduler-budget recommendation under a short lease that rolls back unless kept.
+- **Private diagnostic export** — creates a bounded local ZIP from an allowlisted evidence set rather than dumping arbitrary runtime state.
+- **Native critical notifications** — critical incident transitions can surface through Omarchy desktop notifications with cooldown protection.
+- **One-click `IEx --remsh`** — opens an interactive shell to an explicitly selected connected node through Omarchy's terminal execution path.
+- **Keyboard-native operation** — integrates with Omarchy's bar-panel shortcuts and `PanelKeyCatcher` conventions, with mnemonic workspace keys, Vim/arrow navigation, editor-safe key handling, and an in-panel shortcut guide.
+- **Mise-first onboarding** — a missing Erlang/Elixir toolchain becomes an actionable setup state instead of a broken panel or silent install.
 
 ## What's New in 1.1
 
-BEAM Deck 1.1 keeps the original **Cockpit** and adds a dedicated investigation workflow.
+BEAM Deck 1.1 keeps the live **Cockpit** as the fast operational overview and adds a dedicated **Investigate** workspace for evidence-driven debugging.
 
-| Workspace | What it is for |
+| Workspace | Purpose |
 |---|---|
-| **Triage** | Prioritized incidents with directly observed alerts, nearby events, watchlist context, and explicitly heuristic forecasts. |
-| **Recorder** | Browse retained frames, compare counters/memory/hot sets, inspect the last frame before disappearance, and export selected evidence. |
-| **Process** | Inspect one process in depth, refresh its live identity, GC explicitly, or pin a registered name for later observation. |
-| **ETS** | Request bounded metadata-only ETS leaderboards and inspect table owners without collecting keys or values. |
-| **Watchlist** | Persist nodes and registered process names that matter to you across BEAM Deck restarts. |
-| **Budget** | Review the complete current local scheduler recommendation and run a bounded reversible trial before deciding whether to keep it. |
+| **Triage** | Prioritized incidents, evidence classes, nearby events, watchlist context, forecasts, and incident actions. |
+| **Flight recorder** | Browse retained frames, compare resource deltas and sampled hot sets, inspect historical state, and export a selected range. |
+| **Process** | Inspect one captured process identity, refresh it deliberately, pin its registered name, open `remsh`, or request GC from fresh live state. |
+| **ETS lens** | Inspect bounded metadata-only table rankings and pivot to table owners. |
+| **Watchlist** | Keep a durable working set of exact nodes and registered process names across BEAM Deck restarts. |
+| **Budget trial** | Review the whole current local scheduler recommendation, apply it under a lease, then Keep or Revert. |
 
-Historical recorder views are intentionally read-only for mutating actions. Return to **Live** and refresh the target before GC or scheduler changes.
+The 1.1 UI also makes the **live vs. historical boundary** explicit. Historical recorder frames are read-only for runtime mutation. Process GC and scheduler changes require fresh live state and the current VM incarnation rather than acting on stale evidence.
 
 ## Requirements and External Dependencies
 
 ### Required runtime
 
 - **Omarchy Quattro** is the supported desktop environment.
-- **Erlang/OTP 27+** and **Elixir 1.18+** are required for the BEAM helper and deep OTP telemetry.
-- The intended compatibility matrix covers OTP 27 / Elixir 1.18, OTP 28 / Elixir 1.19, and OTP 29 / Elixir 1.20.
-- **Mise** is the recommended Omarchy-native way to install Erlang and Elixir. If the toolchain is missing, BEAM Deck provides guided onboarding with:
+- **Erlang/OTP 27+** and **Elixir 1.18+** are required for the BEAM Deck helper and deep OTP telemetry.
+- The supported-version CI matrix targets OTP 27 / Elixir 1.18, OTP 28 / Elixir 1.19, and OTP 29 / Elixir 1.20.
+- **Mise** is the recommended Omarchy-native toolchain path. If Erlang/Elixir are missing, BEAM Deck guides you to:
 
 ```bash
 mise use -g erlang@latest elixir@latest
@@ -62,29 +63,31 @@ mise use -g erlang@latest elixir@latest
 
 ### Runtime behavior
 
-- BEAM Deck adds **no dependencies to applications being monitored**.
-- Named BEAM applications need standard distribution enabled with `--sname` or `--name` for deep telemetry.
-- Non-distributed local BEAM processes are still discovered through Linux `/proc`.
-- Standard OTP applications, including `runtime_tools`, are used for supported diagnostics.
-- **jq** is optional at runtime and is used by `beam-deck-remsh` to resolve a configured node's `cookie_env` entry from `~/.config/beam-deck/config.json`. Core monitoring does not require it.
-- Erlang distribution is a trusted remote-control channel, not a read-only security boundary. Do not expose distribution to untrusted networks.
+- BEAM Deck adds **no dependency to monitored applications**.
+- Deep telemetry requires a reachable distributed node started with `--sname` or `--name`.
+- Local non-distributed BEAM processes are still visible through `/proc`, but OTP internals are not available until distribution is enabled.
+- Supported diagnostics use standard OTP facilities such as distribution, `runtime_tools`, process metadata, ETS metadata, trace sessions, and VM counters.
+- **`jq` is optional** and is used only by `beam-deck-remsh` to resolve a configured node's `cookie_env` reference from `~/.config/beam-deck/config.json`.
+- Erlang distribution is a privileged remote-control channel, not a read-only security boundary. Keep cookies and distribution connectivity on trusted networks.
 
 ## Install
 
-Install and enable BEAM Deck directly from its public Git repository:
+Install and enable BEAM Deck from GitHub:
 
 ```bash
 omarchy plugin add https://github.com/nshkrdotcom/omarchy-beam-deck.git --enable
 omarchy restart shell
 ```
 
-For local development, keep the checkout directly in Omarchy's plugin directory, for example:
+The status-bar widget should appear in the configured bar section after the shell restarts.
+
+For local plugin development, keep the checkout directly at:
 
 ```text
 ~/.config/omarchy/plugins/nshkr.beam-deck
 ```
 
-Then rescan, enable, and restart:
+Then rescan, enable, and restart the shell:
 
 ```bash
 omarchy-shell shell rescanPlugins
@@ -94,7 +97,7 @@ omarchy restart shell
 
 ### Update
 
-Git-managed installations use Omarchy's normal update path:
+Update a Git-managed installation through Omarchy, then restart the shell:
 
 ```bash
 omarchy plugin update nshkr.beam-deck
@@ -103,16 +106,16 @@ omarchy restart shell
 
 ### Remove
 
-Before removing the plugin, revert any active scheduler trial and restore any scheduler changes you do not want to keep.
+Before removing BEAM Deck, **revert any active scheduler trial** and restore any scheduler changes you do not want to leave in place.
 
 ```bash
 omarchy plugin remove nshkr.beam-deck
 omarchy restart shell
 ```
 
-BEAM Deck does not modify monitored applications, and Erlang/OTP and Elixir are installed independently and are not removed with the plugin.
+Removing the plugin does not uninstall Erlang/OTP or Elixir and does not modify your monitored applications.
 
-Optional BEAM Deck user state can also be removed:
+Optional BEAM Deck user state can be removed separately:
 
 ```bash
 rm -rf ~/.config/beam-deck ~/.cache/beam-deck ~/.local/state/beam-deck
@@ -122,136 +125,149 @@ rm -rf ~/.config/beam-deck ~/.cache/beam-deck ~/.local/state/beam-deck
 
 ### Quick Start
 
-#### 1. Launch a BEAM Application
+#### 1. Start a distributed BEAM application
 
-Start your Elixir or Erlang application with a short name:
+For full OTP telemetry, give the application a node name:
 
 ```bash
-# In your Phoenix project:
+# Phoenix / Mix
 iex --sname my_app -S mix phx.server
 
-# Or a standard interactive session:
+# Plain IEx
 iex --sname demo
+
+# Rebar3
+rebar3 shell --sname erl_node
 ```
+
+A non-distributed local VM will still appear in the host census with OS-level visibility.
 
 #### 2. Open BEAM Deck
 
-Look for the BEAM icon in your Omarchy status bar. Click it, or run:
+Click the BEAM Deck icon in the Omarchy bar, use Omarchy's bar-position shortcut, or call the shell IPC directly:
 
 ```bash
 omarchy-shell shell toggle nshkr.beam-deck '{}'
 ```
 
-The top-level UI gives you the original **Cockpit** plus the 1.1 **Investigate** workflow.
+Omarchy Quattro maps **`Super+Ctrl+1` through `Super+Ctrl+9`** to bar panels by position. BEAM Deck deliberately does not install or rewrite a global Hyprland binding of its own, so moving the widget in your bar changes which position number opens it without creating a second shortcut system.
 
-### Cockpit Tour
+#### 3. Use the Cockpit for orientation, Investigate for evidence
 
-```text
-+-------------------------------------------------------------+
-| BEAM DECK                      Host: 16 Cores | 3 Runtimes  |
-+-------------------------------------------------------------+
-| Host Workstation Census                                     |
-|   - Local BEAM processes: 3    - Attached OTP Nodes: 2      |
-|   - Host Scheduler Load: 12/16 - Total BEAM RSS: 412 MB     |
-+-------------------------------------------------------------+
-| Nodes                                                       |
-|   [ my_app@workstation ]  OTP 29 | Sched: 8 | Procs: 420    |
-|   [ worker@workstation ]  OTP 28 | Sched: 4 | Procs: 180    |
-|   [ livebook (OS-Only) ]  PID: 34129        | RSS: 110 MB   |
-+-------------------------------------------------------------+
-| Active Pathology Alerts (0 alerts)                          |
-|   All mailboxes healthy - Run queues clear - Tables OK      |
-+-------------------------------------------------------------+
-| Live Controls (my_app@workstation)                          |
-|   Normal Schedulers: [ - ] 8 [ + ]    [ Apply ] [ Restore ] |
-|   Dirty CPU:         [ - ] 4 [ + ]    [ Apply ]             |
-|   [ IEx remsh ]  [ Deep Events ]  [ Startup Flags ]         |
-+-------------------------------------------------------------+
-```
+The **Cockpit** answers the fast questions: what is running, what is attached, what is under pressure, which node is selected, and whether something needs attention. **Investigate** is where you follow an incident through retained frames and focused diagnostics.
+
+### Keyboard Shortcuts
+
+BEAM Deck uses Omarchy's native panel keyboard model instead of a separate modal keymap. Focused text fields, text editors, combo boxes, spin boxes, and buttons get first refusal; panel shortcuts apply when the focused control does not consume the key.
+
+| Key | Action |
+|---|---|
+| `Super+Ctrl+1` … `Super+Ctrl+9` | Toggle the bar panel at that Omarchy bar position. |
+| `C` | Open **Cockpit** and return to live state. |
+| `I` | Open **Investigate → Triage**. |
+| `T` | Investigate: **Triage**. |
+| `F` | Investigate: **Flight recorder**. |
+| `P` | Investigate: **Process**. |
+| `E` | Investigate: **ETS lens**. |
+| `W` | Investigate: **Watchlist**. |
+| `B` | Investigate: **Budget trial**. |
+| `R` | Refresh current telemetry. |
+| `G` | **Go live** from a historical selection. |
+| `←` / `→` or `H` / `L` | Change the selected Cockpit node or move between Investigate tabs. |
+| `↑` / `↓` or `K` / `J` | Scroll the current Cockpit/Investigate context. |
+| `Tab` / `Shift+Tab` | Follow Omarchy/Qt focus and adjacent-panel navigation semantics. |
+| `Esc` | Close BEAM Deck. |
+| `?` | Toggle the built-in shortcut guide. |
+
+`H/J/K/L` remain navigation keys because that is the Omarchy `PanelKeyCatcher` convention; they are not repurposed as BEAM Deck actions. That is why **Go live is `G`, not `L`**.
+
+### Cockpit
+
+The Cockpit is the always-live overview. It presents:
+
+- **Attention** — active incidents, qualified trends, and watchlist problems with fast jumps into Triage, Recorder, or Watchlist.
+- **Host** — local BEAM VM count, attached nodes, scheduler density, total BEAM RSS, process count, and recent host history.
+- **Scheduler budget** — advisory local scheduler recommendations with an explicit jump to the reversible trial workflow.
+- **Local runtimes** — `/proc`-discovered VMs, including OS-only processes that are not distributed nodes.
+- **Selected node detail** — OTP version/identity, run queues, per-scheduler utilization, VM limits, memory composition, hot processes, registered-name churn, runtime controls, and peer topology.
+- **Alerts and recent events** — current operational signals without silently upgrading correlation into causality.
+
+Use `←/→` or `H/L` to move between attached/discovered nodes while the Cockpit has keyboard focus.
 
 ### Two Visibility Levels
 
-BEAM Deck automatically categorizes detected BEAM runtimes into two visibility tiers:
+BEAM Deck distinguishes what the host can observe from what OTP can expose.
 
-1. **OS-Only Telemetry (Automatic)**
-   - Works for local `beam.smp` processes even when distribution is disabled.
-   - Shows OS PID, redacted command-line context, current working directory, RSS/virtual memory, threads, and sampled host CPU information.
+1. **OS-only visibility** works automatically for local `beam.smp` processes. It includes process identity, bounded/redacted command context, working directory, RSS/virtual memory, threads, and sampled host CPU information where available.
+2. **Deep OTP visibility** requires a reachable named node. It adds VM memory and limits, scheduler/run-queue telemetry, hot processes, peers, focused process/ETS diagnostics, and runtime controls.
 
-2. **Deep OTP Telemetry (Connected Nodes)**
-   - Available for reachable nodes started with `--sname` or `--name`.
-   - Surfaces Erlang VM metrics including memory composition, process/atom/port/ETS limits, run queues, schedulers, hot processes, and remote peers.
+The UI keeps these states explicit so a locally detected VM is not presented as though BEAM Deck successfully authenticated to it.
 
 ## Everyday Guides
 
-### Connecting Your Phoenix / Elixir Application
+### Connecting a Phoenix or Elixir Application
 
-To give BEAM Deck deep access to your development application, start the node with distribution enabled:
+Start the development VM with distribution enabled:
 
 ```bash
-# Elixir / Phoenix
+# Phoenix / Elixir
 iex --sname web -S mix phx.server
 
-# Plain Elixir script or app
+# Long-running Mix application
 elixir --sname worker -S mix run --no-halt
-
-# Erlang / Rebar3
-rebar3 shell --sname erl_node
 ```
 
-BEAM Deck automatically discovers the node via EPMD and correlates its distributed-node identity with the local OS process when possible.
+BEAM Deck discovers local named nodes through EPMD and correlates the distributed identity with the local OS process when possible.
 
 ### Investigating an Incident
 
-When BEAM Deck raises an incident:
+A useful 1.1 workflow is:
 
-1. Open **Investigate → Triage** and review the evidence classification.
-2. Use **Recorder** to compare nearby retained frames instead of inferring causality from the latest snapshot alone.
-3. Open **Process** or **ETS** only when the incident points to a specific target worth inspecting.
-4. Return to **Live** before any mutating action.
-5. Export a diagnostics bundle only when you need to preserve or share the selected evidence.
+1. Open **Triage** and identify the active symptom plus its evidence class.
+2. Open **Flight recorder** to compare nearby retained frames instead of reasoning only from the newest snapshot.
+3. Pivot to **Process** or **ETS** when the evidence identifies a concrete target worth deeper inspection.
+4. Press **`G`** or click **Return to live** before any mutating action.
+5. Reinspect a live process immediately before GC; stale process reports do not authorize actions.
+6. Export a bounded diagnostics bundle only if you need to preserve or share the evidence.
 
-Forecasts are intentionally conservative and conditional. A displayed ETA means roughly **"if the observed trajectory continues"**; it is not a probability of failure. Temporal proximity between an alert and an event is not proof of root cause.
+Forecasts are deliberately conditional. An ETA means approximately **“if this qualified observed trajectory continues”**; it is not a probability of failure. A nearby event is evidence of timing, not proof of cause.
 
-### Diagnosing Hot Processes and One-Click GC
+### Diagnosing a Hot Process
 
-When memory climbs or a process stalls:
+From the selected node's hot-process list, open **Inspect / GC** or press **`P`** after selecting the relevant process through the UI.
 
-1. Open the node detail or the focused **Process** view.
-2. Review mailbox size, memory, reductions, and the bounded diagnostic context.
-3. Refresh the live process identity immediately before mutation.
-4. Click **GC** only when you explicitly want to trigger garbage collection for that process.
+The process report can include mailbox size, memory, reductions, current/initial call metadata, a bounded argument-free stack, focused ancestry, and shared off-heap binary reference summaries. It intentionally does **not** collect process messages, arbitrary state, arguments, or a full dictionary.
 
-Hot reductions are cumulative BEAM work counters, not a CPU percentage. A sampled process stack is evidence about current execution state; it does not by itself establish a deadlock.
+If you choose GC, BEAM Deck requires a fresh live report for the same VM incarnation. Process GC can pause the target and may not reclaim the memory you expect, so it remains an explicit action rather than automatic remediation.
 
 ### Safe Scheduler Work
 
-BEAM Deck keeps the original direct scheduler controls and adds a safer trial workflow in 1.1.
+BEAM Deck provides two distinct scheduler workflows:
 
-For a bounded trial:
+- **Direct node controls** let you deliberately change online normal/dirty scheduler counts and later restore the originally observed values.
+- **Budget trial** evaluates the whole attached-local-node recommendation as one short leased change set.
 
-1. Open **Investigate → Budget**.
-2. Review the complete current recommendation for attached local nodes.
-3. Start the trial. BEAM Deck records the original values before requesting changes.
-4. Observe the workload for the bounded trial window.
-5. Choose **Keep** explicitly if the result is desirable; otherwise let the trial revert or choose **Revert**.
+For the safer trial path:
 
-Trials are designed to revert on timeout, partial application, panel closure, or owner loss when BEAM Deck can still safely identify and reach the original VM. Rollback is conditional: if a VM restarted or an external actor changed the value, BEAM Deck does not blindly overwrite that newer state.
+1. Open **Investigate → Budget trial** (`B`).
+2. Review every proposed local scheduler change.
+3. Confirm and begin the trial.
+4. Observe the application under the changed scheduler budget.
+5. Choose **Keep** if the result is desirable, **Revert now** if it is not, or allow the lease to expire.
 
-**Keep** does not erase the first observed original value. The node's normal **Restore** action remains available.
+Rollback is conditional rather than destructive: if a VM restarted or another actor changed the scheduler value, BEAM Deck does not blindly overwrite the newer state. A failed restoration stays visible and retryable.
 
-For startup-only flags, use:
+**Keep** ends the lease but does not erase the first recorded original value; the normal **Restore** path remains available.
+
+For startup-only sizing, generate an `ERL_FLAGS` line without editing the project:
 
 ```bash
 ./bin/beam-deck-profile --schedulers 8 --dirty-cpu 4 --dirty-io 2
 ```
 
-The helper prints `ERL_FLAGS`; it does not edit your project or release configuration.
+### Monitoring Explicit Remote Nodes
 
-### Monitoring Remote Clusters and Multi-Machine Nodes
-
-BEAM Deck can monitor explicitly configured remote nodes while keeping cookies out of the config file.
-
-Create or extend `~/.config/beam-deck/config.json`:
+Remote nodes are configured explicitly; BEAM Deck does not crawl the LAN. Create or extend `~/.config/beam-deck/config.json`:
 
 ```json
 {
@@ -266,146 +282,142 @@ Create or extend `~/.config/beam-deck/config.json`:
 }
 ```
 
-Provide the referenced cookie variable to the environment inherited by the **actual Omarchy shell process**. Exporting a variable in an unrelated terminal does not retroactively update a running shell.
+Then make `BEAM_DECK_PROD_COOKIE` available to the environment inherited by the **actual Omarchy shell process**. Exporting it only in an unrelated terminal does not update an already-running shell.
 
-- **Credential References**: Node configuration stores the environment-variable name, not the cookie value.
-- **Directional Contracts**: `expected_peers` describes links BEAM Deck should expect to exist.
-- **Host Isolation**: Remote-node scheduler counts do not contribute to the local host scheduler budget.
+- `cookie_env` stores an environment-variable **name**, not the cookie value.
+- `required: true` makes an unavailable configured node an actionable signal.
+- `expected_peers` declares directional topology expectations instead of asking BEAM Deck to guess what the cluster should look like.
+- Remote schedulers never consume the local host's scheduler-budget capacity.
 
-### Short Names vs. Long Names
+### Short Names and Long Names
 
-By default, BEAM Deck uses **short names** (`--sname`), which are convenient for local development.
-
-For fully qualified long-name deployments:
+BEAM Deck defaults to short distribution names for local development. For long-name environments:
 
 ```bash
 export BEAM_DECK_LONGNAMES=1
 export BEAM_DECK_NODE_HOST=workstation.mycorp.internal
 ```
 
-The node host must be resolvable, and short-name and long-name nodes cannot be mixed within the same distribution naming mode.
+The configured host name must resolve correctly, and your distribution naming mode must be compatible with the target nodes.
 
-### Deep Events Tracing (OTP 28+)
+### Deep Events (OTP 28+)
 
-For advanced diagnostics on OTP 28 or newer:
+**Deep Events** is an explicit temporary diagnostic mode, not continuous profiling. On a capable OTP 28+ node it can surface metadata for long garbage collections, long scheduling events, mailbox growth, large heaps, and busy ports through an isolated trace session.
 
-- Click **Deep Events** in the node cockpit to attach a temporary isolated trace probe.
-- It can surface events such as:
-  - long garbage collections,
-  - long scheduler executions,
-  - rapid mailbox growth,
-  - large process heaps,
-  - busy network and distribution ports.
-- The trace session is explicitly opt-in and temporary.
-- Closing the panel or disconnecting tears down BEAM Deck-owned tracing and unloads the temporary namespaced probe module when cleanup can complete normally.
-
-Ordinary BEAM Deck inspection does not require loading a BEAM Deck module into the target node.
+Turning it off — or closing/disconnecting under normal conditions — tears down BEAM Deck-owned tracing and attempts to unload the temporary namespaced probe. See [SECURITY.md](SECURITY.md) for the exact trust and cleanup boundaries.
 
 ### Watchlist
 
-The 1.1 watchlist persists the identities you care about:
-
-- **Node pins** track exact node names.
-- **Registered-name pins** resolve the currently registered PID instead of treating a PID as a permanent identity.
-- Cheap targeted observations can continue for pins even when the full panel is closed.
-
-Watchlist state is stored locally in:
+The Watchlist keeps a small, persistent working set in:
 
 ```text
 ~/.config/beam-deck/watchlist.json
 ```
 
+- **Node pins** track exact node names.
+- **Registered-process pins** resolve the current registered PID instead of persisting a transient PID.
+- Bounded targeted checks can continue while the full panel is closed.
+
+This is deliberately not a regex subscription engine or a durable PID database.
+
 ### Diagnostic Export and Crash Triage
 
-Diagnostic export is manual and local. The bundle is intentionally bounded and excludes raw configuration, raw logs, raw crash dumps, environment variables, process messages/state, full process dictionaries, binary contents/addresses, and ETS contents.
+Diagnostic export is manual, bounded, and local. The archive contains a fixed evidence set and excludes raw configuration, raw helper logs, raw crash dumps, environment variables, process messages/state, full dictionaries, binary contents/addresses, and ETS contents.
 
-Review a bundle before sharing it: node names, module names, registered names, selected stack metadata, and crash slogans may still be sensitive.
+Still review every export before sharing it. Node names, module names, registered names, stack metadata, labels, and crash slogans can reveal internal architecture even when credentials are redacted.
 
-Crash triage is also bounded. BEAM Deck only considers a fresh `erl_crash.dump` associated with a vanished local runtime's previously observed working directory; it does not search the filesystem for crash dumps and does not claim that a matching dump proves why the VM disappeared.
+Crash triage is similarly bounded: BEAM Deck checks only the vanished local runtime's previously observed working directory for a fresh `erl_crash.dump` match. It does not scan the filesystem and does not claim that temporal proximity proves why the VM exited.
 
 ## Desktop IPC and Shell Commands
 
-You can control BEAM Deck programmatically or bind shortcuts through the Omarchy IPC interface:
+BEAM Deck exposes the normal Omarchy shell surface for scripting, custom keybindings, or debugging:
 
 ```bash
-# Toggle cockpit panel open/closed
+# Toggle the panel
 omarchy-shell shell toggle nshkr.beam-deck '{}'
 
 # Open or close explicitly
 omarchy-shell shell open nshkr.beam-deck '{}'
 omarchy-shell shell close nshkr.beam-deck '{}'
 
-# Force an immediate refresh
+# Force an immediate telemetry refresh
 omarchy-shell shell refresh nshkr.beam-deck '{}'
 
-# Print latest JSON snapshot
+# Print the latest JSON snapshot
 omarchy-shell shell status nshkr.beam-deck '{}'
 
 # Ping the background service
 omarchy-shell shell ping nshkr.beam-deck '{}'
 ```
 
+If you want a custom global binding beyond Omarchy's `Super+Ctrl+1–9` bar-position bindings, add it in your own Omarchy/Hyprland configuration. BEAM Deck does not silently modify desktop keybindings.
+
 ## Configuration
 
-BEAM Deck works out of the box with zero configuration. Existing 1.0 configuration continues to merge with the 1.1 defaults.
+BEAM Deck works with no user configuration for ordinary local discovery. A missing config uses bounded defaults; existing 1.0 settings deep-merge with the 1.1 defaults.
 
-Core settings include:
+Important top-level defaults include:
 
-| Key | Default | Description |
-|:---|:---:|:---|
-| `poll_interval_ms` | `2000` | Refresh cadence (ms) for light host/node overview |
-| `deep_interval_ms` | `5000` | Process scan cadence (ms) while the panel is open |
-| `history_points` | `450` | In-memory light-history data points |
-| `max_process_scan` | `100000` | Safety cap for full process scans |
-| `mailbox_warn` | `5000` | Mailbox queue length warning threshold |
-| `mailbox_critical` | `50000` | Mailbox queue length critical threshold |
-| `mailbox_rate_warn` | `1000` | Message growth-rate warning threshold |
-| `process_usage_warn` | `0.80` | Process table capacity warning threshold |
-| `atom_usage_warn` | `0.80` | Atom table capacity warning threshold |
-| `run_queue_per_scheduler_warn` | `1.0` | Saturated run queue warning threshold per scheduler |
+| Key | Default | Purpose |
+|---|---:|---|
+| `poll_interval_ms` | `2000` | Lightweight host/node refresh cadence. |
+| `deep_interval_ms` | `5000` | Deep process sampling cadence while the panel is open. |
+| `history_points` | `450` | Retained light-history points. |
+| `max_process_scan` | `100000` | Safety ceiling for process-scan handling. |
+| `mailbox_warn` | `5000` | Mailbox warning threshold. |
+| `mailbox_critical` | `50000` | Critical mailbox threshold. |
+| `mailbox_rate_warn` | `1000` | Message growth-rate warning threshold. |
+| `process_usage_warn` | `0.80` | Process-table capacity warning fraction. |
+| `atom_usage_warn` | `0.80` | Atom-table capacity warning fraction. |
+| `run_queue_per_scheduler_warn` | `1.0` | Run-queue warning ratio per scheduler. |
+| `flight_recorder_points` | `150` | Compact recorder frame retention. |
+| `budget_trial_lease_ms` | `30000` | Maximum scheduler trial lease. |
 
-1.1 adds configuration for recorder retention, forecasts, incidents, watchlist observations, export limits, notifications, crash triage, and scheduler trials. See the complete reference in [docs/CONFIGURATION.md](docs/CONFIGURATION.md) and the full example in [config/config.example.json](config/config.example.json).
+1.1 also includes bounded configuration for forecasts, incidents, notifications, watchlists, focused diagnostics, crash matching, exports, and Deep Events thresholds. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full contract and [config/config.example.json](config/config.example.json) for the complete example.
 
-If configuration contains invalid JSON or an unexpected type, BEAM Deck falls back to safe defaults and surfaces a non-intrusive configuration warning rather than crashing the desktop shell.
+Invalid JSON, unsafe reads, duplicate keys, or unsupported value shapes do not become arbitrary commands. BEAM Deck surfaces a configuration warning and falls back to bounded behavior where defined.
 
 ### File Locations
 
 | Purpose | Default path |
 |---|---|
-| User config | `~/.config/beam-deck/config.json` |
+| User configuration | `~/.config/beam-deck/config.json` |
 | Persistent watchlist | `~/.config/beam-deck/watchlist.json` |
 | Build/dependency cache | `~/.cache/beam-deck/` |
 | Helper log | `~/.local/state/beam-deck/beam-deckd.log` |
 | Explicit diagnostic exports | `~/.local/state/beam-deck/exports/` |
 
-XDG overrides are honored where supported. Recorder/history state is otherwise in memory and is not restored after helper restart.
+XDG overrides are honored where supported. Recorder/history data is otherwise memory-resident and is not restored after a helper restart.
 
 ## Security and Privacy
 
-BEAM Deck uses security-conscious defaults:
+BEAM Deck minimizes what it collects before relying on redaction:
 
-- **Cookie Redaction**: `-setcookie` and `--cookie` values discovered in inspected process arguments are redacted before telemetry reaches the UI.
-- **No Literal Cookies in Config**: Explicit nodes reference a `cookie_env` variable name rather than storing a cookie value in `config.json`.
-- **No Arbitrary LAN Scanning**: BEAM Deck uses local EPMD and explicitly configured/discovered node relationships; it does not perform arbitrary network scanning.
-- **No Permanent Target Agent**: Ordinary inspection does not install a BEAM Deck dependency or resident target agent.
-- **Bounded Diagnostics**: Focused process/ETS inspection, recorder retention, crash reads, and exports are deliberately capped.
-- **Local-First Evidence**: Watchlists, recorder state, crash triage, and exports remain local unless you explicitly share an exported file.
+- **No permanent target agent** for ordinary inspection.
+- **No arbitrary LAN scan**; discovery is local EPMD plus explicitly configured/observed node relationships.
+- **No literal cookie requirement in config**; explicit nodes reference `cookie_env` names.
+- **Cookie redaction** for known distribution-cookie arguments before telemetry reaches the UI.
+- **No arbitrary process-state browser**; focused reports exclude messages, arbitrary state, arguments, and general dictionary contents.
+- **No ETS contents**; the ETS lens is metadata-only.
+- **Bounded collection and export** across process reports, table enumeration, recorder history, crash reads, and ZIP output.
+- **Historical mutation lockout** and **VM-incarnation checks** for sensitive actions.
+- **Conditional scheduler rollback** rather than blind overwrite after a conflicting external change or VM restart.
 
-Erlang distribution is powerful by design. A node that can authenticate over distribution may be capable of far more than read-only inspection. Treat cookies and distribution connectivity as privileged access.
+Erlang distribution is powerful by design. Possession of the correct cookie and network access can permit capabilities far beyond BEAM Deck's UI. Treat distribution access as privileged.
 
-The `beam-deck-remsh` helper may pass an explicitly selected cookie through IEx arguments; other processes with sufficient OS permissions may be able to observe those arguments. Telemetry redaction is not a guarantee that every third-party tool or OS process view will hide credentials.
+`beam-deck-remsh` may pass a selected cookie through IEx arguments. Same-user or privileged OS observers may be able to inspect process arguments; telemetry redaction is not OS-level credential isolation.
 
-See [SECURITY.md](SECURITY.md) for the full threat model.
+Read [SECURITY.md](SECURITY.md) before using remote nodes or mutating controls in a sensitive environment.
 
 ## Development and Testing
 
-Run the static/local contracts:
+Run repository-local static/QML/JavaScript/shell contracts:
 
 ```bash
 make static
 ```
 
-Run the full available release gates through Mise:
+Run the complete available release gate through Mise:
 
 ```bash
 mise exec -- make check
@@ -417,36 +429,34 @@ Run the launcher/private-EPMD protocol harness:
 mise exec -- make protocol
 ```
 
-The test suite includes Elixir unit tests, source/QML contracts, JavaScript UI-state tests, protocol checks, and real disposable OTP-peer integration coverage where the local environment supports it.
-
-For targeted work:
+Useful targeted commands:
 
 ```bash
-# Static/QML/shell/JavaScript contracts
+# QML/source/shell/JavaScript contracts
 ./test/static.sh
 
 # Elixir daemon unit tests
 cd daemon && mix test
 
-# Real-peer OTP integration tests
+# Disposable real-peer OTP integration tests
 cd daemon && BEAM_DECK_INTEGRATION=1 mix test
 
-# Strict code analysis
+# Strict analysis
 cd daemon && mix credo --strict
-
-# Dialyzer
 cd daemon && mix dialyzer
 ```
 
+The repository includes pure UI-state tests, source contracts, Elixir unit tests, real OTP-peer integration cases, and an actual-launcher protocol harness. Real Omarchy/Quickshell rendering, focus, keyboard behavior, and desktop lifecycle still belong in the desktop acceptance pass; syntax-only checks are not a substitute for running the plugin in Omarchy.
+
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Configuration](docs/CONFIGURATION.md)
-- [Protocol](docs/PROTOCOL.md)
-- [1.1 Implementation Design](docs/IMPLEMENTATION-1.1.md)
-- [Validation](docs/VALIDATION.md)
-- [Security](SECURITY.md)
-- [Changelog](CHANGELOG.md)
+- [Architecture](docs/ARCHITECTURE.md) — ownership, lifecycle, collection/control boundaries, persistence, and transport.
+- [Configuration](docs/CONFIGURATION.md) — exact defaults, bounds, node configuration, and environment behavior.
+- [Protocol](docs/PROTOCOL.md) — JSONL envelopes and UI/helper command contract.
+- [1.1 Implementation Design](docs/IMPLEMENTATION-1.1.md) — reviewed design decisions and feature-to-test traceability.
+- [Validation](docs/VALIDATION.md) — release gates and required real-environment checks.
+- [Security](SECURITY.md) — trust model, data minimization, cookies, mutation safety, and recovery boundaries.
+- [Changelog](CHANGELOG.md) — release history.
 
 ## License
 

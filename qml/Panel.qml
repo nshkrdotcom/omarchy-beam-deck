@@ -15,6 +15,7 @@ Panel {
   property var hostWidget: null
   property var service: null
   property string workspace: "cockpit"
+  property bool shortcutsVisible: false
   property double nowMs: Date.now()
   readonly property bool stale: !service || !service.daemonRunning || !snapshotData.at_ms || nowMs - snapshotData.at_ms > 10000
   Timer { interval: 1000; repeat: true; running: root.opened; onTriggered: root.nowMs = Date.now() }
@@ -52,7 +53,10 @@ Panel {
     if (service) service.setPanelOpen(root.opened)
     if (root.opened && !selectedNode && nodes.length > 0)
       selectedNode = String(nodes[0].name || "")
-    if (!root.opened) workspace = "cockpit"
+    if (!root.opened) {
+      workspace = "cockpit"
+      shortcutsVisible = false
+    }
   }
 
   onServiceChanged: {
@@ -69,6 +73,42 @@ Panel {
   function liveCockpit() {
     if (service) service.returnLive()
     workspace = "cockpit"
+  }
+  function goLive() {
+    if (workspace === "investigate" && contentLoader.item && contentLoader.item.returnLive)
+      contentLoader.item.returnLive()
+    else if (service)
+      service.returnLive()
+  }
+  function cycleNode(direction) {
+    if (!nodes.length || direction === 0) return
+    var index = 0
+    for (var i = 0; i < nodes.length; i++) {
+      if (String(nodes[i].name || "") === String(selectedNode || "")) {
+        index = i
+        break
+      }
+    }
+    index = (index + (direction > 0 ? 1 : -1) + nodes.length) % nodes.length
+    selectedNode = String(nodes[index].name || "")
+  }
+  function keyboardMove(dx, dy) {
+    if (workspace === "cockpit" && dx !== 0) {
+      cycleNode(dx)
+      return
+    }
+    if (contentLoader.item && contentLoader.item.keyboardMove)
+      contentLoader.item.keyboardMove(dx, dy)
+  }
+  function handleShortcut(text) {
+    var action = DeckState.panelShortcut(text)
+    if (action === "cockpit") liveCockpit()
+    else if (action === "investigate") openInvestigation("triage")
+    else if (action === "refresh") { if (service) service.refresh() }
+    else if (action === "live") goLive()
+    else if (action === "help") shortcutsVisible = !shortcutsVisible
+    else if (contentLoader.item && contentLoader.item.handleShortcut)
+      contentLoader.item.handleShortcut(text)
   }
   function selected() {
     for (var i = 0; i < nodes.length; i++) if (String(nodes[i].name) === selectedNode) return nodes[i]
@@ -156,6 +196,8 @@ Panel {
       Keys.priority: Keys.AfterItem
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
+      onMoveRequested: function(dx, dy) { root.keyboardMove(dx, dy) }
+      onTextKey: function(text) { root.handleShortcut(text) }
 
       ColumnLayout {
         anchors.fill: parent
@@ -168,7 +210,27 @@ Panel {
           Button { text: "Cockpit"; selected: root.workspace === "cockpit"; onClicked: root.liveCockpit() }
           Button { text: "Investigate"; selected: root.workspace === "investigate"; onClicked: root.openInvestigation("triage") }
           Button { text: "Refresh"; onClicked: if (root.service) root.service.refresh() }
+          Button { text: "Shortcuts"; selected: root.shortcutsVisible; onClicked: root.shortcutsVisible = !root.shortcutsVisible }
           Button { text: "Close"; onClicked: root.close() }
+        }
+        BorderSurface {
+          Layout.fillWidth: true
+          visible: root.shortcutsVisible
+          implicitHeight: shortcutText.implicitHeight + Style.space(16)
+          color: Util.alpha(root.fg, 0.035)
+          borderSpec: Border.flat(Util.alpha(root.fg, 0.12), 1)
+          radius: Style.cornerRadius
+          Text {
+            id: shortcutText
+            anchors.fill: parent
+            anchors.margins: Style.space(8)
+            textFormat: Text.PlainText
+            text: "KEYBOARD  /  C Cockpit  ·  I Investigate  ·  R Refresh  ·  G Go live  ·  ? Help  ·  Esc Close\nINVESTIGATE  /  T Triage  ·  F Flight recorder  ·  P Process  ·  E ETS  ·  W Watchlist  ·  B Budget\nNAVIGATION  /  ←/→ or H/L change context  ·  ↑/↓ or K/J scroll  ·  Tab/Shift+Tab follow Omarchy panel navigation"
+            color: root.dim
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.WordWrap
+          }
         }
         Text { textFormat: Text.PlainText; visible: !!root.snapshotData.config_error || (root.service && root.service.lastError !== ""); Layout.fillWidth: true; text: root.snapshotData.config_error ? ("Config: " + root.snapshotData.config_error) : (root.service ? root.service.lastError : ""); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
 
@@ -270,11 +332,23 @@ Panel {
     id: dashboardView
     GridLayout {
       id: dashboardGrid
+      function keyboardMove(dx, dy) {
+        if (dx !== 0) {
+          root.cycleNode(dx)
+          return
+        }
+        if (dy === 0) return
+        var view = detailScroll
+        var limit = Math.max(0, view.contentHeight - view.height)
+        var step = Math.max(Style.space(64), view.height * 0.16)
+        view.contentY = Math.max(0, Math.min(limit, view.contentY + (dy > 0 ? step : -step)))
+      }
       columns: width >= Style.space(900) ? 3 : 1
       columnSpacing: Style.space(14)
       rowSpacing: Style.space(10)
 
       Flickable {
+        id: hostScroll
         Layout.preferredWidth: dashboardGrid.columns > 1 ? Style.space(320) : -1
         Layout.fillWidth: dashboardGrid.columns === 1
         Layout.preferredHeight: dashboardGrid.columns === 1 ? Style.space(180) : -1
@@ -378,6 +452,7 @@ Panel {
       Rectangle { visible: dashboardGrid.columns > 1; Layout.fillHeight: true; Layout.preferredWidth: 1; color: Util.alpha(root.fg, 0.12) }
 
       Flickable {
+        id: detailScroll
         Layout.fillWidth: true
         Layout.fillHeight: true
         contentWidth: width

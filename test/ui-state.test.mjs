@@ -84,3 +84,22 @@ test('process actions require a fresh captured report from the same VM incarnati
   assert.equal(S.canActOnProcess(s,p,false,true,25000),false);
   assert.equal(S.canActOnProcess(s,null,false,true,12000),false);
 });
+
+test('panel keyboard shortcuts reserve Omarchy navigation keys and use stable mnemonics', () => {
+  assert.equal(S.panelShortcut('c'), 'cockpit');
+  assert.equal(S.panelShortcut('I'), 'investigate');
+  assert.equal(S.panelShortcut('r'), 'refresh');
+  assert.equal(S.panelShortcut('g'), 'live');
+  assert.equal(S.panelShortcut('?'), 'help');
+  for (const reserved of ['h', 'j', 'k', 'l', 'x']) assert.equal(S.panelShortcut(reserved), null);
+});
+
+test('investigation keyboard shortcuts map each workspace without colliding with refresh or navigation', () => {
+  assert.equal(S.investigationTabShortcut('t'), 'triage');
+  assert.equal(S.investigationTabShortcut('f'), 'recorder');
+  assert.equal(S.investigationTabShortcut('p'), 'process');
+  assert.equal(S.investigationTabShortcut('e'), 'ets');
+  assert.equal(S.investigationTabShortcut('w'), 'pins');
+  assert.equal(S.investigationTabShortcut('b'), 'budget');
+  for (const reserved of ['r', 'g', 'h', 'j', 'k', 'l', 'x']) assert.equal(S.investigationTabShortcut(reserved), null);
+});

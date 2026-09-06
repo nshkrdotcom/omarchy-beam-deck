@@ -12,6 +12,7 @@ Item {
   property string targetNode: ""
   property string targetPid: ""
   property string tab: "triage"
+  readonly property var tabDefinitions: [{id:"triage",label:"Triage"},{id:"recorder",label:"Flight recorder"},{id:"process",label:"Process"},{id:"ets",label:"ETS lens"},{id:"pins",label:"Watchlist"},{id:"budget",label:"Budget trial"}]
   property string query: ""
   property bool showResolved: false
   property var expandedIncidents: ({})
@@ -78,6 +79,34 @@ Item {
     diffRequest = ""
     if (service) service.returnLive()
   }
+  function cycleTab(direction) {
+    if (!direction) return
+    var index = 0
+    for (var i = 0; i < tabDefinitions.length; i++) if (tabDefinitions[i].id === tab) { index = i; break }
+    index = (index + (direction > 0 ? 1 : -1) + tabDefinitions.length) % tabDefinitions.length
+    activate(tabDefinitions[index].id, "", "")
+  }
+  function currentScroll() {
+    return viewLoader.item
+  }
+  function keyboardMove(dx, dy) {
+    if (dx !== 0) {
+      cycleTab(dx)
+      return
+    }
+    if (dy === 0) return
+    var view = currentScroll()
+    if (!view) return
+    var limit = Math.max(0, view.contentHeight - view.height)
+    var step = Math.max(Style.space(64), view.height * 0.16)
+    view.contentY = Math.max(0, Math.min(limit, view.contentY + (dy > 0 ? step : -step)))
+  }
+  function handleShortcut(text) {
+    var nextTab = DeckState.investigationTabShortcut(text)
+    if (!nextTab) return false
+    activate(nextTab, "", "")
+    return true
+  }
   function options() { return timeline.map(function(f) { return {id:f.frame_id, label:DeckState.time(f.at_ms)+"  |  "+f.alert_count+" alerts  |  "+DeckState.bytes(f.beam_rss_bytes)} }) }
   function optionIndex(id) { var list = options(); for (var i=0;i<list.length;i++) if (list[i].id===id) return i; return -1 }
   function selectedFrom() { return fromFrame || (timeline.length ? timeline[0].frame_id : "") }
@@ -111,7 +140,7 @@ Item {
       Layout.fillWidth: true
       spacing: Style.space(6)
       Repeater {
-        model: [{id:"triage",label:"Triage"},{id:"recorder",label:"Flight recorder"},{id:"process",label:"Process"},{id:"ets",label:"ETS lens"},{id:"pins",label:"Watchlist"},{id:"budget",label:"Budget trial"}]
+        model: root.tabDefinitions
         Button { required property var modelData; text: modelData.label; selected: root.tab===modelData.id; onClicked: root.tab=modelData.id }
       }
     }
@@ -135,6 +164,7 @@ Item {
       Button { text: "Return to live"; onClicked: root.returnLive() }
     }
     Loader {
+      id: viewLoader
       Layout.fillWidth: true
       Layout.fillHeight: true
       sourceComponent: root.tab==="triage" ? triageView : root.tab==="recorder" ? recorderView : root.tab==="process" ? processView : root.tab==="ets" ? etsView : root.tab==="pins" ? pinsView : budgetView
