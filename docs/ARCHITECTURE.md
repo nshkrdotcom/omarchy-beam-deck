@@ -73,6 +73,12 @@ The namespaced Erlang probe is the only BEAM Deck bytecode intentionally loaded 
 
 `CrashDump` compares local PID plus start-time identity, then checks only that runtime's cached cwd. Fingerprints include device/inode/size/mtime/ctime. File descriptor identity is rechecked, read size is capped, and only selected header/scheduler/memory fields survive parsing. At most one delayed retry handles missing/unchanged/unmatched files. Disappearance is observed; the nearby dump match is correlation, not causal proof.
 
+## Native cockpit presentation
+
+The bar surface uses Omarchy's native `Panel`/`KeyboardPanel` contract rather than owning monitor geometry. `KeyboardPanel` is explicitly set to `padding: Style.space(8)` so BEAM Deck and Tactical Display share the same compact outer inset while Omarchy continues to own bar-edge gaps, clamping, and output placement. Inside that frame the chrome contract is: a two-line `identityBlock` at left, an elastic spacer, a right-aligned `headerActions` row with a persistent bordered Close affordance, then a themed `PanelSeparator` before workspace content. Major chrome gaps use Omarchy semantic spacing roles (`xxs`, `xxl`, `huge`) so shell spacing-scale preferences can change density coherently without changing the hierarchy.
+
+The source-level contracts assert that structure, but they are not visual proof. Native acceptance must still cover clamped widths, theme/font/spacing scale changes, focus traversal, and real Quickshell rendering. Layout constants inside plots remain visualization geometry rather than desktop-chrome spacing and are intentionally not forced through the cockpit token scale.
+
 ## Persistence and presentation
 
 Only normalized watchlist state and explicit exports are new disk data. Export uses OTP ZIP, a fixed entry allowlist, per-frame redaction and a 16-MiB size ceiling. `PrivateFile` uses private directories, exclusive temporary files, file sync and atomic rename; an owner monitor removes temporaries on task death where the helper remains alive. Parent-directory races by a same-UID attacker are outside the trust model.

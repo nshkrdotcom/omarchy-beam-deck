@@ -211,7 +211,7 @@ FocusScope {
     width: Math.max(2, root.selectionRight - root.selectionLeft)
     height: root.plotHeight
     color: Util.alpha(root.accent, 0.10)
-    border.width: 1
+    border.width: Style.spacing.hairline
     border.color: Util.alpha(root.accent, 0.55)
   }
 
@@ -243,7 +243,7 @@ FocusScope {
     height: hoverText.implicitHeight + Style.space(12)
     radius: (Style.cornerRadius / 2)
     color: Color.popups.background
-    border.width: 1
+    border.width: Style.spacing.hairline
     border.color: Util.alpha(root.fg, 0.18)
     z: 20
 

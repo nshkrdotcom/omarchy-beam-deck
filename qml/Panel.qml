@@ -207,19 +207,19 @@ Panel {
 
       ColumnLayout {
         anchors.fill: parent
-        spacing: Style.space(12)
+        spacing: Style.spacing.xxl
 
         RowLayout {
           id: headerBar
           Layout.fillWidth: true
-          spacing: Style.space(18)
+          spacing: Style.spacing.huge
 
           // Product identity and runtime state form one compact two-line block.
           // Keeping telemetry on its own line avoids the cramped "word / word"
           // treatment while preserving a fast left-to-right scan.
           ColumnLayout {
             id: identityBlock
-            spacing: Style.space(2)
+            spacing: Style.spacing.xxs
             Layout.alignment: Qt.AlignVCenter
 
             Text {
@@ -277,6 +277,15 @@ Panel {
             Button { text: "Close"; bordered: true; onClicked: root.close() }
           }
         }
+
+        // Keep a stable chrome/workspace boundary regardless of transient banners.
+        // Tactical Display uses the same boundary below its optional sub-navigation.
+        PanelSeparator {
+          id: headerSeparator
+          Layout.fillWidth: true
+          foreground: root.fg
+        }
+
         BorderSurface {
           Layout.fillWidth: true
           visible: root.shortcutsVisible
@@ -513,7 +522,7 @@ Panel {
         }
       }
 
-      Rectangle { visible: dashboardGrid.columns > 1; Layout.fillHeight: true; Layout.preferredWidth: 1; color: Util.alpha(root.fg, 0.12) }
+      Rectangle { visible: dashboardGrid.columns > 1; Layout.fillHeight: true; Layout.preferredWidth: Style.spacing.hairline; color: Util.alpha(root.fg, 0.12) }
 
       Flickable {
         id: detailScroll
@@ -606,7 +615,7 @@ Panel {
             required property var modelData
             width: Style.space(28); height: Style.space(22); radius: Style.space(3)
             color: Util.alpha(root.accent, 0.10 + Math.min(0.82, Number(modelData.utilization || 0) * 0.82))
-            border.width: 1; border.color: Util.alpha(root.fg, 0.10)
+            border.width: Style.spacing.hairline; border.color: Util.alpha(root.fg, 0.10)
             Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: String(modelData.id); color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.caption }
           }
         }
