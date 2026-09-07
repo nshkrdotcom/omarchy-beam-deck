@@ -5,346 +5,170 @@ import "DeckState.js" as DeckState
 
 FocusScope {
   id: root
-
   property var timeline: []
   property string fromFrame: ""
   property string toFrame: ""
   property bool live: true
+  property string metric: "rss"
+  property string nodeName: ""
+  property bool renderActive: visible
   property color fg: Color.popups.text
   property color dim: Util.alpha(fg, 0.58)
   property color accent: Color.accent
   property color urgent: Color.urgent
-
+  property int paintCount: 0
+  readonly property var series: DeckState.recorderSeries(timeline,metric,nodeName)
   signal rangeRequested(string fromFrame, string toFrame)
 
   readonly property real plotLeft: Style.space(12)
-  readonly property real plotRight: width - Style.space(12)
-  readonly property real plotTop: Style.space(28)
-  readonly property real plotBottom: height - Style.space(30)
-  readonly property real plotWidth: Math.max(1, plotRight - plotLeft)
-  readonly property real plotHeight: Math.max(1, plotBottom - plotTop)
-  readonly property bool hasSelection: !live && !!fromFrame && !!toFrame
+  readonly property real plotRight: width-Style.space(12)
+  readonly property real plotTop: heading.y+heading.height+Style.space(8)
+  readonly property real plotBottom: plotTop+Style.space(112)
+  readonly property real plotWidth: Math.max(1,plotRight-plotLeft)
+  readonly property real plotHeight: plotBottom-plotTop
+  readonly property bool hasSelection: !live && indexForFrame(fromFrame)>=0 && indexForFrame(toFrame)>=0
   readonly property real fromX: xForFrame(fromFrame)
   readonly property real toX: xForFrame(toFrame)
-  readonly property real selectionLeft: Math.min(fromX, toX)
-  readonly property real selectionRight: Math.max(fromX, toX)
-
+  readonly property real selectionLeft: Math.min(fromX,toX)
+  readonly property real selectionRight: Math.max(fromX,toX)
   property string dragMode: ""
   property string dragAnchor: ""
   property int hoverIndex: -1
-
-  implicitHeight: Style.space(188)
-  activeFocusOnTab: timeline.length > 0
+  implicitHeight: legend.y+legend.height+Style.space(10)
+  activeFocusOnTab: timeline.length>0
   Accessible.role: Accessible.Slider
-  Accessible.name: live
-    ? "Live flight recorder timeline. Drag to pause and select a historical range."
-    : "Paused flight recorder timeline. Drag either range handle or drag a new range."
-  Accessible.description: "When paused, Left and Right move endpoint B. Shift plus Left or Right moves endpoint A."
+  Accessible.name: series.title+" flight recorder. "+(live?"Live":"Historical")
+  Accessible.description: "Left/Right step B; Shift+Left/Right step A; Home/End first/last; G returns to live. Drag to select exact retained frames."
 
-  function indexForFrame(id) {
-    return DeckState.recorderIndexById(timeline, id)
+  function indexForFrame(id) { return DeckState.recorderIndexById(timeline,id) }
+  function xForIndex(i) { return i>=0 && i<series.points.length ? plotLeft+series.points[i].x*plotWidth : plotLeft }
+  function xForFrame(id) { return xForIndex(indexForFrame(id)) }
+  function nearestIndex(x) {
+    var best=-1, distance=Infinity
+    for(var i=0;i<series.points.length;i++) { var d=Math.abs(xForIndex(i)-x); if(d<distance){best=i;distance=d} }
+    return best
   }
-
-  function xForIndex(index) {
-    if (!timeline.length || index < 0) return plotLeft
-    if (timeline.length === 1) return plotLeft + plotWidth / 2
-    return plotLeft + (index / (timeline.length - 1)) * plotWidth
+  function frameAtX(x) { var i=nearestIndex(x); return i<0?"":timeline[i].frame_id }
+  function requestOrdered(a,b) { var r=DeckState.recorderOrderedRange(timeline,a,b); if(r.from && r.to) rangeRequested(r.from,r.to) }
+  function moveEndpoint(which,delta) {
+    if(!timeline.length) return
+    var a=hasSelection?indexForFrame(fromFrame):timeline.length-1, b=hasSelection?indexForFrame(toFrame):a
+    if(which==="from") a=Math.max(0,Math.min(b,a+delta)); else b=Math.max(a,Math.min(timeline.length-1,b+delta))
+    requestOrdered(timeline[a].frame_id,timeline[b].frame_id)
   }
-
-  function xForFrame(id) {
-    return xForIndex(indexForFrame(id))
+  function repaint() { if(renderActive) plot.requestPaint() }
+  onSeriesChanged: repaint()
+  onRenderActiveChanged: repaint()
+  onPlotTopChanged: repaint()
+  onWidthChanged: repaint()
+  onHeightChanged: repaint()
+  onFgChanged: repaint()
+  onDimChanged: repaint()
+  onAccentChanged: repaint()
+  onUrgentChanged: repaint()
+  function traceSummary(trace) {
+    var i=hoverIndex>=0?hoverIndex:(hasSelection?indexForFrame(toFrame):timeline.length-1)
+    var a=hasSelection?indexForFrame(fromFrame):0
+    var points=trace.points
+    return trace.label+" · "+trace.style+"\n"+DeckState.metricText(points[a]?points[a].value:null,series.unit)+" → "+DeckState.metricText(points[i]?points[i].value:null,series.unit)
   }
-
-  function frameAtX(x) {
-    var fraction = Math.max(0, Math.min(1, (x - plotLeft) / plotWidth))
-    return DeckState.recorderFrameAtFraction(timeline, fraction)
-  }
-
-  function requestOrdered(a, b) {
-    var ordered = DeckState.recorderOrderedRange(timeline, a, b)
-    if (ordered.from && ordered.to) rangeRequested(ordered.from, ordered.to)
-  }
-
-  function moveEndpoint(which, delta) {
-    if (!hasSelection || !delta) return
-    var fromIndex = indexForFrame(fromFrame)
-    var toIndex = indexForFrame(toFrame)
-    if (fromIndex < 0 || toIndex < 0) return
-
-    if (which === "from") {
-      fromIndex = Math.max(0, Math.min(toIndex, fromIndex + delta))
-    } else {
-      toIndex = Math.min(timeline.length - 1, Math.max(fromIndex, toIndex + delta))
-    }
-
-    requestOrdered(timeline[fromIndex].frame_id, timeline[toIndex].frame_id)
-  }
-
-  onTimelineChanged: plot.requestPaint()
-  onFromFrameChanged: plot.requestPaint()
-  onToFrameChanged: plot.requestPaint()
-  onLiveChanged: plot.requestPaint()
-  onAccentChanged: plot.requestPaint()
-  onUrgentChanged: plot.requestPaint()
-  onWidthChanged: plot.requestPaint()
-  onHeightChanged: plot.requestPaint()
-
   Keys.onPressed: function(event) {
-    if (!root.hasSelection) return
-    if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
-      var delta = event.key === Qt.Key_Right ? 1 : -1
-      root.moveEndpoint((event.modifiers & Qt.ShiftModifier) ? "from" : "to", delta)
-      event.accepted = true
+    if(event.modifiers & (Qt.ControlModifier|Qt.AltModifier|Qt.MetaModifier) || !timeline.length) return
+    if(event.key===Qt.Key_Left || event.key===Qt.Key_Right) {
+      root.moveEndpoint((event.modifiers & Qt.ShiftModifier)?"from":"to",event.key===Qt.Key_Right?1:-1); event.accepted=true
+    } else if(event.key===Qt.Key_Home || event.key===Qt.Key_End) {
+      var id=timeline[event.key===Qt.Key_Home?0:timeline.length-1].frame_id
+      if(hasSelection && !(event.modifiers & Qt.ShiftModifier)) requestOrdered(fromFrame,id)
+      else requestOrdered(id,hasSelection?toFrame:id)
+      event.accepted=true
     }
   }
-
-  Rectangle {
-    anchors.fill: parent
-    radius: Style.cornerRadius
-    color: Util.alpha(root.fg, 0.035)
-    border.width: root.activeFocus ? 2 : 1
-    border.color: root.activeFocus ? root.accent : Util.alpha(root.fg, 0.14)
-  }
-
+  Rectangle { anchors.fill:parent; color:Util.alpha(root.fg,0.035); radius:Style.cornerRadius; border.width:root.activeFocus?2:1; border.color:root.activeFocus?root.accent:Util.alpha(root.fg,0.14) }
   Text {
-    anchors.left: parent.left
-    anchors.leftMargin: Style.space(12)
-    anchors.top: parent.top
-    anchors.topMargin: Style.space(8)
-    text: "BEAM RSS"
-    color: root.dim
-    font.family: Style.font.family
-    font.pixelSize: Style.font.caption
-    font.bold: true
+    id:heading; x:Style.space(12); y:Style.space(8); width:parent.width-Style.space(24)
+    text:root.series.title+(root.metric!=="rss"?" / "+(root.nodeName || "choose a node"):"")
+      +"\nScale "+DeckState.metricText(root.series.min,root.series.unit)+" … "+DeckState.metricText(root.series.max,root.series.unit)
+      +" · "+(root.series.positionsMeasured?"measured time":"sequence spacing (time unavailable)")
+      +"\n▲ symptoms  ■ events · gaps and VM boundaries break traces"
+    color:root.dim; font.family:Style.font.family; font.pixelSize:Style.font.caption; textFormat:Text.PlainText; wrapMode:Text.Wrap
   }
-
-  Row {
-    anchors.right: parent.right
-    anchors.rightMargin: Style.space(12)
-    anchors.top: parent.top
-    anchors.topMargin: Style.space(8)
-    spacing: Style.space(10)
-
-    Row {
-      spacing: Style.space(4)
-      Rectangle { width: Style.space(7); height: width; radius: width / 2; color: root.urgent }
-      Text { text: "alert"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-    }
-    Row {
-      spacing: Style.space(4)
-      Rectangle { width: Style.space(7); height: width; radius: width / 2; color: root.accent }
-      Text { text: "event"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-    }
-  }
-
   Canvas {
-    id: plot
-    anchors.fill: parent
-
+    id:plot; anchors.fill:parent; visible:root.renderActive
     onPaint: {
-      var ctx = getContext("2d")
-      ctx.clearRect(0, 0, width, height)
-
-      var rows = root.timeline || []
-      if (!rows.length) return
-
-      ctx.lineWidth = 1
-      ctx.strokeStyle = Util.alpha(root.fg, 0.09)
-      for (var grid = 0; grid < 3; grid++) {
-        var gy = root.plotTop + (grid / 2) * root.plotHeight
-        ctx.beginPath()
-        ctx.moveTo(root.plotLeft, gy)
-        ctx.lineTo(root.plotRight, gy)
-        ctx.stroke()
-      }
-
-      var minRss = Number(rows[0].beam_rss_bytes || 0)
-      var maxRss = minRss
-      for (var i = 1; i < rows.length; i++) {
-        var rss = Number(rows[i].beam_rss_bytes || 0)
-        minRss = Math.min(minRss, rss)
-        maxRss = Math.max(maxRss, rss)
-      }
-      var span = Math.max(1, maxRss - minRss)
-
-      ctx.beginPath()
-      for (var p = 0; p < rows.length; p++) {
-        var x = root.xForIndex(p)
-        var value = Number(rows[p].beam_rss_bytes || 0)
-        var normalized = (value - minRss) / span
-        var y = root.plotBottom - normalized * root.plotHeight
-        if (p === 0) ctx.moveTo(x, y)
-        else ctx.lineTo(x, y)
-      }
-      ctx.strokeStyle = root.accent
-      ctx.lineWidth = 2
-      ctx.stroke()
-
-      for (var m = 0; m < rows.length; m++) {
-        var marker = rows[m]
-        var mx = root.xForIndex(m)
-        var critical = Number(marker.critical_count || 0)
-        var warning = Number(marker.warning_count || 0)
-        var events = Number(marker.event_count || 0)
-
-        if (critical > 0 || warning > 0) {
-          ctx.beginPath()
-          ctx.arc(mx, root.plotTop + Style.space(7), critical > 0 ? 4 : 3, 0, Math.PI * 2)
-          ctx.fillStyle = root.urgent
-          ctx.fill()
-        }
-
-        if (events > 0) {
-          ctx.beginPath()
-          ctx.arc(mx, root.plotBottom - Style.space(7), 3, 0, Math.PI * 2)
-          ctx.fillStyle = root.accent
-          ctx.fill()
-        }
-      }
+      if(!root.renderActive) return
+      root.paintCount++
+      var ctx=getContext("2d"); ctx.clearRect(0,0,width,height)
+      ctx.lineWidth=1; ctx.strokeStyle=Util.alpha(root.fg,0.1)
+      for(var g=0;g<3;g++) { var gy=root.plotTop+g/2*root.plotHeight;ctx.beginPath();ctx.moveTo(root.plotLeft,gy);ctx.lineTo(root.plotRight,gy);ctx.stroke() }
+      var min=root.series.min, max=root.series.max, span=Math.max(1,max-min)
+      var colors=[root.accent,root.fg,root.urgent,root.dim], dashes=[[],[6,3],[1,3],[6,3,1,3]]
+      root.series.traces.forEach(function(trace,t) {
+        ctx.beginPath();var connected=false
+        trace.points.forEach(function(p,i) {
+          if(p.value===null) { connected=false;return }
+          var x=root.xForIndex(i),y=min===max?(root.plotTop+root.plotBottom)/2:root.plotBottom-(p.value-min)/span*root.plotHeight
+          if(!connected || p.breakBefore) ctx.moveTo(x,y); else ctx.lineTo(x,y)
+          connected=true
+        })
+        ctx.strokeStyle=colors[t];ctx.lineWidth=2;ctx.setLineDash(dashes[t]);ctx.stroke();ctx.setLineDash([])
+        trace.points.forEach(function(p,i) {
+          if(p.value===null) return
+          var y=min===max?(root.plotTop+root.plotBottom)/2:root.plotBottom-(p.value-min)/span*root.plotHeight
+          ctx.fillStyle=colors[t];ctx.fillRect(root.xForIndex(i)-1,y-1,2,2)
+        })
+      })
+      root.timeline.slice(0,150).forEach(function(row,i) {
+        var x=root.xForIndex(i)
+        if(Number(row.alert_count || 0)>0) {ctx.fillStyle=root.urgent;ctx.beginPath();ctx.moveTo(x,root.plotTop);ctx.lineTo(x-3,root.plotTop+6);ctx.lineTo(x+3,root.plotTop+6);ctx.closePath();ctx.fill()}
+        if(Number(row.event_count || 0)>0) {ctx.fillStyle=root.accent;ctx.fillRect(x-2,root.plotBottom-4,4,4)}
+      })
     }
   }
-
-  Rectangle {
-    visible: root.hasSelection
-    x: root.selectionLeft
-    y: root.plotTop
-    width: Math.max(2, root.selectionRight - root.selectionLeft)
-    height: root.plotHeight
-    color: Util.alpha(root.accent, 0.10)
-    border.width: Style.spacing.hairline
-    border.color: Util.alpha(root.accent, 0.55)
+  Rectangle { visible:root.hasSelection; x:root.selectionLeft; y:root.plotTop; width:Math.max(2,root.selectionRight-root.selectionLeft); height:root.plotHeight; color:Util.alpha(root.accent,0.1); border.width:1; border.color:Util.alpha(root.accent,0.5) }
+  Repeater {
+    model:[root.fromX,root.toX]
+    Rectangle { required property real modelData; visible:root.hasSelection; x:modelData-3; y:root.plotTop-3; width:6; height:root.plotHeight+6; color:root.accent }
   }
-
-  Rectangle {
-    visible: root.hasSelection
-    x: root.fromX - width / 2
-    y: root.plotTop - Style.space(3)
-    width: Style.space(6)
-    height: root.plotHeight + Style.space(6)
-    radius: width / 2
-    color: root.accent
-  }
-
-  Rectangle {
-    visible: root.hasSelection
-    x: root.toX - width / 2
-    y: root.plotTop - Style.space(3)
-    width: Style.space(6)
-    height: root.plotHeight + Style.space(6)
-    radius: width / 2
-    color: root.accent
-  }
-
-  Rectangle {
-    visible: interaction.containsMouse && root.hoverIndex >= 0 && root.hoverIndex < root.timeline.length
-    x: Math.max(Style.space(6), Math.min(parent.width - width - Style.space(6), root.xForIndex(root.hoverIndex) - width / 2))
-    y: root.plotTop + Style.space(6)
-    width: Style.space(230)
-    height: hoverText.implicitHeight + Style.space(12)
-    radius: (Style.cornerRadius / 2)
-    color: Color.popups.background
-    border.width: Style.spacing.hairline
-    border.color: Util.alpha(root.fg, 0.18)
-    z: 20
-
-    Text {
-      id: hoverText
-      anchors.fill: parent
-      anchors.margins: Style.space(6)
-      text: {
-        if (root.hoverIndex < 0 || root.hoverIndex >= root.timeline.length) return ""
-        var frame = root.timeline[root.hoverIndex]
-        return DeckState.time(frame.at_ms)
-          + "  ·  " + DeckState.bytes(frame.beam_rss_bytes)
-          + "\n" + Number(frame.alert_count || 0) + " alerts  ·  " + Number(frame.event_count || 0) + " events"
-      }
-      color: root.fg
-      font.family: Style.font.family
-      font.pixelSize: Style.font.caption
-      wrapMode: Text.Wrap
-    }
-  }
-
   MouseArea {
-    id: interaction
-    anchors.left: parent.left
-    anchors.right: parent.right
-    anchors.top: parent.top
-    anchors.bottom: parent.bottom
-    anchors.topMargin: root.plotTop
-    anchors.bottomMargin: parent.height - root.plotBottom
-    hoverEnabled: true
-    cursorShape: Qt.CrossCursor
-
-    onPositionChanged: function(mouse) {
-      if (root.timeline.length) {
-        var fraction = Math.max(0, Math.min(1, (mouse.x - root.plotLeft) / root.plotWidth))
-        root.hoverIndex = Math.round(fraction * (root.timeline.length - 1))
-      }
-
-      if (!pressed || !root.dragMode) return
-      var frame = root.frameAtX(mouse.x)
-      if (!frame) return
-
-      if (root.dragMode === "from") root.requestOrdered(frame, root.toFrame)
-      else if (root.dragMode === "to") root.requestOrdered(root.fromFrame, frame)
-      else root.requestOrdered(root.dragAnchor, frame)
+    id:interaction; x:0; y:root.plotTop; width:root.width; height:root.plotHeight
+    hoverEnabled:true; cursorShape:Qt.CrossCursor
+    onPositionChanged:function(mouse) {
+      root.hoverIndex=root.nearestIndex(mouse.x)
+      if(!pressed || !root.dragMode) return
+      var frame=root.frameAtX(mouse.x)
+      if(root.dragMode==="from") root.requestOrdered(frame,root.toFrame)
+      else if(root.dragMode==="to") root.requestOrdered(root.fromFrame,frame)
+      else root.requestOrdered(root.dragAnchor,frame)
     }
-
-    onExited: if (!pressed) root.hoverIndex = -1
-
-    onPressed: function(mouse) {
-      if (!root.timeline.length) return
+    onExited:if(!pressed)root.hoverIndex=-1
+    onPressed:function(mouse) {
+      var frame=root.frameAtX(mouse.x);if(!frame)return
       root.forceActiveFocus()
-
-      var frame = root.frameAtX(mouse.x)
-      if (!frame) return
-
-      var handleRadius = Style.space(16)
-      if (root.hasSelection && Math.abs(mouse.x - root.fromX) <= handleRadius) {
-        root.dragMode = "from"
-        root.requestOrdered(frame, root.toFrame)
-      } else if (root.hasSelection && Math.abs(mouse.x - root.toX) <= handleRadius) {
-        root.dragMode = "to"
-        root.requestOrdered(root.fromFrame, frame)
-      } else {
-        root.dragMode = "new"
-        root.dragAnchor = frame
-        root.requestOrdered(frame, frame)
+      if(root.hasSelection && Math.abs(mouse.x-root.fromX)<16) {root.dragMode="from";root.requestOrdered(frame,root.toFrame)}
+      else if(root.hasSelection && Math.abs(mouse.x-root.toX)<16) {root.dragMode="to";root.requestOrdered(root.fromFrame,frame)}
+      else {root.dragMode="new";root.dragAnchor=frame;root.requestOrdered(frame,frame)}
+    }
+    onReleased:{root.dragMode="";root.dragAnchor=""}
+    onCanceled:{root.dragMode="";root.dragAnchor=""}
+  }
+  Text {
+    x:Style.space(12); y:root.plotBottom+Style.space(8); width:parent.width-Style.space(24)
+    text:{
+      var i=root.hoverIndex>=0?root.hoverIndex:(root.hasSelection?root.indexForFrame(root.toFrame):root.timeline.length-1),p=root.timeline[i]
+      return p?(root.hoverIndex>=0?"INSPECT ":root.live?"LIVE ":"PAUSED ")+DeckState.time(p.at_ms)+" / "+p.frame_id+" / "+Number(p.alert_count || 0)+" symptoms / "+Number(p.event_count || 0)+" events"+(root.series.points[i].gap?" / collection gap":"")+(root.series.points[i].restart?" / VM boundary or unavailable":""):"No measured samples"
+    }
+    id:inspectionText; color:root.dim; font.family:Style.font.family; font.pixelSize:Style.font.caption; textFormat:Text.PlainText; wrapMode:Text.Wrap
+  }
+  Flow {
+    id:legend; x:Style.space(12); y:inspectionText.y+inspectionText.height+Style.space(8); width:parent.width-Style.space(24); spacing:0
+    Repeater {
+      model:root.series.traces
+      Text {
+        required property var modelData
+        width:legend.width/Math.min(root.series.traces.length,root.width>=680?4:root.width>=360?2:1)
+        text:root.traceSummary(modelData); color:root.fg; font.family:Style.font.family; font.pixelSize:Style.font.caption; textFormat:Text.PlainText; wrapMode:Text.Wrap
+        bottomPadding:Style.space(4); rightPadding:Style.space(8)
       }
     }
-
-    onReleased: {
-      root.dragMode = ""
-      root.dragAnchor = ""
-    }
-
-    onCanceled: {
-      root.dragMode = ""
-      root.dragAnchor = ""
-    }
-  }
-
-  Text {
-    anchors.left: parent.left
-    anchors.leftMargin: Style.space(12)
-    anchors.bottom: parent.bottom
-    anchors.bottomMargin: Style.space(7)
-    text: root.timeline.length ? DeckState.time(root.timeline[0].at_ms) : "No retained history yet"
-    color: root.dim
-    font.family: Style.font.family
-    font.pixelSize: Style.font.caption
-  }
-
-  Text {
-    anchors.right: parent.right
-    anchors.rightMargin: Style.space(12)
-    anchors.bottom: parent.bottom
-    anchors.bottomMargin: Style.space(7)
-    text: root.timeline.length ? (root.live ? "NOW  ·  " : "PAUSED  ·  ") + DeckState.time(root.timeline[root.timeline.length - 1].at_ms) : ""
-    color: root.live ? root.accent : root.dim
-    font.family: Style.font.family
-    font.pixelSize: Style.font.caption
-    font.bold: root.live
   }
 }

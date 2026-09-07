@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import "../../qml" as Deck
 TestCase {
+  visible:true
   id:suite
   name:"KeyedEvidence"
   when:windowShown
@@ -18,6 +19,7 @@ TestCase {
     verify(row.mapToItem(view,0,row.height).y<=view.height)
     model.rows=[{id:"zero",text:"Zero"},{id:"two",text:"Changed"},{id:"one",text:"One"}]; wait(30)
     compare(view.repeater.itemAt(1),row); compare(row.text,"Changed"); verify(row.activeFocus)
+    row.enabled=false; verify(row.opacity<1)
     view.destroy(); model.destroy()
   }
 }

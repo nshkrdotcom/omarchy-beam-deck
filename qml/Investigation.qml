@@ -15,6 +15,13 @@ Item {
   property string tab: "triage"
   readonly property var tabDefinitions: [{id:"triage",label:"Triage"},{id:"recorder",label:"Flight recorder"},{id:"process",label:"Process"},{id:"ets",label:"ETS lens"},{id:"pins",label:"Watchlist"},{id:"budget",label:"Budget trial"}]
   property string query: ""
+  property string activityQuery: ""
+  property string activityNode: ""
+  property string activityDomain: "all"
+  property string activityKind: "all"
+  property string recorderMetric: "rss"
+  property string recorderNode: ""
+  property string etsQuery: ""
   property bool showResolved: false
   property var expandedIncidents: ({})
   property bool gcConfirmed: false
@@ -277,10 +284,17 @@ Item {
           Controls.CheckBox { text: "Resolved"; checked: root.showResolved; onToggled: root.showResolved=checked }
           ActionButton { text: "Export diagnostics"; onClicked: root.runExport(false) }
         }
+        EvidenceCard {
+          width:parent.width
+          Heading { width:parent.width; text:"Provider and evidence quality" }
+          Label { width:parent.width; text:DeckState.providerText(root.viewSnapshot,!!root.service && root.service.daemonRunning,root.recorderPaused?(root.viewSnapshot.at_ms || root.nowMs):root.nowMs) }
+          Label { width:parent.width; text:"Authenticated distribution is privileged. Deep Events is explicit; process/ETS inspection runs only when requested." }
+        }
+        BaselineCard { width:parent.width; service:root.service; nodeName:root.targetNode; onExportRequested:function(a,b){root.exportRequest=root.service.exportBundle(a,b)} }
         Label { visible:root.service && root.service.historicalMode; width:parent.width; text:"Captured findings stay frozen while live collection continues. Return to live to unlock runtime actions." }
         Label { width: parent.width; text: "Observed facts, nearby correlations and trend heuristics stay visibly distinct. Correlation does not establish a cause." }
         Controls.TextField { width: parent.width; placeholderText: "Filter incidents by node or symptom"; text: root.query; onTextEdited: root.query=text; Accessible.name: "Filter incidents" }
-        Label { visible: !(root.viewSnapshot.incidents || []).some(function(i) { return i.status==="active" }); width: parent.width; text: "No active incidents. The live cockpit and retained frames remain available." }
+        Label { visible: !(root.viewSnapshot.incidents || []).some(function(i) { return i.status==="active" }); width: parent.width; text: "No active incidents in this evidence. Missing or partial collection does not establish health; inspect provider quality above." }
         Repeater {
           model: KeyedRows { rows: DeckState.filterRows((root.viewSnapshot.incidents || []).filter(function(i) { return root.showResolved || i.status!=="resolved" }), root.query); keyField: "id" }
           InfoCard {
@@ -317,8 +331,19 @@ Item {
                 }
               }
             }
-            Label { width: parent.width; text: "First "+DeckState.time(incidentCard.modelData.first_seen_ms)+"  |  Last evidence "+DeckState.time(incidentCard.modelData.last_seen_ms) }
+            Label { width: parent.width; text: "Evidence age "+DeckState.duration((root.recorderPaused?(root.viewSnapshot.at_ms || root.nowMs):root.nowMs)-incidentCard.modelData.last_seen_ms)+"  |  First "+DeckState.time(incidentCard.modelData.first_seen_ms)+"  |  Last evidence "+DeckState.time(incidentCard.modelData.last_seen_ms) }
           }
+        }
+        ActivityFeed {
+          width:parent.width
+          rows:root.viewSnapshot.activity || (root.viewSnapshot.flight_recorder || {}).activity || []
+          omitted:(root.viewSnapshot.flight_recorder || {}).omitted_activity || 0
+          query:root.activityQuery; nodeFilter:root.activityNode; domainFilter:root.activityDomain; kindFilter:root.activityKind
+          onQueryChanged:root.activityQuery=query
+          onNodeFilterChanged:root.activityNode=nodeFilter
+          onDomainFilterChanged:root.activityDomain=domainFilter
+          onKindFilterChanged:root.activityKind=kindFilter
+          onFrameRequested:function(id,node){root.tab="recorder";if(node)root.recorderNode=node;root.viewRecorderFrame(id)}
         }
         Heading { text: "Resource outlook" }
         Label { width: parent.width; visible: !(root.viewSnapshot.forecasts || []).length; text: "No qualified trend. Forecasts need a sustained, consistent sample window and reset across VM restarts. This is not a guarantee of future health." }
@@ -409,11 +434,12 @@ Item {
           Controls.ComboBox { model:["Memory","Elements"]; currentIndex:root.etsSort==="memory"?0:1; onActivated:function(index) { root.etsSort=index===0?"memory":"size" }; Accessible.name:"ETS sort order" }
           ActionButton { text: "Inspect tables"; enabled: root.service && !!root.targetNode && !root.service.historicalMode; onClicked: root.etsRequest=root.service.inspectEts(root.targetNode,root.etsSort) }
         }
+        Controls.TextField { width:parent.width; text:root.etsQuery; onTextEdited:root.etsQuery=text; placeholderText:"Filter captured tables by name or owner"; Accessible.name:placeholderText }
         Label { width: parent.width; text: root.jobText(root.etsJob,"No tables have been enumerated. Inspection is explicit and metadata-only.") }
         Label { width: parent.width; visible: !!root.etsResult; color: root.accent; text: root.etsResult ? root.etsResult.scanned_tables+" / "+root.etsResult.total_tables+" tables sampled  |  "+(root.etsResult.partial?"PARTIAL":"complete enumeration")+"  |  sorted by "+root.etsResult.sort+"  |  target word size "+root.etsResult.wordsize+" bytes" : "" }
         Label { width: parent.width; visible: !!root.etsResult; text: "Table metadata may change during collection. Scanned memory: "+DeckState.bytes(root.etsResult ? root.etsResult.sampled_memory_bytes : null)+". ETS counts have no hard-capacity forecast." }
         Repeater {
-          model: KeyedRows { rows: root.etsResult ? root.etsResult.top || [] : []; keyField: "id" }
+          model: KeyedRows { rows: DeckState.filterRows(root.etsResult ? root.etsResult.top || [] : [],root.etsQuery); keyField: "id" }
           InfoCard {
             id: tableCard
             required property string rowJson
@@ -466,8 +492,23 @@ Item {
           }
         }
 
+        Flow {
+          width:parent.width; spacing:Style.space(6)
+          Controls.ComboBox { model:["Host RSS","VM memory composition","Run queue","Scheduler utilization","Hard-capacity occupancy"]; currentIndex:["rss","memory","run_queue","scheduler_utilization","capacity"].indexOf(root.recorderMetric); onActivated:function(i){root.recorderMetric=["rss","memory","run_queue","scheduler_utilization","capacity"][i]}; Accessible.name:"Recorder metric" }
+          Controls.ComboBox {
+            visible:root.recorderMetric!=="rss"
+            model:(root.recorderDisplayTimeline || []).reduce(function(out,f){(f.nodes || []).forEach(function(n){if(out.indexOf(n.name)<0)out.push(n.name)});return out},[])
+            currentIndex:model.indexOf(root.recorderNode || root.targetNode)
+            onActivated:function(i){root.recorderNode=model[i]}
+            Accessible.name:"Recorder node"
+          }
+        }
+        Label { width:parent.width; text:((root.snapshot.flight_recorder || {}).omitted_frames || 0)+" retained frames not drawn; exact endpoints remain addressable. Up to 16 node traces per frame; missing/omitted nodes render unavailable. ▲ and ■ aggregate all symptoms/events in a sample; inspect its counts and captured activity." }
         RecorderTimeline {
           id: recorderTimeline
+          metric: root.recorderMetric
+          nodeName: root.recorderNode || root.targetNode
+          renderActive: root.surfaceActive && visible
           width: parent.width
           timeline: root.recorderDisplayTimeline
           fromFrame: root.fromFrame
@@ -539,7 +580,7 @@ Item {
           color: root.dim
           text: root.recorderPaused
             ? "Drag either handle to refine the frozen range. Click-drag elsewhere to replace it. Tab to the timeline; Left/Right moves B and Shift+Left/Right moves A."
-            : "Alert markers appear above the RSS trace; runtime events appear below it. Drag any interval—or click a point—to enter read-only historical mode."
+            : "Alert markers appear above the selected trace; runtime events appear below it. Drag any interval—or click a point—to enter read-only historical mode."
         }
 
         Label {

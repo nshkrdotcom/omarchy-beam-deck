@@ -12,6 +12,7 @@ Item {
   property var snapshot: DeckState.emptySnapshot()
   property var jobs: ({})
   property bool historicalMode: false
+  property var operatorBaseline: null
   property int sequence: 0
   property string lastSession: ""
   property string notificationError: ""

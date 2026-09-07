@@ -3,6 +3,7 @@ import QtTest
 import qs.Commons
 import "../../qml" as Deck
 TestCase {
+  visible:true
   id:suite
   name:"InvestigationContinuity"
   when:windowShown
@@ -14,6 +15,7 @@ TestCase {
     property bool panelOpen:true
     property bool historicalMode:false
     property var jobs:({})
+    property var operatorBaseline:null
     property string lastSession:"test-session"
     property string lastError:""
     property string lastAction:""
@@ -30,8 +32,8 @@ TestCase {
   Component { id:factory; Deck.Panel { service:fakeService } }
   function all(item) { var out=[item]; for(var i=0;i<item.children.length;i++) out=out.concat(all(item.children[i])); return out }
   function investigation(p) { return all(p).filter(function(x){return typeof x.selectRecorderRange==="function"})[0] }
-  function sample(at,title) { return {at_ms:at,session_id:"test-session",nodes:[{name:"fixture@host",attached:true,creation:1,restart_churn:[],expected_peers:[]}],host:{},budget_trial:null,summary:{runtime_count:1},incidents:[{id:"one",title:title,summary:"Measured fixture",status:"active",severity:"warning",evidence_class:"observed",evidence:[],actions:[]}],flight_recorder:{timeline:[{frame_id:"frame-1",at_ms:100},{frame_id:"frame-2",at_ms:200}]}} }
-  function init() { fakeService.snapshot=sample(200,"old finding"); fakeService.jobs=({}); fakeService.historicalMode=false; fakeService.panelOpen=true }
+  function sample(at,title) { return {at_ms:at,session_id:"test-session",nodes:[{name:"fixture@host",attached:true,creation:1,restart_churn:[],expected_peers:[]}],host:{},budget_trial:null,summary:{runtime_count:1},incidents:[{id:"one",title:title,summary:"Measured fixture",status:"active",severity:"warning",evidence_class:"observed",evidence:[],actions:[]}],flight_recorder:{newest_frame_id:"frame-2",oldest_frame_id:"frame-1",activity:[{id:"event-1",frame_id:"frame-1",node:"fixture@host",kind:"registered_replaced",domain:"process",summary:"Registered name changed",evidence_class:"observed",at_ms:100}],timeline:[{frame_id:"frame-1",at_ms:100},{frame_id:"frame-2",at_ms:200}]}} }
+  function init() { fakeService.operatorBaseline=null; fakeService.snapshot=sample(200,"old finding"); fakeService.jobs=({}); fakeService.historicalMode=false; fakeService.panelOpen=true }
   function test_exact_missing_node() {
     failOnWarning(/TypeError/)
     var p=createTemporaryObject(factory,suite,{width:1270,height:764,selectedNode:"ended@host"})
@@ -60,6 +62,18 @@ TestCase {
     inv.targetPid="<0.2.0>"; compare(inv.processRequest,"")
     fakeService.jobs=({[prior]:{request_id:prior,kind:"inspect_process",node:"fixture@host",status:"complete",result:{pid:"<0.1.0>"}}}); wait(10)
     compare(inv.processResult,null)
+  }
+  function test_operator_baseline_and_activity_pivot() {
+    var p=createTemporaryObject(factory,suite,{width:1270,height:764})
+    p.openInvestigation("triage","fixture@host",""); wait(30)
+    var capture=all(p).filter(function(x){return x.text==="Capture baseline" && x.clicked})[0]
+    verify(capture); capture.clicked(); compare(fakeService.operatorBaseline.frame_id,"frame-2")
+    var eventButton=all(p).filter(function(x){return x.text==="View captured frame" && x.clicked})[0]
+    verify(eventButton); eventButton.clicked(); wait(20)
+    var inv=investigation(p); compare(inv.tab,"recorder"); compare(fakeService.historicalMode,true); verify(inv.frameRequest!=="")
+    inv.returnLive(); inv.tab="triage"; wait(20)
+    var clear=all(p).filter(function(x){return x.text==="Clear baseline" && x.clicked})[0]
+    verify(clear); clear.clicked(); compare(fakeService.operatorBaseline,null)
   }
   function test_modified_navigation_stays_with_control() {
     var p=createTemporaryObject(factory,suite,{width:1270,height:764})

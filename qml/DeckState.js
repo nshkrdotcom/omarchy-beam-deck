@@ -63,15 +63,15 @@ function duration(ms) {
   return (seconds/3600).toFixed(1)+"h";
 }
 function signed(n) { return typeof n !== "number" || !isFinite(n) ? "\u2014" : (n>0?"+":"")+Number(n.toFixed(2)); }
-function time(at) { return at ? new Date(at).toLocaleTimeString() : "\u2014"; }
+function time(at) { if (!at || finite(at)===null) return "—"; var d=new Date(at); return [d.getHours(),d.getMinutes(),d.getSeconds()].map(function(n){return ("0"+n).slice(-2);}).join(":"); }
 function filterRows(rows, query) {
   var needle=String(query || "").toLowerCase().slice(0,120);
-  return rows.filter(function(r) { return [r.name,r.node,r.label,r.title,r.summary].join(" ").toLowerCase().indexOf(needle)>=0; });
+  return rows.filter(function(r) { return [r.name,r.node,r.label,r.title,r.summary,r.owner,r.owner_name,r.pid,r.kind,r.subject].join(" ").toLowerCase().indexOf(needle)>=0; });
 }
 function stackFrame(f) { return f ? f.module+"."+f.function+"/"+f.arity+(f.line?" :"+f.line:"") : "unavailable"; }
 function processText(p) {
   var lines=["Captured: "+time(p.at_ms),String(p.pid || "" )+"  "+String(p.registered_name || "unregistered"), "Status: "+String(p.status || "unavailable"),
-    "Mailbox: "+String(p.mailbox===undefined?"unavailable":p.mailbox)+"   Memory: "+bytes(p.memory_bytes)+"   Reductions: "+String(p.reductions || 0),
+    "Mailbox: "+String(p.mailbox===undefined?"unavailable":p.mailbox)+"   Memory: "+bytes(p.memory_bytes)+"   Reductions: "+(finite(p.reductions)===null?"unavailable":String(p.reductions)),
     "Current: "+stackFrame(p.current_function),"Initial: "+stackFrame(p.initial_call),"","STACK (no arguments)"];
   (p.stack || []).forEach(function(f,i) { lines.push(String(i+1)+"  "+stackFrame(f)); });
   if (!(p.stack || []).length) lines.push("No stack available.");
@@ -144,7 +144,7 @@ function recorderRangeLast(timeline, spanMs) {
   var target=Math.max(0,Number(spanMs || 0));
   var end=rows.length-1, start=end, elapsed=0;
   for (var i=end;i>0 && elapsed<target;i--) {
-    var delta=Number(rows[i].at_ms || 0)-Number(rows[i-1].at_ms || 0);
+    var delta=sampleSpan(rows[i-1],rows[i]);
     if (delta>0) elapsed+=delta;
     start=i-1;
   }
@@ -155,7 +155,7 @@ function recorderSelectionSpanMs(timeline, from, to) {
   if (ordered.from_index<0) return 0;
   var rows=timeline || [], elapsed=0;
   for (var i=ordered.from_index+1;i<=ordered.to_index;i++) {
-    var delta=Number(rows[i].at_ms || 0)-Number(rows[i-1].at_ms || 0);
+    var delta=sampleSpan(rows[i-1],rows[i]);
     if (delta>0) elapsed+=delta;
   }
   return elapsed;
@@ -170,7 +170,7 @@ function finite(n) { return typeof n === "number" && isFinite(n) ? n : null; }
 function captureBaseline(snapshot, node) {
   var recorder=snapshot.flight_recorder || {}, rows=recorder.timeline || [];
   var point=rows.filter(function(r) { return r.frame_id===recorder.newest_frame_id; })[0];
-  return point ? {session_id:snapshot.session_id,frame_id:point.frame_id,at_ms:point.at_ms,node:node || "",quality:point.collection || {}} : null;
+  return point ? {session_id:snapshot.session_id,frame_id:point.frame_id,at_ms:point.at_ms,node:node || "",quality:point.collection || {},creation:((point.nodes || []).filter(function(n){return n.name===node;})[0] || {}).creation} : null;
 }
 function baselineStatus(b, snapshot) {
   if (!b) return "none";
@@ -239,4 +239,19 @@ function revealFocus(item) {
     }
     parent = parent.parent;
   }
+}
+
+function sampleSpan(a,b) {
+  if (finite(a.sample_mono_ms)!==null && finite(b.sample_mono_ms)!==null) return Math.max(0,b.sample_mono_ms-a.sample_mono_ms);
+  return Math.max(0,Number(b.at_ms || 0)-Number(a.at_ms || 0));
+}
+function providerText(snapshot,running,now) {
+  if (!running || !snapshot.at_ms) return "Provider unavailable. Last valid evidence is retained; check the helper/toolchain and retry Refresh.";
+  var c=snapshot.collection || {}, age=Math.max(0,now-snapshot.at_ms), nodes=snapshot.nodes || [];
+  var deep=nodes.filter(function(n){return n.attached===true;}).length;
+  return (age>10000?"STALE":"CAPTURE")+" / "+duration(age)+" ago / "+(c.status || "quality unknown")
+    +" / "+deep+" of "+nodes.length+" nodes authenticated"
+    +"\nCollection "+(finite(c.duration_ms)===null?"unavailable":c.duration_ms+" ms")+"; cadence "+duration(c.poll_interval_ms)+"; deep cadence "+duration(c.deep_interval_ms)+"."
+    +(deep<nodes.length?" Distribution unavailable: check the node's reachability, naming and cookie source; do not share cookies.":"")
+    +(nodes.length===0?" OS discovery alone cannot show OTP internals. A named distributed node and matching trusted credentials are needed.":"");
 }

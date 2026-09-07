@@ -3,6 +3,7 @@ import QtTest
 import qs.Commons
 import "../../qml" as Deck
 TestCase {
+  visible:true
   id: suite
   name: "ProtectedPanel"
   when: windowShown

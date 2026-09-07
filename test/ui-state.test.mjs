@@ -177,3 +177,21 @@ test('signed comparison uses bytes and percentage points, and rejects unknown pa
   assert.match(text,/\+1.0 KiB/);assert.match(text,/\+12.5 pp/);assert.doesNotMatch(text,/secret_payload/);
   assert.equal(S.signed(NaN),'—');
 });
+
+test("provider briefing labels absent and stale acquisition instead of healthy zeros", () => {
+  assert.match(S.providerText({},false,20000),/unavailable/i);
+  assert.match(S.providerText({at_ms:1000,collection:{poll_interval_ms:2000,status:"partial"},nodes:[{attached:false}]},true,20000),/stale/i);
+  assert.match(S.providerText({at_ms:19000,collection:{duration_ms:42,poll_interval_ms:2000,status:"complete"},nodes:[{attached:true}]},true,20000),/42 ms/);
+});
+test("baseline records node incarnation and measured monotonic spans survive wall-clock reversal", () => {
+  const s={session_id:"s",flight_recorder:{newest_frame_id:"frame-2",timeline:[{frame_id:"frame-2",at_ms:20,nodes:[{name:"fixture",creation:4,attached:true}],collection:{status:"complete"}}]}};
+  assert.equal(S.captureBaseline(s,"fixture").creation,4);
+  const rows=[{frame_id:"a",at_ms:10000,sample_mono_ms:0},{frame_id:"b",at_ms:5000,sample_mono_ms:1000},{frame_id:"c",at_ms:1000,sample_mono_ms:3000}];
+  assert.equal(S.recorderCapturedSpanMs(rows),3000);
+  assert.equal(S.recorderRangeLast(rows,1500).from,"b");
+});
+test("scan labels stay compact and missing counters stay unavailable", () => {
+  assert.match(S.time(1000),/^\d{2}:\d{2}:\d{2}$/);
+  assert.match(S.processText({pid:"<0.1.0>"}),/Reductions: unavailable/);
+  assert.equal(S.filterRows([{name:"table",owner:"<0.2.0>"}],"<0.2.0>").length,1);
+});
