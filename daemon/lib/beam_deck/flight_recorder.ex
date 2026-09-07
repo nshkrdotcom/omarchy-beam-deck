@@ -1,7 +1,7 @@
 defmodule BeamDeck.FlightRecorder do
   @moduledoc "Compact bounded in-memory frames. No process state, arguments or recursive snapshots."
   @node_fields ~w(name attached local otp creation uptime_ms processes process_limit atoms atom_limit ports port_limit ets memory run_queue schedulers schedulers_online dirty_cpu_schedulers_online hot_processes_at_ms process_scan_error)a
-  def new, do: %{sequence: 0, frames: [], seen_events: []}
+  def new, do: %{sequence: 0, frames: [], seen_events: [], activity: []}
 
   def push(recorder, snapshot, limit) do
     sequence = recorder.sequence + 1
@@ -10,6 +10,7 @@ defmodule BeamDeck.FlightRecorder do
 
     frame = %{
       frame_id: "frame-#{sequence}",
+      sequence: sequence,
       at_ms: snapshot.at_ms,
       sample_mono_ms: snapshot[:sample_mono_ms],
       collection: snapshot[:collection],
@@ -33,8 +34,12 @@ defmodule BeamDeck.FlightRecorder do
       forecasts: Enum.take(snapshot[:forecasts] || [], 100)
     }
 
+    frame = Map.merge(frame, context(snapshot))
+    activity = BeamDeck.Activity.derive(List.first(recorder.frames) || %{}, frame)
+
     %{
       sequence: sequence,
+      activity: Enum.take(Enum.reverse(activity) ++ recorder.activity, 200),
       frames: Enum.take([frame | recorder.frames], min(limit, 2_000)),
       seen_events:
         (Enum.map(events, &event_id/1) ++ recorder.seen_events) |> Enum.uniq() |> Enum.take(200)
@@ -47,6 +52,29 @@ defmodule BeamDeck.FlightRecorder do
     |> Map.put(:hot_processes, Enum.take(node[:hot_processes] || [], 24))
     |> Map.put(:restart_churn, Enum.take(node[:restart_churn] || [], 32))
     |> Map.put(:scheduler_utilization, Enum.take(node[:scheduler_utilization] || [], 256))
+    |> Map.put(:registered_processes, Enum.take(node[:registered_processes] || [], 128))
+  end
+
+  def with_findings(recorder, snapshot) do
+    case recorder.frames do
+      [head | rest] -> %{recorder | frames: [Map.merge(head, context(snapshot)) | rest]}
+      [] -> recorder
+    end
+  end
+
+  defp context(snapshot) do
+    %{
+      incidents:
+        Enum.take(snapshot[:incidents] || [], 20)
+        |> Enum.map(
+          &Map.take(
+            &1,
+            ~w(id title summary node severity status evidence_class first_seen_ms last_seen_ms evidence actions)a
+          )
+        ),
+      watchlist: %{entries: Enum.take(get_in(snapshot, [:watchlist, :entries]) || [], 64)},
+      omitted_incidents: max(length(snapshot[:incidents] || []) - 20, 0)
+    }
   end
 
   defp event_id(event),
@@ -83,6 +111,7 @@ defmodule BeamDeck.FlightRecorder do
     %{
       frame_count: length(recorder.frames),
       timeline: shown,
+      activity: recorder.activity,
       omitted_frames: length(timeline) - length(shown),
       oldest_frame_id: if(timeline == [], do: nil, else: hd(timeline).frame_id),
       newest_frame_id: if(timeline == [], do: nil, else: List.last(timeline).frame_id)
@@ -91,8 +120,16 @@ defmodule BeamDeck.FlightRecorder do
 
   def get(recorder, id) do
     case Enum.find(recorder.frames, &(&1.frame_id == id)) do
-      nil -> {:error, :frame_expired}
-      frame -> {:ok, frame}
+      nil ->
+        {:error, :frame_expired}
+
+      frame ->
+        {:ok,
+         Map.put(
+           frame,
+           :activity,
+           Enum.filter(recorder.activity, &(&1.sequence <= frame.sequence))
+         )}
     end
   end
 
@@ -185,6 +222,9 @@ defmodule BeamDeck.FlightRecorder do
 
     Map.merge(%{node: name, change: change}, %{
       delta: delta(baseline, new, ~w(processes atoms ports ets run_queue schedulers_online)a),
+      utilization_delta_pp: utilization_delta(baseline, new),
+      occupancy_delta_pp: occupancy_delta(baseline, new),
+      hot_changes: hot_changes(old, new, deep),
       memory_delta:
         delta(baseline[:memory] || %{}, new[:memory] || %{}, ~w(total binary ets processes code)a),
       hot_set_comparable: deep,
@@ -211,12 +251,51 @@ defmodule BeamDeck.FlightRecorder do
   end
 
   defp comparable_nodes?(old, new, change) do
-    change == "retained" and old[:attached] == true and new[:attached] == true
+    change == "retained" and old[:attached] == true and new[:attached] == true and
+      BeamDeck.Evidence.same_incarnation?(old, new)
   end
 
   defp deep_comparable?(old, new, change) do
-    old[:attached] == true and new[:attached] == true and change != "restarted" and
-      is_integer(old[:hot_processes_at_ms]) and is_integer(new[:hot_processes_at_ms])
+    comparable_nodes?(old, new, change) and BeamDeck.Evidence.fresh_deep_pair?(old, new)
+  end
+
+  defp utilization_delta(old, new) do
+    a = BeamDeck.Evidence.utilization(old)
+    b = BeamDeck.Evidence.utilization(new)
+    if is_number(a) and is_number(b), do: (b - a) * 100
+  end
+
+  defp occupancy_delta(old, new) do
+    Map.new([{:processes, :process_limit}, {:atoms, :atom_limit}, {:ports, :port_limit}], fn {key,
+                                                                                              limit} ->
+      value =
+        if is_number(old[key]) and is_number(new[key]) and is_number(old[limit]) and
+             old[limit] > 0 and old[limit] == new[limit],
+           do: (new[key] - old[key]) / old[limit] * 100
+
+      {key, value}
+    end)
+  end
+
+  defp hot_changes(_old, _new, false), do: []
+
+  defp hot_changes(old, new, true) do
+    prior = Map.new(old.hot_processes, &{&1.pid, &1})
+
+    for p <- new.hot_processes, before = prior[p.pid], is_map(before) do
+      d = delta(before, p, [:reductions, :mailbox, :memory_bytes])
+
+      rate =
+        if is_number(d.reductions) and d.reductions >= 0,
+          do: d.reductions * 1000 / (new.hot_processes_at_ms - old.hot_processes_at_ms)
+
+      %{
+        pid: p.pid,
+        reductions_per_second: rate,
+        mailbox_delta: d.mailbox,
+        memory_delta_bytes: d.memory_bytes
+      }
+    end
   end
 
   defp hot_delta(left, right, true) do

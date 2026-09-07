@@ -811,6 +811,7 @@ defmodule BeamDeck.Daemon do
 
     incidents = Incidents.update(state.incidents, current, state.config, recorder)
     current = Map.put(current, :incidents, incidents)
+    recorder = FlightRecorder.with_findings(recorder, current)
 
     summary =
       Map.merge(current.summary, %{

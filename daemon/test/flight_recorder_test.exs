@@ -111,4 +111,104 @@ defmodule BeamDeck.FlightRecorderTest do
 
     assert {:ok, %{new_events: []}} = FR.get(r, "frame-3")
   end
+
+  test "comparison requires known incarnation and distinct usable deep samples" do
+    n = %{
+      name: "api@host",
+      attached: true,
+      processes: 5,
+      hot_processes_at_ms: 1000,
+      hot_processes: [%{pid: "<0.1.0>"}]
+    }
+
+    r =
+      FR.new()
+      |> FR.push(Map.put(snapshot(1000, 1), :nodes, [n]), 10)
+      |> FR.push(Map.put(snapshot(2000, 1), :nodes, [%{n | processes: 9}]), 10)
+
+    {:ok, %{nodes: [diff]}} = FR.compare(r, "frame-1", "frame-2")
+    assert is_nil(diff.delta.processes)
+    refute diff.hot_set_comparable
+  end
+
+  test "comparison exposes utilization and capacity in percentage points and reset-safe hot rates" do
+    a = %{
+      name: "api@host",
+      attached: true,
+      creation: 7,
+      uptime_ms: 1000,
+      processes: 20,
+      process_limit: 100,
+      hot_processes_at_ms: 1000,
+      scheduler_utilization: [%{kind: "normal", utilization: 0.25}],
+      hot_processes: [%{pid: "<0.1.0>", reductions: 100, mailbox: 2, memory_bytes: 50}]
+    }
+
+    b = %{
+      a
+      | uptime_ms: 3000,
+        processes: 30,
+        hot_processes_at_ms: 3000,
+        scheduler_utilization: [%{kind: "normal", utilization: 0.5}],
+        hot_processes: [%{pid: "<0.1.0>", reductions: 300, mailbox: 6, memory_bytes: 70}]
+    }
+
+    r =
+      FR.new()
+      |> FR.push(Map.put(snapshot(1000, 1), :nodes, [a]), 10)
+      |> FR.push(Map.put(snapshot(3000, 1), :nodes, [b]), 10)
+
+    {:ok, %{nodes: [diff]}} = FR.compare(r, "frame-1", "frame-2")
+    assert_in_delta diff.utilization_delta_pp, 25, 0.001
+    assert_in_delta diff.occupancy_delta_pp.processes, 10, 0.001
+
+    assert [
+             %{
+               pid: "<0.1.0>",
+               reductions_per_second: 100.0,
+               mailbox_delta: 4,
+               memory_delta_bytes: 20
+             }
+           ] = diff.hot_changes
+  end
+
+  test "activity follows exact recorder frames and sampled replacements without claiming process exits" do
+    a = %{
+      name: "api@host",
+      attached: true,
+      creation: 7,
+      uptime_ms: 1000,
+      schedulers_online: 3,
+      hot_processes_at_ms: 1000,
+      registered_processes: [%{name: "worker", pid: "<0.1.0>"}]
+    }
+
+    b = %{
+      a
+      | uptime_ms: 2000,
+        schedulers_online: 2,
+        hot_processes_at_ms: 2000,
+        registered_processes: [%{name: "worker", pid: "<0.2.0>"}]
+    }
+
+    r =
+      FR.new()
+      |> FR.push(Map.put(snapshot(1000, 1), :nodes, [a]), 10)
+      |> FR.push(Map.put(snapshot(2000, 1), :nodes, [b]), 10)
+
+    activity = FR.present(r).activity
+    replacement = Enum.find(activity, &(&1.kind == "registered_replaced"))
+    assert replacement.frame_id == "frame-2"
+    assert replacement.subject == "<0.2.0>"
+    assert replacement.changed_fields == ["pid"]
+    {:ok, frozen} = FR.get(r, "frame-1")
+    refute Enum.any?(frozen.activity, &(&1.kind == "registered_replaced"))
+
+    c =
+      %{b | hot_processes_at_ms: 3000, registered_processes: []}
+      |> Map.put(:process_scan_error, "capped")
+
+    r = FR.push(r, Map.put(snapshot(3000, 1), :nodes, [c]), 10)
+    refute Enum.any?(FR.present(r).activity, &(&1.kind == "process_exited"))
+  end
 end

@@ -13,7 +13,8 @@ defmodule BeamDeck.Diagnostics.Bundle do
   def export(snapshot, recorder, from, to, dir \\ directory()) do
     with {:ok, frames} <- FlightRecorder.range(recorder, from, to),
          {:ok, encoded_frames} <- encode_frames(frames),
-         {:ok, files} <- entries(snapshot, encoded_frames, frames),
+         {:ok, files} <-
+           entries(snapshot, encoded_frames, frames, recorder, not is_nil(from) or not is_nil(to)),
          {:ok, {_name, archive}} <- :zip.create(~c"diagnostics.zip", files, [:memory]),
          true <- byte_size(archive) <= @limit,
          path <-
@@ -52,7 +53,7 @@ defmodule BeamDeck.Diagnostics.Bundle do
     end
   end
 
-  defp entries(snapshot, frames_json, frames) do
+  defp entries(snapshot, frames_json, frames, recorder, historical?) do
     fields =
       Map.take(
         snapshot,
@@ -70,9 +71,28 @@ defmodule BeamDeck.Diagnostics.Bundle do
       to_at_ms: if(frames == [], do: nil, else: List.last(frames).at_ms)
     }
 
+    diff =
+      case frames do
+        [] ->
+          nil
+
+        [first | _] ->
+          {:ok, diff} =
+            FlightRecorder.compare(recorder, first.frame_id, List.last(frames).frame_id)
+
+          diff
+      end
+
+    context_frames =
+      Enum.map(frames, fn f ->
+        {:ok, enriched} = FlightRecorder.get(recorder, f.frame_id)
+        enriched
+      end)
+
+    report = BeamDeck.OperatorReport.render(snapshot, context_frames, diff, historical?)
+
     data = [
-      {~c"BEAM-DECK-DIAGNOSTICS.txt",
-       "BEAM Deck 1.1 diagnostics\nReview before sharing. Node, module and registered names are operational metadata.\nNo process state/messages, ETS contents, cookies, raw config/logs or crash dump are included.\n"},
+      {~c"BEAM-DECK-DIAGNOSTICS.txt", report},
       {~c"metadata.json", Json.encode(metadata)},
       {~c"current-snapshot.json", fields |> Redaction.export() |> Json.encode()},
       {~c"flight-recorder.json", frames_json},

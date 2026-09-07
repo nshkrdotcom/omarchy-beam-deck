@@ -62,7 +62,7 @@ function duration(ms) {
   if (seconds<3600) return Math.round(seconds/60)+"m";
   return (seconds/3600).toFixed(1)+"h";
 }
-function signed(n) { return n===undefined || n===null ? "\u2014" : (n>0?"+":"")+n; }
+function signed(n) { return typeof n !== "number" || !isFinite(n) ? "\u2014" : (n>0?"+":"")+Number(n.toFixed(2)); }
 function time(at) { return at ? new Date(at).toLocaleTimeString() : "\u2014"; }
 function filterRows(rows, query) {
   var needle=String(query || "").toLowerCase().slice(0,120);
@@ -86,17 +86,20 @@ function processText(p) {
   (p.warnings || []).forEach(function(w) { lines.push("Notice: "+w); });
   return lines.join("\n");
 }
+function signedBytes(n) { return finite(n) === null ? "—" : (n>0?"+":"")+bytes(n); }
 function diffText(diff) {
-  var lines=["Frame comparison  "+time(diff.from_at_ms)+" -> "+time(diff.to_at_ms),""];
-  Object.keys(diff.summary_delta || {}).forEach(function(k) { lines.push(k+": "+signed(diff.summary_delta[k])); });
-  (diff.nodes || []).forEach(function(n) {
-    lines.push("",n.node+"  "+n.change);
-    Object.keys(n.delta || {}).forEach(function(k) { lines.push("  "+k+": "+signed(n.delta[k])); });
-    Object.keys(n.memory_delta || {}).forEach(function(k) { lines.push("  "+k+" memory delta: "+bytes(n.memory_delta[k])); });
-    (n.restart_churn_delta || []).forEach(function(c) { lines.push("  "+c.name+" churn delta: "+signed(c.delta)); });
-    lines.push(n.hot_set_comparable?"  Hot entered: "+(n.hot_entered || []).join(", ")+" | left: "+(n.hot_left || []).join(", "):"  Hot-set comparison unavailable (no comparable deep samples).");
+  var lines=["Frame comparison  "+time(diff.from_at_ms)+" -> "+time(diff.to_at_ms),
+    "Host BEAM RSS: "+signedBytes((diff.summary_delta || {}).beam_rss_bytes)];
+  ["process_count","schedulers_online"].forEach(function(k) { lines.push(k+": "+signed((diff.summary_delta || {})[k])); });
+  (diff.nodes || []).slice(0,64).forEach(function(n) {
+    lines.push("",n.node+"  "+n.change,"  Scheduler utilization: "+signed(n.utilization_delta_pp)+" pp");
+    ["processes","atoms","ports","ets","run_queue","schedulers_online"].forEach(function(k) { lines.push("  "+k+": "+signed((n.delta || {})[k])); });
+    ["processes","atoms","ports"].forEach(function(k) { lines.push("  "+k+" capacity: "+signed((n.occupancy_delta_pp || {})[k])+" pp"); });
+    ["total","binary","ets","processes","code"].forEach(function(k) { lines.push("  "+k+" memory: "+signedBytes((n.memory_delta || {})[k])); });
+    lines.push(n.hot_set_comparable ? "  Sampled hot set entered: "+(n.hot_entered || []).join(", ")+" | left: "+(n.hot_left || []).join(", ") : "  Hot-set comparison unavailable (no distinct comparable deep samples).");
+    (n.hot_changes || []).slice(0,24).forEach(function(p) { lines.push("  "+p.pid+": "+signed(p.mailbox_delta)+" messages; "+signedBytes(p.memory_delta_bytes)+"; "+signed(p.reductions_per_second)+" reductions/s"); });
   });
-  lines.push("","New alerts: "+(diff.new_alerts || []).join(", "),"Resolved alerts: "+(diff.resolved_alerts || []).join(", "));
+  lines.push("", "pp = percentage points. Reductions are work counters, not CPU percentages.", "A changed workload can explain a delta; this comparison does not demonstrate cause.");
   return lines.join("\n");
 }
 
@@ -162,3 +165,63 @@ function recorderCapturedSpanMs(timeline) {
   if (rows.length<2) return 0;
   return recorderSelectionSpanMs(rows,rows[0].frame_id,rows[rows.length-1].frame_id);
 }
+
+function finite(n) { return typeof n === "number" && isFinite(n) ? n : null; }
+function captureBaseline(snapshot, node) {
+  var recorder=snapshot.flight_recorder || {}, rows=recorder.timeline || [];
+  var point=rows.filter(function(r) { return r.frame_id===recorder.newest_frame_id; })[0];
+  return point ? {session_id:snapshot.session_id,frame_id:point.frame_id,at_ms:point.at_ms,node:node || "",quality:point.collection || {}} : null;
+}
+function baselineStatus(b, snapshot) {
+  if (!b) return "none";
+  if (b.session_id !== snapshot.session_id) return "helper_restarted";
+  var r=snapshot.flight_recorder || {}, rows=r.timeline || [];
+  if (recorderIndexById(rows,b.frame_id)>=0) return "retained";
+  var seq=function(id) { var m=/^frame-(\d+)$/.exec(id || ""); return m ? Number(m[1]) : null; };
+  var n=seq(b.frame_id), a=seq(r.oldest_frame_id), z=seq(r.newest_frame_id);
+  return n!==null && a!==null && z!==null && n>=a && n<=z ? "retained" : "expired";
+}
+function activityRows(rows,node,domain,kind,query) {
+  var kinds=kind==="connections" ? ["discovered","attached","unreachable","nodeup","nodedown"] : kind==="restarts" ? ["restarted","registered_replaced"] : null;
+  return filterRows((rows || []).filter(function(r) { return (!node || r.node===node) && (!domain || domain==="all" || r.domain===domain) && (!kind || kind==="all" || (kinds ? kinds.indexOf(r.kind)>=0 : r.kind===kind)); }),query).slice(0,200);
+}
+function recorderMetric(metric) {
+  var defs={
+    rss:{title:"Host BEAM RSS",unit:"bytes",fields:["rss"],labels:["RSS"]},
+    memory:{title:"VM memory",unit:"bytes",fields:["total","processes_memory","binary","ets_memory"],labels:["Total","Processes","Binary","ETS"]},
+    run_queue:{title:"Run queue",unit:"tasks",fields:["run_queue"],labels:["Runnable tasks"]},
+    scheduler_utilization:{title:"Normal scheduler utilization",unit:"%",fields:["scheduler_utilization"],labels:["Normal schedulers"]},
+    capacity:{title:"Hard-capacity occupancy",unit:"%",fields:["process_occupancy","atom_occupancy","port_occupancy"],labels:["Processes","Atoms","Ports"]}
+  }; return defs[metric] || defs.rss;
+}
+function metricValue(row,node,key) {
+  if (key==="rss") return finite(row.beam_rss_bytes);
+  if (!node || node.attached!==true) return null;
+  var memory=node.memory || {};
+  if (["total","binary"].indexOf(key)>=0) return finite(memory[key]);
+  if (key==="processes_memory") return finite(memory.processes);
+  if (key==="ets_memory") return finite(memory.ets);
+  if (key==="scheduler_utilization") { var u=finite(node[key]); return u!==null && u>=0 && u<=1 ? u*100 : null; }
+  var limits={process_occupancy:["processes","process_limit"],atom_occupancy:["atoms","atom_limit"],port_occupancy:["ports","port_limit"]};
+  if (limits[key]) { var pair=limits[key], n=finite(node[pair[0]]), d=finite(node[pair[1]]); return n!==null && d!==null && d>0 ? n/d*100 : null; }
+  return finite(node[key]);
+}
+function recorderSeries(timeline,metric,nodeName) {
+  var rows=(timeline || []).slice(0,150), def=recorderMetric(metric), mono=rows.every(function(r){return finite(r.sample_mono_ms)!==null;});
+  var positions=rows.map(function(r,i){return mono ? r.sample_mono_ms : i;});
+  var span=positions.length>1 ? positions[positions.length-1]-positions[0] : 0;
+  var nodes=rows.map(function(r){return (r.nodes || []).filter(function(n){return n.name===nodeName;})[0] || null;});
+  var traces=def.fields.map(function(key,t) {
+    var points=rows.map(function(r,i) {
+      var node=nodes[i], previous=nodes[i-1], value=metricValue(r,node,key);
+      var gap=i>0 && mono && positions[i]-positions[i-1]>Math.max(10000,Number((r.collection || {}).poll_interval_ms || 2000)*3);
+      var restart=metric!=="rss" && i>0 && (!node || !previous || node.creation!==previous.creation || node.attached!==true || previous.attached!==true);
+      if (key==="scheduler_utilization" && (!node || !node.hot_processes_at_ms || r.at_ms-node.hot_processes_at_ms>10000)) value=null;
+      return {frame_id:r.frame_id,at_ms:r.at_ms,x:span>0?(positions[i]-positions[0])/span:0.5,value:value,breakBefore:gap || restart,gap:gap,restart:restart};
+    });
+    return {key:key,label:def.labels[t],style:t===0?"solid":t===1?"dashed":t===2?"dotted":"dash-dot",points:points};
+  });
+  var values=[]; traces.forEach(function(t){t.points.forEach(function(p){if(p.value!==null)values.push(p.value);});});
+  return {title:def.title,unit:def.unit,traces:traces,points:traces[0].points,min:values.length?Math.min.apply(null,values):null,max:values.length?Math.max.apply(null,values):null,positionsMeasured:mono};
+}
+function metricText(value,unit) { return finite(value)===null ? "unavailable" : unit==="bytes" ? bytes(value) : Number(value.toFixed(1))+" "+unit; }

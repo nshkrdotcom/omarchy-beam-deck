@@ -143,3 +143,37 @@ test('recorder presets and selected duration use retained sequence without inven
   ];
   assert.equal(S.recorderSelectionSpanMs(clockRegression, 'a', 'd'), 4000);
 });
+
+test('recorder metric series preserves measured positions, gaps, restarts and unknown values', () => {
+  const rows=[
+    {frame_id:'a',at_ms:5000,sample_mono_ms:1000,nodes:[{name:'n',attached:true,creation:1,run_queue:5}]},
+    {frame_id:'b',at_ms:6000,sample_mono_ms:2000,nodes:[{name:'n',attached:false,creation:1}]},
+    {frame_id:'c',at_ms:4000,sample_mono_ms:5000,nodes:[{name:'n',attached:true,creation:2,run_queue:0}]}
+  ];
+  const s=S.recorderSeries(rows,'run_queue','n');
+  assert.deepEqual(plain(s.points.map(p=>p.x)),[0,0.25,1]);
+  assert.deepEqual(plain(s.points.map(p=>p.value)),[5,null,0]);
+  assert.equal(s.points[2].breakBefore,true);
+  assert.equal(s.unit,'tasks');
+  assert.equal(S.recorderSeries([{frame_id:'z',beam_rss_bytes:Infinity}],'rss','').points[0].value,null);
+});
+
+test('baseline retains exact frame/session identity and never rebounds on expiry', () => {
+  const b=S.captureBaseline({session_id:'one',flight_recorder:{timeline:[{frame_id:'f1',at_ms:1000}],newest_frame_id:'f1'}},'n');
+  assert.equal(b.frame_id,'f1');assert.equal(b.node,'n');
+  assert.equal(S.baselineStatus(b,{session_id:'one',flight_recorder:{timeline:[{frame_id:'f2'}]}}),'expired');
+  assert.equal(S.baselineStatus(b,{session_id:'two'}),'helper_restarted');
+});
+
+test('activity filters allow opened plus closed and restart-focused views without changing rows', () => {
+  const rows=[{id:'a',node:'a',domain:'node',kind:'discovered'},{id:'b',node:'a',domain:'node',kind:'unreachable'},{id:'c',node:'b',domain:'process',kind:'registered_replaced'}];
+  assert.deepEqual(plain(S.activityRows(rows,'a','all','connections','').map(r=>r.id)),['a','b']);
+  assert.deepEqual(plain(S.activityRows(rows,'','all','restarts','').map(r=>r.id)),['c']);
+  assert.equal(rows.length,3);
+});
+
+test('signed comparison uses bytes and percentage points, and rejects unknown payload keys', () => {
+  const text=S.diffText({summary_delta:{beam_rss_bytes:1024,secret_payload:42},nodes:[{node:'n',change:'retained',utilization_delta_pp:12.5,occupancy_delta_pp:{processes:-2},memory_delta:{binary:1024},delta:{run_queue:-3}}]});
+  assert.match(text,/\+1.0 KiB/);assert.match(text,/\+12.5 pp/);assert.doesNotMatch(text,/secret_payload/);
+  assert.equal(S.signed(NaN),'—');
+});

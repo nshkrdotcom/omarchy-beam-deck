@@ -88,4 +88,41 @@ defmodule BeamDeck.BundleTest do
     assert {:ok, frames} = Json.decode(bytes)
     assert length(frames) == 300
   end
+
+  test "operator report explains the exact historical range and rejects unrecognized payloads",
+       c do
+    s = %{
+      at_ms: 1000,
+      summary: %{beam_rss_bytes: 100},
+      nodes: [],
+      host: %{},
+      incidents: [
+        %{
+          title: "Observed queue",
+          status: "active",
+          severity: "warning",
+          summary: "12 runnable tasks",
+          evidence_class: "observed",
+          arbitrary: "REPORT_PRIVATE_CANARY"
+        }
+      ],
+      watchlist: %{entries: []}
+    }
+
+    r =
+      FlightRecorder.new()
+      |> FlightRecorder.push(s, 10)
+      |> FlightRecorder.push(%{s | at_ms: 2000, summary: %{beam_rss_bytes: 150}}, 10)
+
+    assert {:ok, result} = Bundle.export(%{s | at_ms: 9000}, r, "frame-1", "frame-2", c.dir)
+    {:ok, entries} = :zip.extract(String.to_charlist(result.path), [:memory])
+    {_, report} = Enum.find(entries, fn {name, _} -> name == ~c"BEAM-DECK-DIAGNOSTICS.txt" end)
+    assert report =~ "HISTORICAL RANGE"
+    assert report =~ "frame-1"
+    assert report =~ "frame-2"
+    assert report =~ "+50 B"
+    assert report =~ "Observed queue"
+    refute report =~ "REPORT_PRIVATE_CANARY"
+    assert byte_size(report) <= 65_536
+  end
 end
