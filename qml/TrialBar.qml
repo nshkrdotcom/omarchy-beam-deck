@@ -6,7 +6,7 @@ import qs.Ui
 BorderSurface {
   id:root
   property var service:null
-  readonly property var trial:service ? service.snapshot.budget_trial : null
+  readonly property var trial:service ? service.snapshot.budget_trial || null : null
   property double nowMs:Date.now()
   readonly property int seconds:trial ? Math.max(0,Math.ceil((trial.expires_at_ms-nowMs)/1000)) : 0
   visible:!!trial
@@ -24,7 +24,7 @@ BorderSurface {
       color:root.trial && root.trial.status==="rollback_failed"?Color.urgent:Color.popups.text
       font.family:Style.font.family; font.pixelSize:Style.font.caption; wrapMode:Text.Wrap; textFormat:Text.PlainText
     }
-    Button { text:"Keep"; visible:root.trial && root.trial.status==="active"; enabled:root.seconds>0 && root.service && !root.service.historicalMode; onClicked:root.service.keepBudget(root.trial.trial_id) }
-    Button { text:root.trial && root.trial.status==="rollback_failed"?"Retry rollback":"Revert now"; visible:root.trial && ["applying","active","reverting","rollback_failed"].indexOf(root.trial.status)>=0; enabled:root.trial && root.trial.status!=="reverting"; onClicked:root.service.revertBudget(root.trial.trial_id) }
+    ActionButton { text:"Keep"; visible:!!root.trial && root.trial.status==="active"; enabled:root.seconds>0 && root.service && !root.service.historicalMode; onClicked:root.service.keepBudget(root.trial.trial_id) }
+    ActionButton { text:root.trial && root.trial.status==="rollback_failed"?"Retry rollback":"Revert now"; visible:!!root.trial && ["applying","active","reverting","rollback_failed"].indexOf(root.trial.status)>=0; enabled:!!root.trial && root.trial.status!=="reverting"; onClicked:root.service.revertBudget(root.trial.trial_id) }
   }
 }

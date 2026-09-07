@@ -225,3 +225,18 @@ function recorderSeries(timeline,metric,nodeName) {
   return {title:def.title,unit:def.unit,traces:traces,points:traces[0].points,min:values.length?Math.min.apply(null,values):null,max:values.length?Math.max.apply(null,values):null,positionsMeasured:mono};
 }
 function metricText(value,unit) { return finite(value)===null ? "unavailable" : unit==="bytes" ? bytes(value) : Number(value.toFixed(1))+" "+unit; }
+
+function revealFocus(item) {
+  var parent = item.parent;
+  while (parent) {
+    if (typeof parent.contentY === "number" && parent.contentItem && parent.height > 0) {
+      var point = item.mapToItem(parent.contentItem, 0, 0);
+      var y = parent.contentY;
+      if (point.y < y) y = point.y;
+      else if (point.y + item.height > y + parent.height) y = point.y + item.height - parent.height;
+      parent.contentY = Math.max(0, Math.min(Math.max(0, parent.contentHeight - parent.height), y));
+      return;
+    }
+    parent = parent.parent;
+  }
+}

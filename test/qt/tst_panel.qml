@@ -9,7 +9,7 @@ TestCase {
   width: 1900
   height: 840
   QtObject {
-    id: service
+    id: fakeService
     property bool daemonRunning: true
     property bool panelOpen: false
     property bool historicalMode: false
@@ -18,16 +18,23 @@ TestCase {
     property string lastAction: ""
     property string notificationError: ""
     property bool budgetRequestPending: false
-    property var snapshot: ({at_ms:Date.now(),onboarding:{state:"no_runtimes"},summary:{},nodes:[],host:{},incidents:[]})
+    property var snapshot: ({at_ms:Date.now(),budget_trial:null,onboarding:{state:"no_runtimes"},summary:{},nodes:[],host:{},incidents:[]})
     function setPanelOpen(v) { panelOpen=v }
     function returnLive() { historicalMode=false }
     function refresh() {}
   }
-  Component { id: factory; Deck.Panel { service: service } }
+  Component { id: factory; Deck.Panel { service: fakeService } }
   function descendants(item) {
     var out=[item]
     for(var i=0;i<item.children.length;i++) out=out.concat(descendants(item.children[i]))
     return out
+  }
+  property var originalFont: null
+  function init() { originalFont=Style.font }
+  function cleanup() { Style.font=originalFont }
+  function test_larger_host_tokens() {
+    Style.font=Object.assign({},Style.font,{caption:15,subtitle:19,body:18,bodySmall:16})
+    test_header({w:900})
   }
   function test_header_data() { return [{tag:"narrow",w:900},{tag:"native",w:1270},{tag:"wide",w:1900}] }
   function test_header(data) {

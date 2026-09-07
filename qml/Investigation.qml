@@ -9,6 +9,7 @@ import "DeckState.js" as DeckState
 Item {
   id: root
   property var service: null
+  property bool surfaceActive: visible
   property string targetNode: ""
   property string targetPid: ""
   property string tab: "triage"
@@ -18,7 +19,7 @@ Item {
   property var expandedIncidents: ({})
   property bool gcConfirmed: false
   property double nowMs: Date.now()
-  Timer { interval: 1000; running: true; repeat: true; onTriggered: root.nowMs = Date.now() }
+  Timer { interval: 1000; running: root.surfaceActive; repeat: true; onTriggered: root.nowMs = Date.now() }
   property bool budgetConfirmed: false
   property string processRequest: ""
   property string etsRequest: ""
@@ -29,6 +30,8 @@ Item {
   property string toFrame: ""
   property bool recorderPaused: false
   property var recorderFrozenTimeline: []
+  property var recorderFrozenSnapshot: null
+  readonly property var viewSnapshot: recorderPaused ? (frameResult || recorderFrozenSnapshot || ({})) : snapshot
   property string etsSort: "memory"
   readonly property var snapshot: service ? service.snapshot : DeckState.emptySnapshot()
   readonly property var jobs: service ? service.jobs : ({})
@@ -52,19 +55,17 @@ Item {
   readonly property color accent: Color.accent
   readonly property color urgent: Color.urgent
   onBudgetSignatureChanged: budgetConfirmed = false
-  onSnapshotChanged: {
+  onViewSnapshotChanged: {
     var next = {}
-    ;(snapshot.incidents || []).forEach(function(i) { if (root.expandedIncidents[i.id]) next[i.id] = true })
+    ;(viewSnapshot.incidents || []).forEach(function(i) { if (root.expandedIncidents[i.id]) next[i.id] = true })
     expandedIncidents = next
   }
   onTargetNodeChanged: { processRequest = ""; etsRequest = ""; targetPid = ""; gcConfirmed = false }
-  onFrameResultChanged: if (frameResult && service) service.historicalMode = true
+  onTargetPidChanged: { processRequest = ""; gcConfirmed = false }
   Component.onCompleted: if (!targetNode && nodes.length) targetNode = nodes[0].name
   Connections {
     target: root.service
-    function onHistoricalModeChanged() {
-      if (root.service && !root.service.historicalMode && root.recorderPaused) root.clearRecorderPause()
-    }
+    function onLastSessionChanged() { root.clearRecorderPause(); root.processRequest = ""; root.etsRequest = "" }
   }
 
   function result(job) { return job && job.status === "complete" ? job.result : null }
@@ -86,6 +87,7 @@ Item {
   function clearRecorderPause() {
     recorderPaused = false
     recorderFrozenTimeline = []
+    recorderFrozenSnapshot = null
     fromFrame = ""
     toFrame = ""
     frameRequest = ""
@@ -99,6 +101,7 @@ Item {
     if (!timeline.length && !recorderPaused) return
     if (!recorderPaused) {
       recorderFrozenTimeline = timeline.slice()
+      recorderFrozenSnapshot = snapshot
       recorderPaused = true
       if (service) service.historicalMode = true
     }
@@ -136,6 +139,12 @@ Item {
   }
   function viewRecorderFrame(id) {
     if (!service || !id) return
+    if (!recorderPaused) {
+      recorderFrozenTimeline = timeline.slice()
+      recorderFrozenSnapshot = snapshot
+      recorderPaused = true
+    }
+    service.historicalMode = true
     diffRequest = ""
     frameRequest = service.recorderFrame(id)
   }
@@ -202,7 +211,7 @@ Item {
       spacing: Style.space(6)
       Repeater {
         model: root.tabDefinitions
-        Button { required property var modelData; text: modelData.label; selected: root.tab===modelData.id; onClicked: root.tab=modelData.id }
+        ActionButton { required property var modelData; text: modelData.label; selected: root.tab===modelData.id; onClicked: root.tab=modelData.id }
       }
     }
     RowLayout {
@@ -236,7 +245,7 @@ Item {
             + (root.frameResult ? DeckState.time(root.frameResult.at_ms) : "Selected frame loading or expired")
         }
       }
-      Button { text: "Return to live"; onClicked: root.returnLive() }
+      ActionButton { text: "Return to live"; onClicked: root.returnLive() }
     }
     Loader {
       id: viewLoader
@@ -248,7 +257,7 @@ Item {
       Layout.fillWidth: true
       visible: root.exportJob !== null
       Label { Layout.fillWidth: true; text: root.exportJob && root.exportJob.status==="complete" ? "Exported " + DeckState.bytes(root.exportJob.result.bytes) + " - review operational metadata before sharing." : root.jobText(root.exportJob, "") }
-      Button { text: "Copy ZIP path"; enabled: root.exportJob && root.exportJob.status==="complete"; onClicked: Quickshell.clipboardText=root.exportJob.result.path }
+      ActionButton { text: "Copy ZIP path"; enabled: root.exportJob && root.exportJob.status==="complete"; onClicked: Quickshell.clipboardText=root.exportJob.result.path }
     }
   }
 
@@ -266,17 +275,18 @@ Item {
           width: parent.width
           Heading { text: "Signals, not guesses"; Layout.fillWidth: true }
           Controls.CheckBox { text: "Resolved"; checked: root.showResolved; onToggled: root.showResolved=checked }
-          Button { text: "Export diagnostics"; onClicked: root.runExport(false) }
+          ActionButton { text: "Export diagnostics"; onClicked: root.runExport(false) }
         }
-        Label { visible:root.service && root.service.historicalMode; width:parent.width; text:"These incident cards continue to show live telemetry. Return to live to unlock runtime actions." }
+        Label { visible:root.service && root.service.historicalMode; width:parent.width; text:"Captured findings stay frozen while live collection continues. Return to live to unlock runtime actions." }
         Label { width: parent.width; text: "Observed facts, nearby correlations and trend heuristics stay visibly distinct. Correlation does not establish a cause." }
         Controls.TextField { width: parent.width; placeholderText: "Filter incidents by node or symptom"; text: root.query; onTextEdited: root.query=text; Accessible.name: "Filter incidents" }
-        Label { visible: !(root.snapshot.incidents || []).some(function(i) { return i.status==="active" }); width: parent.width; text: "No active incidents. The live cockpit and retained frames remain available." }
+        Label { visible: !(root.viewSnapshot.incidents || []).some(function(i) { return i.status==="active" }); width: parent.width; text: "No active incidents. The live cockpit and retained frames remain available." }
         Repeater {
-          model: DeckState.filterRows((root.snapshot.incidents || []).filter(function(i) { return root.showResolved || i.status==="active" }), root.query)
+          model: KeyedRows { rows: DeckState.filterRows((root.viewSnapshot.incidents || []).filter(function(i) { return root.showResolved || i.status!=="resolved" }), root.query); keyField: "id" }
           InfoCard {
             id: incidentCard
-            required property var modelData
+            required property string rowJson
+            property var modelData: JSON.parse(rowJson)
             width: triageColumn.width
             critical: modelData.severity==="critical" && modelData.status==="active"
             Heading { width: parent.width; text: incidentCard.modelData.title; color: incidentCard.critical ? root.urgent : root.fg }
@@ -286,7 +296,7 @@ Item {
               model: (incidentCard.modelData.evidence || []).slice(0, root.expandedIncidents[incidentCard.modelData.id] ? 12 : 2)
               Label { required property var modelData; width: parent.width; text: "["+modelData.class+"] "+String(modelData.text || "Observed operational metadata")+(modelData.eta_ms ? "  ETA "+DeckState.duration(modelData.eta_ms) : "") }
             }
-            Button {
+            ActionButton {
               visible: (incidentCard.modelData.evidence || []).length > 2
               text: root.expandedIncidents[incidentCard.modelData.id] ? "Collapse evidence" : "Show all evidence ("+(incidentCard.modelData.evidence || []).length+")"
               onClicked: {
@@ -299,7 +309,7 @@ Item {
               width: parent.width; spacing: Style.space(6)
               Repeater {
                 model: incidentCard.modelData.actions || []
-                Button {
+                ActionButton {
                   required property var modelData
                   text: root.actionLabel(modelData)
                   enabled: modelData.kind==="view_frame" || modelData.kind==="export_bundle" || modelData.kind==="budget_trial_revert" || (root.service && !root.service.historicalMode && incidentCard.modelData.status==="active")
@@ -311,9 +321,9 @@ Item {
           }
         }
         Heading { text: "Resource outlook" }
-        Label { width: parent.width; visible: !(root.snapshot.forecasts || []).length; text: "No qualified trend. Forecasts need a sustained, consistent sample window and reset across VM restarts. This is not a guarantee of future health." }
+        Label { width: parent.width; visible: !(root.viewSnapshot.forecasts || []).length; text: "No qualified trend. Forecasts need a sustained, consistent sample window and reset across VM restarts. This is not a guarantee of future health." }
         Repeater {
-          model: root.snapshot.forecasts || []
+          model: root.viewSnapshot.forecasts || []
           InfoCard {
             id: forecastCard
             required property var modelData
@@ -325,9 +335,9 @@ Item {
             Label { width: parent.width; text: "Heuristic  |  Fit quality "+Math.round(forecastCard.modelData.confidence*100)+"% (not probability)  |  "+forecastCard.modelData.sample_count+" samples over "+DeckState.duration(forecastCard.modelData.span_ms) }
           }
         }
-        Heading { visible: (root.snapshot.crash_triage || []).length>0; text: "Local runtime exits" }
+        Heading { visible: (root.viewSnapshot.crash_triage || []).length>0; text: "Local runtime exits" }
         Repeater {
-          model: root.snapshot.crash_triage || []
+          model: root.viewSnapshot.crash_triage || []
           InfoCard {
             id: exitCard
             required property var modelData
@@ -338,8 +348,8 @@ Item {
             CopyText { visible: !!exitCard.modelData.slogan; width: parent.width; text: exitCard.modelData.slogan || "" }
             Flow {
               width: parent.width; spacing: Style.space(6)
-              Button { visible: !!exitCard.modelData.slogan; text: "Copy slogan"; onClicked: Quickshell.clipboardText=exitCard.modelData.slogan }
-              Button { text: "Export header evidence"; onClicked: root.runExport(false) }
+              ActionButton { visible: !!exitCard.modelData.slogan; text: "Copy slogan"; onClicked: Quickshell.clipboardText=exitCard.modelData.slogan }
+              ActionButton { text: "Export header evidence"; onClicked: root.runExport(false) }
             }
           }
         }
@@ -361,15 +371,15 @@ Item {
         RowLayout {
           width: parent.width
           CopyText { Layout.fillWidth: true; text: root.targetPid || "No process selected" }
-          Button { text: "Refresh"; enabled: !!root.targetPid && root.service && !root.service.historicalMode; onClicked: root.processRequest=root.service.inspectProcess(root.targetNode,root.targetPid) }
+          ActionButton { text: "Refresh"; enabled: !!root.targetPid && root.service && !root.service.historicalMode; onClicked: root.processRequest=root.service.inspectProcess(root.targetNode,root.targetPid) }
         }
         Label { width: parent.width; color: root.processJob && root.processJob.status==="error" ? root.urgent : root.dim; text: root.jobText(root.processJob,"Select Inspect on a live process to begin.") }
         CopyText { width: parent.width; visible: !!root.processResult; text: root.processResult ? DeckState.processText(root.processResult) : "" }
         Flow {
           width: parent.width; spacing: Style.space(6)
-          Button { text: "Copy report"; enabled: !!root.processResult; onClicked: Quickshell.clipboardText=DeckState.processText(root.processResult) }
-          Button { text: "Pin registered name"; enabled: root.processResult && !!root.processResult.registered_name && root.service && !root.service.historicalMode; onClicked: root.service.pinProcess(root.targetNode,root.processResult.registered_name) }
-          Button { text: "IEx remsh"; enabled: root.service && !root.service.historicalMode && !!root.targetNode; onClicked: root.service.remsh(root.targetNode) }
+          ActionButton { text: "Copy report"; enabled: !!root.processResult; onClicked: Quickshell.clipboardText=DeckState.processText(root.processResult) }
+          ActionButton { text: "Pin registered name"; enabled: root.processResult && !!root.processResult.registered_name && root.service && !root.service.historicalMode; onClicked: root.service.pinProcess(root.targetNode,root.processResult.registered_name) }
+          ActionButton { text: "IEx remsh"; enabled: root.service && !root.service.historicalMode && !!root.targetNode; onClicked: root.service.remsh(root.targetNode) }
         }
         InfoCard {
           width: parent.width
@@ -378,7 +388,7 @@ Item {
           Label { width: parent.width; text: "GC can pause the selected process and may not reduce its retained data. This acts on the live PID, not a historical frame." }
           Label { width: parent.width; visible: root.processResult && !root.processActionable; text: "Captured metadata is read-only. Reinspect this process from a fresh live VM before collecting garbage." }
           Controls.CheckBox { enabled: root.processActionable; width: parent.width; text: "I understand the pause risk for this process"; checked: root.gcConfirmed; onToggled: root.gcConfirmed=checked }
-          Button { text: "Collect this process"; enabled: root.gcConfirmed && root.processActionable; onClicked: { root.service.collectGc(root.targetNode,root.targetPid,root.processResult.creation); root.gcConfirmed=false } }
+          ActionButton { text: "Collect this process"; enabled: root.gcConfirmed && root.processActionable; onClicked: { root.service.collectGc(root.targetNode,root.targetPid,root.processResult.creation); root.gcConfirmed=false } }
         }
       }
     }
@@ -397,16 +407,17 @@ Item {
           width: parent.width
           Heading { text: "ETS metadata lens"; Layout.fillWidth: true }
           Controls.ComboBox { model:["Memory","Elements"]; currentIndex:root.etsSort==="memory"?0:1; onActivated:function(index) { root.etsSort=index===0?"memory":"size" }; Accessible.name:"ETS sort order" }
-          Button { text: "Inspect tables"; enabled: root.service && !!root.targetNode && !root.service.historicalMode; onClicked: root.etsRequest=root.service.inspectEts(root.targetNode,root.etsSort) }
+          ActionButton { text: "Inspect tables"; enabled: root.service && !!root.targetNode && !root.service.historicalMode; onClicked: root.etsRequest=root.service.inspectEts(root.targetNode,root.etsSort) }
         }
         Label { width: parent.width; text: root.jobText(root.etsJob,"No tables have been enumerated. Inspection is explicit and metadata-only.") }
         Label { width: parent.width; visible: !!root.etsResult; color: root.accent; text: root.etsResult ? root.etsResult.scanned_tables+" / "+root.etsResult.total_tables+" tables sampled  |  "+(root.etsResult.partial?"PARTIAL":"complete enumeration")+"  |  sorted by "+root.etsResult.sort+"  |  target word size "+root.etsResult.wordsize+" bytes" : "" }
         Label { width: parent.width; visible: !!root.etsResult; text: "Table metadata may change during collection. Scanned memory: "+DeckState.bytes(root.etsResult ? root.etsResult.sampled_memory_bytes : null)+". ETS counts have no hard-capacity forecast." }
         Repeater {
-          model: root.etsResult ? root.etsResult.top || [] : []
+          model: KeyedRows { rows: root.etsResult ? root.etsResult.top || [] : []; keyField: "id" }
           InfoCard {
             id: tableCard
-            required property var modelData
+            required property string rowJson
+            property var modelData: JSON.parse(rowJson)
             width: etsColumn.width
             RowLayout {
               width: parent.width
@@ -415,7 +426,7 @@ Item {
             }
             Label { width: parent.width; text: tableCard.modelData.size+" elements  |  "+tableCard.modelData.type+"  |  "+tableCard.modelData.protection+"  |  "+(tableCard.modelData.named_table?"named":"unnamed") }
             Label { width: parent.width; text: "Owner "+(tableCard.modelData.owner_name || "")+" "+tableCard.modelData.owner+"  |  read concurrency "+tableCard.modelData.read_concurrency+"  |  write concurrency "+tableCard.modelData.write_concurrency }
-            Button { text: "Inspect owner"; enabled: !!tableCard.modelData.owner && root.service && !root.service.historicalMode; onClicked: root.activate("process",root.targetNode,tableCard.modelData.owner) }
+            ActionButton { text: "Inspect owner"; enabled: !!tableCard.modelData.owner && root.service && !root.service.historicalMode; onClicked: root.activate("process",root.targetNode,tableCard.modelData.owner) }
           }
         }
       }
@@ -498,25 +509,25 @@ Item {
 
         Flow {
           width: parent.width; spacing: Style.space(6)
-          Button { text:"Go live"; selected:!root.recorderPaused; onClicked:root.returnLive() }
-          Button { text:"Last 1m"; enabled:root.timeline.length>1; onClicked:root.selectLastRecorder(60000) }
-          Button { text:"All retained"; enabled:root.timeline.length>1; onClicked:root.selectAllRecorder() }
-          Button {
+          ActionButton { text:"Go live"; selected:!root.recorderPaused; onClicked:root.returnLive() }
+          ActionButton { text:"Last 1m"; enabled:root.timeline.length>1; onClicked:root.selectLastRecorder(60000) }
+          ActionButton { text:"All retained"; enabled:root.timeline.length>1; onClicked:root.selectAllRecorder() }
+          ActionButton {
             text:"View A"
             enabled:root.recorderPaused && !!root.fromFrame && root.service
             onClicked:root.viewRecorderFrame(root.fromFrame)
           }
-          Button {
+          ActionButton {
             text:"View B"
             enabled:root.recorderPaused && !!root.toFrame && root.service
             onClicked:root.viewRecorderFrame(root.toFrame)
           }
-          Button {
+          ActionButton {
             text:"Compare A → B"
             enabled:root.recorderPaused && !!root.fromFrame && !!root.toFrame && root.fromFrame!==root.toFrame
             onClicked:root.compareRecorderRange()
           }
-          Button {
+          ActionButton {
             text:"Export range"
             enabled:root.recorderPaused && !!root.fromFrame && !!root.toFrame
             onClicked:root.runExport(true)
@@ -579,22 +590,23 @@ Item {
         width:pinsScroll.width; spacing:Style.space(12)
         Heading { text:"Your working set" }
         Label { width:parent.width; text:"Pin nodes or observed registered process names. Process pins follow PID replacements; only these targeted checks continue while the panel is closed." }
-        Button { text:"Pin selected node"; enabled:!!root.targetNode && root.service && !root.service.historicalMode; onClicked:root.service.pinNode(root.targetNode) }
-        Label { width:parent.width; color:root.urgent; visible:!!(root.snapshot.watchlist || {}).error; text:String((root.snapshot.watchlist || {}).error || "") }
-        Label { width:parent.width; visible:!((root.snapshot.watchlist || {}).entries || []).length; text:"No pins yet. Pin a node here or a registered name from the process inspector." }
+        ActionButton { text:"Pin selected node"; enabled:!!root.targetNode && root.service && !root.service.historicalMode; onClicked:root.service.pinNode(root.targetNode) }
+        Label { width:parent.width; color:root.urgent; visible:!!(root.viewSnapshot.watchlist || {}).error; text:String((root.viewSnapshot.watchlist || {}).error || "") }
+        Label { width:parent.width; visible:!((root.viewSnapshot.watchlist || {}).entries || []).length; text:"No pins yet. Pin a node here or a registered name from the process inspector." }
         Repeater {
-          model:(root.snapshot.watchlist || {}).entries || []
+          model: KeyedRows { rows: (root.viewSnapshot.watchlist || {}).entries || []; keyField: "id" }
           InfoCard {
-            id:pinCard
-            required property var modelData
+            id: pinCard
+            required property string rowJson
+            property var modelData: JSON.parse(rowJson)
             width:pinsColumn.width
             Heading { width:parent.width; text:pinCard.modelData.label || pinCard.modelData.name || pinCard.modelData.node }
             Label { width:parent.width; text:pinCard.modelData.node+"  /  "+pinCard.modelData.kind+"  /  "+pinCard.modelData.status; color:pinCard.modelData.status==="present"?root.accent:root.dim }
             Label { width:parent.width; visible:!!pinCard.modelData.pid; text:String(pinCard.modelData.pid || "")+"  |  Mailbox "+String(pinCard.modelData.mailbox || 0)+"  |  "+DeckState.bytes(pinCard.modelData.memory_bytes) }
             Flow {
               width:parent.width; spacing:Style.space(6)
-              Button { text:"Inspect"; visible:pinCard.modelData.kind==="registered_process"; enabled:pinCard.modelData.status==="present" && root.service && !root.service.historicalMode; onClicked:root.activate("process",pinCard.modelData.node,pinCard.modelData.pid) }
-              Button { text:"Remove pin"; onClicked:root.service.removePin(pinCard.modelData.id) }
+              ActionButton { text:"Inspect"; visible:pinCard.modelData.kind==="registered_process"; enabled:pinCard.modelData.status==="present" && root.service && !root.service.historicalMode; onClicked:root.activate("process",pinCard.modelData.node,pinCard.modelData.pid) }
+              ActionButton { text:"Remove pin"; onClicked:root.service.removePin(pinCard.modelData.id) }
             }
           }
         }
@@ -625,7 +637,7 @@ Item {
         }
         Label { width:parent.width; text:"Without Keep, the trial expires after at most 30 seconds. Closing the panel also reverts. Keep ends the lease, not the original-value Restore capability. No helper can guarantee cleanup after SIGKILL, power loss or a partition." }
         Controls.CheckBox { width:parent.width; text:"I reviewed all proposed local scheduler changes"; checked:root.budgetConfirmed; onToggled:root.budgetConfirmed=checked }
-        Button {
+        ActionButton {
           text:root.service && root.service.budgetRequestPending ? "Starting trial…" : "Begin 30-second trial"
           enabled:root.budgetConfirmed && root.service && !root.service.budgetRequestPending && !root.service.historicalMode && (root.snapshot.budget || []).some(function(r) { return r.current!==r.suggested }) && (!root.snapshot.budget_trial || ["kept","reverted"].indexOf(root.snapshot.budget_trial.status)>=0)
           onClicked:{ root.service.beginBudget(root.snapshot.budget); root.budgetConfirmed=false }

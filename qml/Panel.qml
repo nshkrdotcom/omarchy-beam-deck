@@ -16,6 +16,7 @@ Panel {
   property var service: null
   property string workspace: "cockpit"
   property bool shortcutsVisible: false
+  property bool investigationLoaded: false
   property double nowMs: Date.now()
   readonly property bool stale: !service || !service.daemonRunning || !snapshotData.at_ms || nowMs - snapshotData.at_ms > 10000
   Timer { interval: 1000; repeat: true; running: root.opened; onTriggered: root.nowMs = Date.now() }
@@ -67,8 +68,13 @@ Panel {
     if (service && root.opened) service.setPanelOpen(false)
   }
   function openInvestigation(tab, node, pid) {
+    investigationLoaded = true
     workspace = "investigate"
-    Qt.callLater(function() { if (contentLoader.item && contentLoader.item.activate) contentLoader.item.activate(tab || "triage", node || "", pid || "") })
+    Qt.callLater(function() {
+      if (!investigationLoader.item || root.workspace !== "investigate") return
+      if (tab || node || pid) investigationLoader.item.activate(tab || investigationLoader.item.tab, node || "", pid || "")
+      if (service) service.historicalMode = investigationLoader.item.recorderPaused
+    })
   }
   function liveCockpit() {
     if (service) service.returnLive()
@@ -103,7 +109,7 @@ Panel {
   function handleShortcut(text) {
     var action = DeckState.panelShortcut(text)
     if (action === "cockpit") liveCockpit()
-    else if (action === "investigate") openInvestigation("triage")
+    else if (action === "investigate") openInvestigation()
     else if (action === "refresh") { if (service) service.refresh() }
     else if (action === "live") goLive()
     else if (action === "help") shortcutsVisible = !shortcutsVisible
@@ -112,7 +118,7 @@ Panel {
   }
   function selected() {
     for (var i = 0; i < nodes.length; i++) if (String(nodes[i].name) === selectedNode) return nodes[i]
-    return nodes.length > 0 ? nodes[0] : null
+    return !selectedNode && nodes.length > 0 ? nodes[0] : null
   }
   function nodePinned(name) {
     var watch = snapshotData.watchlist || ({})
@@ -200,6 +206,11 @@ Panel {
       // BEAM Deck contains TextEdit/TextField/ComboBox/SpinBox controls. Make
       // the shell key catcher a fallback so focused editors get first refusal.
       Keys.priority: Keys.AfterItem
+      // The installed catcher routes every arrow, including modified arrows.
+      // Leave modified commands to focused controls; keep native bare H/J/K/L.
+      Keys.onShortcutOverride: function(event) {
+        keyCatcher.blocked = (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) !== 0
+      }
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onMoveRequested: function(dx, dy) { root.keyboardMove(dx, dy) }
@@ -271,7 +282,7 @@ Panel {
             spacing: Style.spacing.sm
             Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
             Button { text: "Cockpit"; fontSize: Style.font.caption; selected: root.workspace === "cockpit"; onClicked: root.liveCockpit() }
-            Button { text: "Investigate"; fontSize: Style.font.caption; selected: root.workspace === "investigate"; onClicked: root.openInvestigation("triage") }
+            Button { text: "Investigate"; fontSize: Style.font.caption; selected: root.workspace === "investigate"; onClicked: root.openInvestigation() }
             Button { text: "Refresh"; fontSize: Style.font.caption; onClicked: if (root.service) root.service.refresh() }
             Button { text: "Shortcuts"; fontSize: Style.font.caption; selected: root.shortcutsVisible; onClicked: root.shortcutsVisible = !root.shortcutsVisible }
             Button { text: "Close"; fontSize: Style.font.caption; bordered: true; onClicked: root.close() }
@@ -310,19 +321,31 @@ Panel {
         Text { textFormat: Text.PlainText; visible: root.service && root.service.lastAction !== ""; Layout.fillWidth: true; text: root.service ? root.service.lastAction : ""; color: root.accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
         Text { textFormat: Text.PlainText; visible: root.service && root.service.notificationError !== ""; Layout.fillWidth: true; text: root.service ? root.service.notificationError : ""; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
         TrialBar { Layout.fillWidth: true; service: root.service }
-        Loader {
+        Item {
           id: contentLoader
           Layout.fillWidth: true
           Layout.fillHeight: true
-          sourceComponent: root.snapshotData.onboarding && root.snapshotData.onboarding.state === "runtime_missing" ? missingView
-            : root.workspace === "investigate" ? investigationView
-            : Number(root.summary.runtime_count || 0) === 0 && root.nodes.length === 0 && !(root.snapshotData.incidents || []).length && !((root.snapshotData.watchlist || {}).entries || []).length ? emptyView : dashboardView
+          readonly property var item: root.workspace === "investigate" ? investigationLoader.item : cockpitLoader.item
+          Loader {
+            id: cockpitLoader
+            anchors.fill: parent
+            active: root.workspace === "cockpit"
+            sourceComponent: root.snapshotData.onboarding && root.snapshotData.onboarding.state === "runtime_missing" ? missingView
+              : Number(root.summary.runtime_count || 0) === 0 && root.nodes.length === 0 && !(root.snapshotData.incidents || []).length && !((root.snapshotData.watchlist || {}).entries || []).length ? emptyView : dashboardView
+          }
+          Loader {
+            id: investigationLoader
+            anchors.fill: parent
+            active: root.investigationLoaded
+            visible: root.workspace === "investigate"
+            sourceComponent: investigationView
+          }
         }
       }
     }
   }
 
-  Component { id: investigationView; Investigation { service: root.service; targetNode: root.selectedNode } }
+  Component { id: investigationView; Investigation { service: root.service; targetNode: root.selectedNode; surfaceActive: root.opened && root.workspace === "investigate" } }
 
   Component {
     id: missingView
@@ -440,7 +463,7 @@ Panel {
           Text { textFormat: Text.PlainText; width: parent.width; visible: (root.snapshotData.incidents || []).length > 0; text: (root.snapshotData.incidents || []).length ? root.snapshotData.incidents[0].title : ""; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
           Flow {
             width: parent.width; spacing: Style.space(6)
-            Button { text: "Triage"; onClicked: root.openInvestigation("triage") }
+            Button { text: "Triage"; onClicked: root.openInvestigation() }
             Button { text: "Recorder"; onClicked: root.openInvestigation("recorder") }
             Button { text: "Watchlist"; onClicked: root.openInvestigation("pins") }
           }
@@ -567,6 +590,13 @@ Panel {
             color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.body; wrapMode: Text.WordWrap
           }
 
+          Text {
+            visible: !!root.selectedNode && !root.selected()
+            width: parent.width
+            text: "Selected node is no longer observed: " + root.selectedNode + ". Choose a currently listed node or inspect its retained recorder evidence."
+            color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
+            textFormat: Text.PlainText; wrapMode: Text.Wrap
+          }
           Loader {
             width: parent.width
             active: root.nodes.length > 0
@@ -588,7 +618,7 @@ Panel {
       visible: node !== null
 
       Text { textFormat: Text.PlainText; width: parent.width; text: nd.node ? nd.node.name : ""; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true; elide: Text.ElideRight }
-      Text { textFormat: Text.PlainText; visible: nd.node && !nd.node.attached; width: parent.width; text: nd.pinned ? "Pinned node unavailable: " + String(nd.node.error || "authentication/unreachable") + ". It remains listed because it is in your Watchlist." : "Node discovered but not attached: " + String(nd.node.error || "authentication/unreachable"); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
+      Text { textFormat: Text.PlainText; visible: nd.node && !nd.node.attached; width: parent.width; text: nd.pinned ? "Pinned node unavailable: " + String((nd.node || {}).error || "authentication/unreachable") + ". It remains listed because it is in your Watchlist." : "Node discovered but not attached: " + String((nd.node || {}).error || "authentication/unreachable"); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
 
       GridLayout {
         visible: nd.node && nd.node.attached
@@ -653,10 +683,10 @@ Panel {
         width: parent.width; spacing: Style.space(8)
         PanelSectionHeader { text: "HOT PROCESSES"; foreground: root.fg; fontFamily: Style.font.family; Layout.fillWidth: true }
         Button { text: "IEx remsh"; onClicked: if (root.service) root.service.remsh(nd.node.name) }
-        Button { text: nd.node && nd.node.deep_events_active ? "Stop events" : "Deep events"; enabled: !!nd.node.deep_events_capable; onClicked: if (root.service) root.service.deepEvents(nd.node.name, !nd.node.deep_events_active) }
+        Button { text: nd.node && nd.node.deep_events_active ? "Stop events" : "Deep events"; enabled: !!(nd.node && nd.node.deep_events_capable); onClicked: if (root.service) root.service.deepEvents(nd.node.name, !nd.node.deep_events_active) }
         Button { text: "Restore"; onClicked: if (root.service) root.service.restore(nd.node.name) }
       }
-      Text { textFormat: Text.PlainText; visible: !!(nd.node && nd.node.process_scan_error); width: parent.width; text: "Process scan: " + nd.node.process_scan_error; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+      Text { textFormat: Text.PlainText; visible: !!(nd.node && nd.node.process_scan_error); width: parent.width; text: "Process scan: " + String((nd.node || {}).process_scan_error || "unavailable"); color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
       Repeater {
         model: nd.node && nd.node.hot_processes ? nd.node.hot_processes.slice(0, 12) : []
         BorderSurface {
@@ -680,7 +710,7 @@ Panel {
       Text { textFormat: Text.PlainText;
         visible: nd.node && (nd.node.restart_churn || []).length > 0
         width: parent.width
-        text: "Registered-name churn: " + (nd.node ? nd.node.restart_churn.map(function(c) { return c.name + " ×" + c.count }).join("  ·  ") : "")
+        text: "Registered-name churn: " + (nd.node ? (nd.node.restart_churn || []).map(function(c) { return c.name + " ×" + c.count }).join("  ·  ") : "")
         color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap
       }
 
@@ -702,8 +732,8 @@ Panel {
       PanelSeparator { visible: nd.node && nd.node.attached; width: parent.width; foreground: root.fg }
       PanelSectionHeader { visible: nd.node && nd.node.attached; width: parent.width; text: "TOPOLOGY"; foreground: root.fg; fontFamily: Style.font.family }
       Text { textFormat: Text.PlainText; visible: nd.node && nd.node.attached; width: parent.width; text: nd.node && nd.node.peers && nd.node.peers.length ? (nd.node.name + " sees  " + nd.node.peers.join("   ·   ")) : "No connected peer nodes reported"; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-      Text { textFormat: Text.PlainText; visible: nd.node && nd.node.attached && (nd.node.expected_peers || []).length > 0; width: parent.width; text: "Expected: " + nd.node.expected_peers.join("   ·   "); color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-      Text { textFormat: Text.PlainText; visible: nd.node && nd.node.attached && ((nd.node.expected_peers || []).filter(function(peer) { return (nd.node.peers || []).indexOf(peer) < 0 })).length > 0; width: parent.width; text: "Missing expected: " + (nd.node.expected_peers || []).filter(function(peer) { return (nd.node.peers || []).indexOf(peer) < 0 }).join("   ·   "); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; wrapMode: Text.WordWrap }
+      Text { textFormat: Text.PlainText; visible: nd.node && nd.node.attached && ((nd.node || {}).expected_peers || []).length > 0; width: parent.width; text: "Expected: " + ((nd.node || {}).expected_peers || []).join("   ·   "); color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+      Text { textFormat: Text.PlainText; visible: nd.node && nd.node.attached && (((nd.node || {}).expected_peers || []).filter(function(peer) { return (nd.node.peers || []).indexOf(peer) < 0 })).length > 0; width: parent.width; text: "Missing expected: " + ((nd.node || {}).expected_peers || []).filter(function(peer) { return (nd.node.peers || []).indexOf(peer) < 0 }).join("   ·   "); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; wrapMode: Text.WordWrap }
     }
   }
 
