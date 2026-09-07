@@ -31,8 +31,11 @@ assert.match(panelSource, /id:\s*identityBlock[\s\S]*?text:\s*"BEAM DECK"[\s\S]*
 assert.match(panelSource, /text:\s*"·"/);
 assert.match(panelSource, /Item\s*\{\s*Layout\.fillWidth:\s*true\s*\}/);
 assert.match(panelSource, /id:\s*headerActions[\s\S]*?Layout\.alignment:\s*Qt\.AlignVCenter\s*\|\s*Qt\.AlignRight/);
+for (const label of ["Cockpit", "Investigate", "Refresh", "Shortcuts", "Close"]) {
+  assert.match(panelSource, new RegExp(`Button\\s*\\{\\s*text:\\s*"${label}";\\s*fontSize:\\s*Style\\.font\\.caption`));
+}
 assert.match(panelSource, /elide:\s*Text\.ElideRight/);
-assert.match(panelSource, /Button\s*\{\s*text:\s*"Close";\s*bordered:\s*true;[\s\S]*?onClicked:\s*root\.close\(\)/);
+assert.match(panelSource, /Button\s*\{\s*text:\s*"Close";\s*fontSize:\s*Style\.font\.caption;\s*bordered:\s*true;[\s\S]*?onClicked:\s*root\.close\(\)/);
 assert.doesNotMatch(panelSource, /\bPanelWindow\s*\{/);
 assert.doesNotMatch(panelSource, /\bWlrLayershell\b/);
 assert.doesNotMatch(panelSource, /Style\.space\(48\)/);

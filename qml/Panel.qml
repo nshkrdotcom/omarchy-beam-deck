@@ -270,11 +270,11 @@ Panel {
             id: headerActions
             spacing: Style.spacing.sm
             Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
-            Button { text: "Cockpit"; selected: root.workspace === "cockpit"; onClicked: root.liveCockpit() }
-            Button { text: "Investigate"; selected: root.workspace === "investigate"; onClicked: root.openInvestigation("triage") }
-            Button { text: "Refresh"; onClicked: if (root.service) root.service.refresh() }
-            Button { text: "Shortcuts"; selected: root.shortcutsVisible; onClicked: root.shortcutsVisible = !root.shortcutsVisible }
-            Button { text: "Close"; bordered: true; onClicked: root.close() }
+            Button { text: "Cockpit"; fontSize: Style.font.caption; selected: root.workspace === "cockpit"; onClicked: root.liveCockpit() }
+            Button { text: "Investigate"; fontSize: Style.font.caption; selected: root.workspace === "investigate"; onClicked: root.openInvestigation("triage") }
+            Button { text: "Refresh"; fontSize: Style.font.caption; onClicked: if (root.service) root.service.refresh() }
+            Button { text: "Shortcuts"; fontSize: Style.font.caption; selected: root.shortcutsVisible; onClicked: root.shortcutsVisible = !root.shortcutsVisible }
+            Button { text: "Close"; fontSize: Style.font.caption; bordered: true; onClicked: root.close() }
           }
         }
 
