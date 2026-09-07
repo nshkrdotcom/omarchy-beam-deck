@@ -23,6 +23,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+* Rebuilt the native panel header as a compact two-line identity/status block with a dedicated right-aligned action group, tighter frame inset, compact timestamp, and explicit Close boundary.
 * Moved the cockpit to Omarchy's native `Panel` and `KeyboardPanel` architecture.
 * Separated telemetry collection, diagnostics, and runtime-control ownership.
 * Hardened protocol parsing, private writes, cookie redaction, and export filtering.

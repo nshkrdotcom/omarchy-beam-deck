@@ -131,6 +131,9 @@ Panel {
     return n + " B"
   }
   function percent(a, b) { return b > 0 ? ((Number(a || 0) / Number(b)) * 100).toFixed(1) + "%" : "—" }
+  function headerTime(at) {
+    return at ? Qt.formatTime(new Date(at), "HH:mm:ss") : "—"
+  }
   function schedulerAverage(n) {
     var rows = n && n.scheduler_utilization ? n.scheduler_utilization : []
     if (!rows.length) return "warming / unavailable"
@@ -182,6 +185,9 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     centerOnBar: true
+    // Keep the cockpit close to the native frame. The header owns its own
+    // hierarchy, so it does not need the generic popup's larger content inset.
+    padding: Style.space(8)
 
     // Keep the cockpit deliberately large while delegating every real screen,
     // bar-edge, gap, monitor, scale and clamping decision to Omarchy.
@@ -204,14 +210,72 @@ Panel {
         spacing: Style.space(12)
 
         RowLayout {
+          id: headerBar
           Layout.fillWidth: true
-          Text { textFormat: Text.PlainText; text: "BEAM DECK"; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
-          Text { textFormat: Text.PlainText; text: root.stale ? "Waiting for fresh telemetry" : "LIVE  /  " + DeckState.time(root.snapshotData.at_ms); color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; Layout.fillWidth: true }
-          Button { text: "Cockpit"; selected: root.workspace === "cockpit"; onClicked: root.liveCockpit() }
-          Button { text: "Investigate"; selected: root.workspace === "investigate"; onClicked: root.openInvestigation("triage") }
-          Button { text: "Refresh"; onClicked: if (root.service) root.service.refresh() }
-          Button { text: "Shortcuts"; selected: root.shortcutsVisible; onClicked: root.shortcutsVisible = !root.shortcutsVisible }
-          Button { text: "Close"; onClicked: root.close() }
+          spacing: Style.space(18)
+
+          // Product identity and runtime state form one compact two-line block.
+          // Keeping telemetry on its own line avoids the cramped "word / word"
+          // treatment while preserving a fast left-to-right scan.
+          ColumnLayout {
+            id: identityBlock
+            spacing: Style.space(2)
+            Layout.alignment: Qt.AlignVCenter
+
+            Text {
+              textFormat: Text.PlainText
+              text: "BEAM DECK"
+              color: root.fg
+              font.family: Style.font.family
+              font.pixelSize: Style.font.subtitle
+              font.weight: Font.DemiBold
+              font.letterSpacing: 0.4
+            }
+
+            RowLayout {
+              spacing: Style.spacing.sm
+              Text {
+                textFormat: Text.PlainText
+                text: root.stale ? "STALE" : "LIVE"
+                color: root.stale ? root.urgent : root.accent
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                font.weight: Font.DemiBold
+                Layout.alignment: Qt.AlignBaseline
+              }
+              Text {
+                textFormat: Text.PlainText
+                text: "·"
+                color: root.dim
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                Layout.alignment: Qt.AlignBaseline
+              }
+              Text {
+                textFormat: Text.PlainText
+                text: root.stale ? "Waiting for fresh telemetry" : root.headerTime(root.snapshotData.at_ms)
+                color: root.dim
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                Layout.maximumWidth: Style.space(220)
+                Layout.alignment: Qt.AlignBaseline
+                elide: Text.ElideRight
+              }
+            }
+          }
+
+          Item { Layout.fillWidth: true }
+
+          RowLayout {
+            id: headerActions
+            spacing: Style.spacing.sm
+            Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+            Button { text: "Cockpit"; selected: root.workspace === "cockpit"; onClicked: root.liveCockpit() }
+            Button { text: "Investigate"; selected: root.workspace === "investigate"; onClicked: root.openInvestigation("triage") }
+            Button { text: "Refresh"; onClicked: if (root.service) root.service.refresh() }
+            Button { text: "Shortcuts"; selected: root.shortcutsVisible; onClicked: root.shortcutsVisible = !root.shortcutsVisible }
+            Button { text: "Close"; bordered: true; onClicked: root.close() }
+          }
         }
         BorderSurface {
           Layout.fillWidth: true
