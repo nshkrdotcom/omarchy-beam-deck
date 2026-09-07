@@ -83,6 +83,7 @@ defmodule BeamDeck.Remote do
            node_map
            |> Map.put(:hot_processes, summary.hot_processes)
            |> Map.put(:registered_processes, summary.registered_processes)
+           |> Map.put(:process_scan, scan_metadata(summary, node_map, opts))
            |> Map.put(
              :hot_processes_at_ms,
              if(opts[:processes], do: System.system_time(:millisecond), else: nil)
@@ -94,12 +95,32 @@ defmodule BeamDeck.Remote do
            |> Map.put(:hot_processes, [])
            |> Map.put(:registered_processes, [])
            |> Map.put(:hot_processes_at_ms, System.system_time(:millisecond))
-           |> Map.put(:process_scan_error, inspect(reason))}
+           |> Map.put(:process_scan_error, scan_error(reason))
+           |> Map.put(:process_scan, %{
+             status: "unavailable",
+             scanned: nil,
+             reported: node_map.processes,
+             limit: opts[:max_process_scan] || 100_000,
+             returned: 0
+           })}
       end
     else
       {:error, reason} -> {:error, reason}
     end
   end
+
+  defp scan_metadata(summary, node_map, opts) do
+    %{
+      status: if(opts[:processes], do: "sampled", else: "not_requested"),
+      scanned: summary[:scanned],
+      reported: node_map.processes,
+      limit: opts[:max_process_scan] || 100_000,
+      returned: length(summary.hot_processes)
+    }
+  end
+
+  defp scan_error({:too_many_processes, _, _}), do: "process_scan_capped"
+  defp scan_error(_), do: "process_scan_unavailable"
 
   def sys_info(node) do
     case call_raw(node, :observer_backend, :sys_info, []) do
@@ -206,7 +227,7 @@ defmodule BeamDeck.Remote do
       |> Enum.sort_by(& &1.name)
       |> Enum.take(2_000)
 
-    %{hot_processes: hot_union(rows, 12), registered_processes: registered}
+    %{hot_processes: hot_union(rows, 12), registered_processes: registered, scanned: length(rows)}
   end
 
   def hot_union(rows, n) do

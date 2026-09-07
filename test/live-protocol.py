@@ -164,10 +164,15 @@ def main() -> None:
                 for key in ("forecasts", "incidents", "flight_recorder", "watchlist", "budget_trial", "crash_triage"):
                     assert key in snapshot, key
                 assert snapshot["protocol"] == 1
+                assert snapshot["collection"]["duration_ms"] >= 0
+                assert snapshot["collection"]["poll_interval_ms"] == 500
+                assert isinstance(snapshot["sample_mono_ms"], int)
                 wire.send({"cmd": "panel", "open": True})
                 snapshot = wire.until(lambda m: m.get("type") == "snapshot" and any(
                     n.get("name") == target and n.get("hot_processes") for n in m.get("nodes", [])))
                 node = next(n for n in snapshot["nodes"] if n["name"] == target)
+                assert node["process_scan"]["scanned"] >= len(node["hot_processes"])
+                assert node["process_scan"]["limit"] <= 100000
                 assert node["local"], "isolated local target was misclassified"
                 process = wire.job({"cmd": "inspect_process", "request_id": "protocol-process", "node": target,
                                     "pid": node["hot_processes"][0]["pid"]})

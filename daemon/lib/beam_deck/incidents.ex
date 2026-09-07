@@ -33,17 +33,7 @@ defmodule BeamDeck.Incidents do
     quiet =
       previous
       |> Enum.reject(&(&1.id in ids))
-      |> Enum.map(fn item ->
-        misses = item.quiet_polls + 1
-        resolved = misses >= 2
-
-        %{
-          item
-          | quiet_polls: misses,
-            status: if(resolved, do: "resolved", else: "active"),
-            resolved_at_ms: if(resolved, do: item.resolved_at_ms || now, else: nil)
-        }
-      end)
+      |> Enum.map(&quiet_incident(&1, snapshot, now))
       |> Enum.filter(
         &(is_nil(&1.resolved_at_ms) or now - &1.resolved_at_ms <= config["incident_retention_ms"])
       )
@@ -53,6 +43,39 @@ defmodule BeamDeck.Incidents do
       &{if(&1.status == "active", do: 0, else: 1), @rank[&1.severity] || 2, -&1.last_seen_ms}
     )
     |> Enum.take(100)
+  end
+
+  defp quiet_incident(item, snapshot, now) do
+    unknown = unavailable_evidence?(item, snapshot)
+    misses = if unknown, do: 0, else: item.quiet_polls + 1
+    resolved = misses >= 2
+
+    %{
+      item
+      | quiet_polls: misses,
+        status:
+          cond do
+            unknown -> "unknown"
+            resolved -> "resolved"
+            true -> "active"
+          end,
+        resolved_at_ms: if(resolved, do: item.resolved_at_ms || now, else: nil)
+    }
+  end
+
+  defp unavailable_evidence?(%{status: "resolved"}, _snapshot), do: false
+
+  defp unavailable_evidence?(item, snapshot) do
+    case Enum.find(snapshot[:nodes] || [], &(&1.name == item.node)) do
+      %{attached: false} ->
+        item.family not in ["runtime_exit", "watch", "budget"]
+
+      node when is_map(node) ->
+        item.family in ["mailbox", "restart"] and !!node[:process_scan_error]
+
+      _ ->
+        false
+    end
   end
 
   defp alert_conditions(snapshot, recorder) do

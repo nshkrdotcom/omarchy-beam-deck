@@ -31,6 +31,30 @@ defmodule BeamDeck.IncidentsTest do
     assert {[], ^times} = Incidents.notifications([i], [], times, 30, Config.defaults())
   end
 
+  test "provider loss makes an unresolved symptom unknown, never healthy or resolved" do
+    alert = %{
+      id: "api@host.run_queue",
+      node: "api@host",
+      title: "Queue",
+      severity: "warning",
+      message: "12 runnable tasks"
+    }
+
+    live = Map.put(snapshot(1000, [alert]), :nodes, [%{name: "api@host", attached: true}])
+    [incident] = Incidents.update([], live, Config.defaults())
+    lost = %{live | at_ms: 2000, alerts: [], nodes: [%{name: "api@host", attached: false}]}
+    [unknown] = Incidents.update([incident], lost, Config.defaults())
+    assert unknown.status == "unknown"
+    assert unknown.last_seen_ms == 1000
+    assert is_nil(unknown.resolved_at_ms)
+    [still_unknown] = Incidents.update([unknown], %{lost | at_ms: 3000}, Config.defaults())
+    assert still_unknown.status == "unknown"
+    recovered = %{live | at_ms: 4000, alerts: []}
+    [quiet] = Incidents.update([still_unknown], recovered, Config.defaults())
+    [resolved] = Incidents.update([quiet], %{recovered | at_ms: 5000}, Config.defaults())
+    assert resolved.status == "resolved"
+  end
+
   test "mailbox evidence matches PID and time window, including a hot process beyond first three" do
     alert = %{
       id: "api@host.<0.7.0>.mailbox",

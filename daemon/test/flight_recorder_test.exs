@@ -77,4 +77,38 @@ defmodule BeamDeck.FlightRecorderTest do
     assert {:ok, reverse} = FR.range(r, "frame-2", "frame-1")
     assert reverse == frames
   end
+
+  test "timeline retains measured node metrics and missing RSS without inventing a zero" do
+    n = %{
+      name: "api@host",
+      attached: true,
+      creation: 9,
+      uptime_ms: 4000,
+      run_queue: 12,
+      memory: %{total: 2048, binary: 512},
+      processes: 50,
+      process_limit: 100,
+      scheduler_utilization: [%{id: 1, kind: "normal", utilization: 0.25}],
+      hot_processes_at_ms: 1000
+    }
+
+    s = Map.merge(snapshot(1100, nil), %{nodes: [n], sample_mono_ms: 7000})
+    r = FR.push(FR.new(), s, 10)
+    [point] = FR.present(r).timeline
+    assert point.beam_rss_bytes == nil
+    assert point.sample_mono_ms == 7000
+    assert [%{name: "api@host", run_queue: 12, scheduler_utilization: 0.25}] = point.nodes
+  end
+
+  test "reappearing old events are not assigned to a new frame after a quiet sample" do
+    s = Map.put(snapshot(1000, 1), :events, [%{id: "e1", at_ms: 900, kind: "nodeup"}])
+
+    r =
+      FR.new()
+      |> FR.push(s, 10)
+      |> FR.push(snapshot(2000, 1), 10)
+      |> FR.push(%{s | at_ms: 3000}, 10)
+
+    assert {:ok, %{new_events: []}} = FR.get(r, "frame-3")
+  end
 end

@@ -11,6 +11,8 @@ defmodule BeamDeck.FlightRecorder do
     frame = %{
       frame_id: "frame-#{sequence}",
       at_ms: snapshot.at_ms,
+      sample_mono_ms: snapshot[:sample_mono_ms],
+      collection: snapshot[:collection],
       summary:
         Map.take(
           snapshot[:summary] || %{},
@@ -34,7 +36,8 @@ defmodule BeamDeck.FlightRecorder do
     %{
       sequence: sequence,
       frames: Enum.take([frame | recorder.frames], min(limit, 2_000)),
-      seen_events: Enum.map(events, &event_id/1) |> Enum.take(200)
+      seen_events:
+        (Enum.map(events, &event_id/1) ++ recorder.seen_events) |> Enum.uniq() |> Enum.take(200)
     }
   end
 
@@ -57,11 +60,15 @@ defmodule BeamDeck.FlightRecorder do
         %{
           frame_id: f.frame_id,
           at_ms: f.at_ms,
+          sample_mono_ms: f[:sample_mono_ms],
+          collection: f[:collection],
+          nodes: f.nodes |> Enum.take(16) |> Enum.map(&BeamDeck.Evidence.timeline_node/1),
+          omitted_nodes: max(length(f.nodes) - 16, 0),
           alert_count: length(f.alerts),
           event_count: length(f.new_events),
           warning_count: Enum.count(f.alerts, &(&1.severity == "warning")),
           critical_count: Enum.count(f.alerts, &(&1.severity == "critical")),
-          beam_rss_bytes: f.summary[:beam_rss_bytes] || 0
+          beam_rss_bytes: f.summary[:beam_rss_bytes]
         }
       end)
 
@@ -76,6 +83,7 @@ defmodule BeamDeck.FlightRecorder do
     %{
       frame_count: length(recorder.frames),
       timeline: shown,
+      omitted_frames: length(timeline) - length(shown),
       oldest_frame_id: if(timeline == [], do: nil, else: hd(timeline).frame_id),
       newest_frame_id: if(timeline == [], do: nil, else: List.last(timeline).frame_id)
     }

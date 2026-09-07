@@ -1,7 +1,10 @@
 CACHE_HOME ?= $(if $(XDG_CACHE_HOME),$(XDG_CACHE_HOME),$(HOME)/.cache)/beam-deck/dev
 MIX_ENV_VARS = MIX_BUILD_PATH="$(CACHE_HOME)/_build" MIX_DEPS_PATH="$(CACHE_HOME)/deps"
 
-.PHONY: static deps format test integration protocol credo dialyzer lint check
+.PHONY: static qt deps format test integration protocol credo dialyzer lint check
+
+qt:
+	./test/qt.sh
 
 static:
 	./test/static.sh

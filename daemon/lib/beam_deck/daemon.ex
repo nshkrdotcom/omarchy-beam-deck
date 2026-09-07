@@ -636,13 +636,16 @@ defmodule BeamDeck.Daemon do
     nodes = Procfs.verify_local_nodes(host, nodes) |> Enum.sort_by(& &1.name)
     host = correlate_runtimes(host, nodes)
 
+    watches = Watchlist.poll(state.watchlist_entries, nodes)
+
     %{
       host: host,
       nodes: nodes,
       deep: deep,
       mono: mono,
       at_ms: System.system_time(:millisecond),
-      watch_rows: Watchlist.poll(state.watchlist_entries, nodes)
+      watch_rows: watches,
+      duration_ms: System.monotonic_time(:millisecond) - mono
     }
   end
 
@@ -763,6 +766,14 @@ defmodule BeamDeck.Daemon do
       protocol: 1,
       session_id: state.session_id,
       at_ms: at,
+      sample_mono_ms: telemetry.mono,
+      collection: %{
+        duration_ms: telemetry.duration_ms,
+        poll_interval_ms: state.config["poll_interval_ms"],
+        deep_interval_ms: state.config["deep_interval_ms"],
+        deep: telemetry.deep,
+        status: if(Enum.any?(nodes, &(&1[:attached] != true)), do: "partial", else: "complete")
+      },
       onboarding: onboarding(host, nodes),
       host: Map.drop(host, [:host_ticks, :monotonic_ms]),
       nodes: nodes,

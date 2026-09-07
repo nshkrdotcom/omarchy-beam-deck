@@ -1,0 +1,3 @@
+module qs.Ui
+Panel 1.0 Panel.qml
+KeyboardPanel 1.0 KeyboardPanel.qml

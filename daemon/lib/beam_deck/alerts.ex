@@ -126,9 +126,14 @@ defmodule BeamDeck.Alerts do
 
   defp mailboxes(node, old, config) do
     old_processes = Map.new((old && old.hot_processes) || [], &{&1.pid, &1})
-    elapsed = mailbox_elapsed(node[:hot_processes_at_ms], old && old[:hot_processes_at_ms])
 
-    Enum.flat_map(node.hot_processes || [], fn process ->
+    elapsed =
+      if BeamDeck.Evidence.fresh_deep_pair?(old, node),
+        do: mailbox_elapsed(node[:hot_processes_at_ms], old[:hot_processes_at_ms])
+
+    rows = if node[:process_scan_error], do: [], else: node.hot_processes || []
+
+    Enum.flat_map(rows, fn process ->
       mailbox_alert(node, process, old_processes[process.pid], elapsed, config)
     end)
   end

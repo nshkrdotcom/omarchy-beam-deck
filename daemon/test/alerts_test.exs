@@ -57,6 +57,35 @@ defmodule BeamDeck.AlertsTest do
              |> Enum.map(&Map.take(&1, [:severity, :title]))
   end
 
+  test "mailbox growth never crosses a VM incarnation or an incomplete scan" do
+    config = Config.defaults() |> Map.put("mailbox_warn", 100_000)
+
+    old =
+      node("api@ws", true, 4)
+      |> Map.merge(%{
+        creation: 1,
+        uptime_ms: 10_000,
+        hot_processes: [proc(0)],
+        hot_processes_at_ms: 1000
+      })
+
+    current = %{
+      old
+      | creation: 2,
+        uptime_ms: 100,
+        hot_processes: [proc(9000)],
+        hot_processes_at_ms: 2000
+    }
+
+    sample = %{host: %{logical_cpus: 8}, nodes: [current]}
+    assert Alerts.derive(sample, %{nodes: [old]}, config) == []
+
+    current =
+      %{current | creation: 1, uptime_ms: 11_000} |> Map.put(:process_scan_error, "capped")
+
+    assert Alerts.derive(%{sample | nodes: [current]}, %{nodes: [old]}, config) == []
+  end
+
   test "only explicitly expected missing peer edges produce topology alerts" do
     configured =
       node("api@ws", true, 4)
@@ -82,6 +111,8 @@ defmodule BeamDeck.AlertsTest do
   defp node(name, local, schedulers) do
     %{
       name: name,
+      creation: 1,
+      uptime_ms: 10_000,
       attached: true,
       local: local,
       schedulers_online: schedulers,
