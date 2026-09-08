@@ -157,3 +157,5 @@ Native acceptance rows (pass/fail/unverified separately):
 * 2026-09-08: version 1.2.0 consolidates all changes since 1.1.0 and the `com.nshkr.beam-deck` identifier migration. Current release evidence and native migration status are recorded in CONTINUATION.md; main merge/push and branch cleanup are now explicitly authorized.
 
 * 2026-09-08 final milestone 3: focused native process/ETS/stack/cancellation acceptance completed. Fixed actual host manifest sanitization preventing helper startup, with red/green regression and full gate. See CONTINUATION.md for current evidence, cleanup and explicit unexecuted cases; this supersedes the earlier paused/pending state. Final main merge and branch cleanup are authorized.
+
+* Final implementation `1d734d0` passed CI run 34289184821 (all three OTP versions, static and strict lint/Dialyzer). Final Qt checks pass 29 results at both scales; test-peer exit is confirmed. Delivery continues on main after the authorized fast-forward and feature-branch deletion.

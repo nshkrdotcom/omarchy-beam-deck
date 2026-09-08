@@ -66,3 +66,5 @@ Full gate remains strict (format, warnings-as-errors, ExUnit/default and real pe
 * 2026-09-08: release 1.2.0 closeout resumed after identifier migration `ff2956a`; all local release gates pass. See the dated release section in CONTINUATION.md for actual counts, current native migration blocker and artifact availability.
 
 * 2026-09-08 final milestone 3: focused native process/ETS/stack/cancellation acceptance completed. Fixed actual host manifest sanitization preventing helper startup, with red/green regression and full gate. See CONTINUATION.md for current evidence, cleanup and explicit unexecuted cases; this supersedes the earlier paused/pending state. Final main merge and branch cleanup are authorized.
+
+* Final implementation `1d734d0` passed CI run 34289184821 (all three OTP versions, static and strict lint/Dialyzer). Final Qt checks pass 29 results at both scales; test-peer exit is confirmed. Delivery continues on main after the authorized fast-forward and feature-branch deletion.
