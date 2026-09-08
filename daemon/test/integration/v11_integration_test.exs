@@ -111,7 +111,7 @@ defmodule BeamDeck.V11IntegrationTest do
     assert {:ok, trial} = BudgetTrial.begin(rows, budget, nodes, 1, 30_000)
     assert schedulers(c.node) == 1
     BudgetTrial.panel(false, 2, self())
-    TestPeer.eventually(fn -> BudgetTrial.status().status == "reverted" end)
+    assert_reverted()
     assert schedulers(c.node) == 3
     assert BudgetTrial.status().trial_id == trial.trial_id
   end
@@ -148,7 +148,7 @@ defmodule BeamDeck.V11IntegrationTest do
     BudgetTrial.panel(true, 2, owner)
     assert {:ok, _} = BudgetTrial.begin(rows, budget, nodes, 2, 30_000)
     Elixir.Process.exit(owner, :kill)
-    TestPeer.eventually(fn -> BudgetTrial.status().status == "reverted" end)
+    assert_reverted()
     assert schedulers(c.node) == 3
   end
 
@@ -164,7 +164,7 @@ defmodule BeamDeck.V11IntegrationTest do
     nodes = nodes ++ [%{name: missing, attached: true, local: true, schedulers_online: 3}]
     BudgetTrial.panel(true, 1, self())
     assert {:error, :trial_not_applied} = BudgetTrial.begin(rows, budget, nodes, 1, 30_000)
-    TestPeer.eventually(fn -> BudgetTrial.status().status == "reverted" end)
+    assert_reverted()
     assert schedulers(c.node) == 3
   end
 
@@ -180,7 +180,7 @@ defmodule BeamDeck.V11IntegrationTest do
     assert [%{error: :externally_changed}] = BudgetTrial.status().failures
     assert {:ok, 2} = Remote.set_flag(c.node, :schedulers_online, 1)
     assert {:ok, _} = BudgetTrial.revert(trial.trial_id)
-    TestPeer.eventually(fn -> BudgetTrial.status().status == "reverted" end)
+    assert_reverted()
     assert schedulers(c.node) == 3
   end
 
@@ -203,7 +203,7 @@ defmodule BeamDeck.V11IntegrationTest do
     assert {:ok, trial} = BudgetTrial.begin(rows, budget, nodes, 10, 30_000)
     assert_scheduler_pair(node, 1, 1)
     assert {:ok, _} = BudgetTrial.revert(trial.trial_id)
-    TestPeer.eventually(fn -> BudgetTrial.status().status == "reverted" end)
+    assert_reverted()
     assert_scheduler_pair(node, 8, 4)
 
     # Panel-close rollback.
@@ -211,7 +211,7 @@ defmodule BeamDeck.V11IntegrationTest do
     assert {:ok, _} = BudgetTrial.begin(rows, budget, nodes, 11, 30_000)
     assert_scheduler_pair(node, 1, 1)
     BudgetTrial.panel(false, 12, self())
-    TestPeer.eventually(fn -> BudgetTrial.status().status == "reverted" end)
+    assert_reverted()
     assert_scheduler_pair(node, 8, 4)
 
     # Lease expiry.
@@ -289,9 +289,33 @@ defmodule BeamDeck.V11IntegrationTest do
              BeamDeck.Diagnostics.submit(self(), "excess", "test", nil, fn -> :ok end)
 
     BudgetTrial.request(self(), "recover", {:revert, trial.trial_id})
-    TestPeer.eventually(fn -> BudgetTrial.status().status == "reverted" end)
+    assert_reverted()
     assert schedulers(c.node) == 3
     BeamDeck.Diagnostics.cancel_interactive(self())
+  end
+
+  test "scheduler mutation acknowledgments include settled dirty scheduler counts" do
+    {:ok, peer, node} = scheduler_coupling_peer()
+    on_exit(fn -> TestPeer.stop(peer) end)
+
+    for _ <- 1..100 do
+      assert {:ok, 8} = Remote.set_flag(node, :schedulers_online, 1)
+      assert_scheduler_pair(node, 1, 1)
+      assert {:ok, 1} = Remote.set_flag(node, :schedulers_online, 8)
+      assert_scheduler_pair(node, 8, 4)
+      assert {:ok, 4} = Remote.set_flag(node, :dirty_cpu_schedulers_online, 1)
+      assert_scheduler_pair(node, 8, 1)
+      assert {:ok, 1} = Remote.set_flag(node, :dirty_cpu_schedulers_online, 4)
+      assert_scheduler_pair(node, 8, 4)
+    end
+  end
+
+  defp assert_reverted do
+    TestPeer.eventually(fn ->
+      status = BudgetTrial.status()
+      assert status.status != "rollback_failed", inspect(status)
+      status.status == "reverted"
+    end)
   end
 
   defp scheduler_coupling_peer do

@@ -251,10 +251,7 @@ defmodule BeamDeck.Remote do
   def set_flag(node, flag, value)
       when flag in [:schedulers_online, :dirty_cpu_schedulers_online] and is_integer(value) and
              value > 0 do
-    case call_raw(node, :erlang, :system_flag, [flag, value]) do
-      {:ok, old} -> {:ok, old}
-      {:error, reason} -> {:error, reason}
-    end
+    BeamDeck.SchedulerChange.set(node, flag, value)
   end
 
   def set_scheduler_wall_time(node, enabled) when is_boolean(enabled) do
