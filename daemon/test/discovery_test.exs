@@ -30,6 +30,7 @@ defmodule BeamDeck.DiscoveryTest do
     config = %{
       "nodes" => [
         %{"name" => "beam_deck_58391@host"},
+        %{"name" => "beam_deck_shell_58391@host"},
         %{"name" => "beam_deck_demo@host"},
         %{"name" => "beam_deck_api@host"}
       ]
@@ -38,6 +39,7 @@ defmodule BeamDeck.DiscoveryTest do
     candidates = Discovery.candidates(config)
 
     refute :beam_deck_58391@host in candidates
+    refute :beam_deck_shell_58391@host in candidates
     assert :beam_deck_demo@host in candidates
     assert :beam_deck_api@host in candidates
   end

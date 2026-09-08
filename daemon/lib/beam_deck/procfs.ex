@@ -56,7 +56,8 @@ defmodule BeamDeck.Procfs do
 
     with {:ok, stat} <- File.read(Path.join(dir, "stat")),
          {:ok, status} <- File.read(Path.join(dir, "status")),
-         {:ok, cmdline} <- File.read(Path.join(dir, "cmdline")) do
+         {:ok, cmdline} <- File.read(Path.join(dir, "cmdline")),
+         false <- internal_client?(String.split(cmdline, <<0>>, trim: true)) do
       fields = parse_stat(stat)
       status_map = parse_status(status)
 
@@ -66,13 +67,9 @@ defmodule BeamDeck.Procfs do
           _ -> ""
         end
 
-      argv = cmdline |> String.split(<<0>>, trim: true) |> redact_argv()
-
       {:ok,
        %{
          pid: String.to_integer(pid),
-         command: Enum.join(argv, " "),
-         argv: argv,
          cwd: cwd,
          rss_bytes: kib(status_map["VmRSS"]),
          vm_bytes: kib(status_map["VmSize"]),
@@ -86,6 +83,14 @@ defmodule BeamDeck.Procfs do
     else
       _ -> :skip
     end
+  end
+
+  defp internal_client?(argv) do
+    argv
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.any?(fn [flag, name] ->
+      flag in ["-sname", "-name"] and BeamDeck.Discovery.helper_node_name?(name)
+    end)
   end
 
   def parse_stat(text) do

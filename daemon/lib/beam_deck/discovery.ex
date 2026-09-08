@@ -2,7 +2,7 @@ defmodule BeamDeck.Discovery do
   @moduledoc false
 
   @node_re ~r/^[A-Za-z0-9_.-]+@[A-Za-z0-9_.:-]+$/
-  @helper_node_re ~r/^beam_deck_[0-9]+(?:@|$)/
+  @helper_node_re ~r/^beam_deck_(?:shell_)?[0-9]+(?:@|$)/
 
   def candidates(config, learned \\ []) do
     epmd = epmd_nodes()
@@ -125,7 +125,7 @@ defmodule BeamDeck.Discovery do
   end
 
   defp helper_node?(node), do: helper_node_name?(node)
-  defp helper_node_name?(node), do: Regex.match?(@helper_node_re, to_string(node))
+  def helper_node_name?(node), do: Regex.match?(@helper_node_re, to_string(node))
 
   def local_short_host do
     {:ok, host} = :inet.gethostname()

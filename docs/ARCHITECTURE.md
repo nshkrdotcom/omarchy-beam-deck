@@ -99,3 +99,5 @@ ControlAccess checks live panel, epoch, known incarnation and capture age immedi
 Projection defines nested retained/exported field allowlists. Generic redaction remains a second defense. Provider diagnostics expose bounded counts and lifecycle reasons, not raw job payloads or credentials. Native acceptance records process start identities before cleanup and distinguishes panel loss from helper death; no cause is inferred from an empty log.
 
 Focused process reports acquire binary metadata before optional ancestry. Each ancestor receives at most 200ms for supervisor-specific queries within the overall diagnostic deadline; an ancestor may be a live process with no supervisor API. Its unavailable child metadata must not starve the rest of the report.
+
+Numeric `beam_deck_shell_<pid>` remsh clients are excluded with the persistent helper from automatic runtime discovery and host-budget participation. Arbitrary application command arguments are no longer retained by the OS census. Supervisor ancestry checks use only the OTP `$initial_call` key before sending supervisor requests.

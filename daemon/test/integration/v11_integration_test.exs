@@ -39,6 +39,12 @@ defmodule BeamDeck.V11IntegrationTest do
     started = System.monotonic_time(:millisecond)
     opts = Map.put(c.opts, "process_timeout_ms", 1_000)
     assert {:ok, report} = ProcessDiagnostics.inspect_process(c.node, Remote.pid_text(pid), opts)
+    [_, silent] = report.ancestry
+    assert {:ok, silent_pid} = Remote.parse_pid(c.node, silent.pid)
+
+    assert {:ok, {:message_queue_len, 0}} =
+             Remote.call_raw(c.node, :erlang, :process_info, [silent_pid, :message_queue_len])
+
     assert report.binaries.status == "available"
     assert report.binaries.referenced_bytes > 0
     assert System.monotonic_time(:millisecond) - started < 750

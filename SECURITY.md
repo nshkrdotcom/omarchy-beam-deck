@@ -8,11 +8,11 @@ The OS user running Omarchy, its plugin directory, the XDG configuration/state a
 
 ## Data minimization precedes redaction
 
-Production diagnostic code does **not** collect arbitrary process state, process messages, full dictionaries, ETS keys/values, binary contents/addresses or environment variables. Process ancestry reads only `$ancestors`; stack entries omit arguments. Supervisor child IDs are projected as metadata rather than arbitrary terms. ETS output is a metadata allowlist. Crash triage does not expose the raw file/prefix or heap/process sections.
+Production diagnostic code does **not** collect arbitrary process state, process messages, full dictionaries, ETS keys/values, binary contents/addresses or environment variables. Process ancestry reads only `$ancestors` and `$initial_call`; stack entries omit arguments. Supervisor child IDs are projected as metadata rather than arbitrary terms. ETS output is a metadata allowlist. Crash triage does not expose the raw file/prefix or heap/process sections.
 
 Outgoing metadata is sanitized with depth/map/list/string bounds, sensitive-key filtering and exact known-cookie replacement, including atom keys/values. Export additionally excludes cwd/argv/command/config/config_path/cookie_env. Redaction is defense in depth, not proof that arbitrary data is safe. A previously unknown secret in a module name, label, source metadata or crash slogan cannot always be recognized. Review every export before sharing; names and counts can reveal internal architecture even without credentials.
 
-The legacy `/proc` census includes local command/cwd metadata in live UI; distribution-cookie flag values are redacted. Arbitrary unrelated application CLI secrets are not guaranteed detectable. Exports remove command/cwd entirely. Only configured/default known cookies are exactly scrubbed; cookies supplied solely to another unrelated process are not a universal redaction dictionary.
+The `/proc` census reads command arguments only to exclude BEAM Deck-owned clients; arbitrary arguments and command strings are not retained in runtime snapshots or emitted to the UI. Local cwd metadata remains for runtime labels and bounded crash-header matching; exports remove it. Only configured/default known cookies are exactly scrubbed; cookies supplied solely to another unrelated process are not a universal redaction dictionary.
 
 ## Cookies and files
 
@@ -65,3 +65,5 @@ ZIP JSON now passes explicit nested projections before redaction; unrecognized i
 Both daemon execution and the independent scheduler owner reject stale view epochs and changed/unknown creation. Historical mode cancels interactive work and revokes unkept trial permission. Revert stays callable under saturation. A queued timeout remains an uncertain side-effect outcome; recovery never overwrites an external conflicting value or restores a different VM incarnation. Journals remain helper-memory state: untrappable helper/host loss cannot guarantee rollback.
 
 Deep Events stop delivery is deliberately separate from confirmed teardown: a nonblocking stop request bypasses ordinary job admission, while exit/code unload still require confirmation. Standard agentless inspection does not install that probe. Enumeration APIs may allocate remotely before helper-side cardinality checks; admission caps and deadlines reduce exposure but cannot promise constant target allocation. Do not use production workloads for fault injection.
+
+Focused ancestry may read only the OTP `$ancestors` and `$initial_call` metadata keys. The latter identifies supervisors before supervisor API requests; no full dictionary fallback is permitted.

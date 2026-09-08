@@ -82,7 +82,7 @@ for (const path of ["README.md", "SECURITY.md", "docs/ARCHITECTURE.md", "docs/PR
 const discoveryRegression = read("daemon/lib/beam_deck/discovery.ex");
 assert.match(
   discoveryRegression,
-  /@helper_node_re\s+~r\/\^beam_deck_\[0-9\]\+\(\?:@\|\$\)\//
+  /@helper_node_re\s+~r\/\^beam_deck_\(\?:shell_\)\?\[0-9\]\+\(\?:@\|\$\)\//
 );
 assert.doesNotMatch(
   discoveryRegression,
@@ -123,7 +123,7 @@ assert.doesNotMatch(
 const beamDiscovery = read("daemon/lib/beam_deck/discovery.ex");
 assert.match(
   beamDiscovery,
-  /@helper_node_re\s+~r\/\^beam_deck_\[0-9\]\+\(\?:@\|\$\)\//
+  /@helper_node_re\s+~r\/\^beam_deck_\(\?:shell_\)\?\[0-9\]\+\(\?:@\|\$\)\//
 );
 assert.doesNotMatch(
   beamDiscovery,

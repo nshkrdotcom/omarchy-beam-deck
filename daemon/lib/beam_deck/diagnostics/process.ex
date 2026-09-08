@@ -186,6 +186,18 @@ defmodule BeamDeck.Diagnostics.Process do
   defp ancestor_name(_), do: nil
 
   defp child_info(node, parent, child, deadline) do
+    # OTP proc_lib records supervisor identity in this single metadata key.
+    # Never dump the dictionary or send supervisor calls to arbitrary ancestors.
+    case rpc(node, :erlang, :process_info, [parent, {:dictionary, :"$initial_call"}], deadline) do
+      {:ok, {{:dictionary, :"$initial_call"}, {:supervisor, module, 1}}} when is_atom(module) ->
+        supervisor_child(node, parent, child, deadline)
+
+      _ ->
+        %{status: "unavailable_or_capped"}
+    end
+  end
+
+  defp supervisor_child(node, parent, child, deadline) do
     case rpc(node, :supervisor, :which_child, [parent, child], deadline) do
       {:ok, {:ok, row}} -> child_row(row)
       _ -> small_supervisor_child(node, parent, child, deadline)
