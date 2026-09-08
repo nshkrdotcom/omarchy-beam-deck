@@ -1,10 +1,10 @@
-# BEAM Deck continuation checkpoint
+# BEAM Deck release continuation
 
-Paused at the operator's request on 2026-09-07 after completing the current implementation and its local gate. Resume from this checkout, not from main or an older plan.
+Release closeout resumed on 2026-09-08. Version 1.2.0 includes both implementation tranches and the identifier migration in `ff2956a`. The operator now authorizes merging to main, pushing and deleting the feature branch after validation. The older checkpoint below remains a dated execution record.
 
 ## Repository and documents
 
-* Root: `/home/home/.config/omarchy/plugins/com.nshkr.beam-deck`.
+* Root: `/home/home/.config/omarchy/plugins/nshkr.beam-deck`.
 * Branch: `feat/operator-mission-control`; origin `git@github.com:nshkrdotcom/omarchy-beam-deck.git`.
 * Community research plan: `docs/COMMUNITY-FEATURE-PLAN.md`, mirrored at `~/Documents/BEAM-Deck/community-feature-plan.md`.
 * This handoff: `docs/CONTINUATION.md`, mirrored at `~/Documents/BEAM-Deck/CONTINUATION.md`.
@@ -56,3 +56,11 @@ No native acceptance claim is made for the new workflows yet. Optional follow-up
 ## Cleanup and pause state
 
 Read-only final status showed the panel closed, live mode, zero active/queued/UI jobs, no trial/probe and no watches. Fixture peers were stopped by test teardown; a final process check found none. The existing shell-owned helper remains, as designed. No new native test peer, clipboard action, saved preference change or workstation change was made in this tranche. User workloads, watches, exports and journals were not modified. No test or acceptance runner should remain active after this checkpoint. Pause after the final commit/push; do not begin the next native step automatically.
+
+## 2026-09-08 release validation
+
+Actual checkout directory remains `nshkr.beam-deck`; manifest/IPC ID is `com.nshkr.beam-deck`. The directory name does not define the ID. CI run [34287879201](https://github.com/nshkrdotcom/omarchy-beam-deck/actions/runs/34287879201) passed static, lint and all three supported OTP/Elixir combinations for the rename commit.
+
+Release checks in `/tmp/beam-deck-release-evidence`: `check.log` passes 109 default ExUnit (23 excluded), 132 including real peers, 29 JavaScript, 5 Python, strict formatting/compilation/Credo/Dialyzer and 46 launcher protocol messages. `qt.log` and `qt15.log` each pass 29 results at normal/1.5 scale. `native-lint.log`, manifest validation and whitespace checks pass. Version contract first failed with actual 1.1.0 versus expected 1.2.0 (`version-red.log`); product, export and source contracts now agree on 1.2.0.
+
+The host currently has an old-ID bar entry, so the renamed plugin is disabled and both IPC targets return Target not found. Permission to replace only that entry's ID is pending; no workstation configuration has been changed. New-workflow native acceptance remains pending. The previous boot's `/tmp/beam-deck-community-evidence` and `/tmp/beam-deck-operator-evidence` artifacts are no longer present; their earlier recorded results are historical evidence, not currently available captures. No endurance rerun is requested.

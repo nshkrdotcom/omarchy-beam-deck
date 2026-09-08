@@ -58,7 +58,7 @@ defmodule BeamDeck.Diagnostics.Bundle do
 
     metadata = %{
       product: "BEAM Deck",
-      version: "1.1.0",
+      version: "1.2.0",
       protocol: 1,
       agentless: true,
       exported_at_ms: System.system_time(:millisecond),

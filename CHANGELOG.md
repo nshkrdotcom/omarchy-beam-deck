@@ -4,7 +4,9 @@ All notable changes to BEAM Deck are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased — operator mission control
+## [1.2.0] - 2026-09-08
+
+* Rename the plugin identifier from `nshkr.beam-deck` to `com.nshkr.beam-deck` across the manifest, service registration, IPC, tests and documentation. Existing installations must update their existing bar entry to the new ID.
 
 * Add explicit process activity and ETS growth surveys with signed interval deltas, exact identity, five-row paging, local filtering and direct inspection pivots.
 * Add exact-PID stack sampling with frequency bars, expandable argument-free stacks and explicit report copying.
@@ -63,7 +65,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- Omarchy Quattro service/bar-widget/panel plugin under `com.nshkr.beam-deck`.
+- Omarchy Quattro service/bar-widget/panel plugin under `nshkr.beam-deck`.
 - Graceful missing-BEAM, no-workload, OS-only, attached, and auth/unreachable states.
 - Mise-first onboarding and stale-shell-PATH `mise exec` recovery.
 - Local `/proc` BEAM census with command-line cookie redaction and deep-node OS PID correlation.
@@ -79,3 +81,5 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 [1.1.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/releases/tag/v1.0.0
+
+[1.2.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/compare/v1.1.0...v1.2.0

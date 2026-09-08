@@ -4,7 +4,7 @@ defmodule BeamDeck.MixProject do
   def project do
     [
       app: :beam_deck,
-      version: "1.1.0",
+      version: "1.2.0",
       elixir: ">= 1.18.0",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),

@@ -1,6 +1,6 @@
 # BEAM Deck
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/nshkrdotcom/omarchy-beam-deck)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/nshkrdotcom/omarchy-beam-deck)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Omarchy%20Quattro-purple.svg)](https://github.com/nshkrdotcom/omarchy-beam-deck)
 [![App Dependencies](https://img.shields.io/badge/app%20dependencies-0-brightgreen.svg)](#requirements-and-external-dependencies)
@@ -110,6 +110,10 @@ omarchy-shell shell rescanPlugins
 omarchy plugin enable com.nshkr.beam-deck --section right
 omarchy restart shell
 ```
+
+### Upgrade from 1.1
+
+Version 1.2 uses `com.nshkr.beam-deck`. Replace the old `nshkr.beam-deck` ID in your existing bar entry, preserving its position and options, then rescan plugins. The checkout directory can retain its old name; the manifest defines the plugin ID. Do not add a second bar entry.
 
 ### Update
 
