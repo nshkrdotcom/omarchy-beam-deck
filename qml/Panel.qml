@@ -8,7 +8,7 @@ import "DeckState.js" as DeckState
 
 Panel {
   id: root
-  moduleName: "nshkr.beam-deck"
+  moduleName: "com.nshkr.beam-deck"
   manageIpc: false
 
   property var anchorItem: null

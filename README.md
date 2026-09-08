@@ -100,14 +100,14 @@ The status-bar widget should appear in the configured bar section after the shel
 For local plugin development, keep the checkout directly at:
 
 ```text
-~/.config/omarchy/plugins/nshkr.beam-deck
+~/.config/omarchy/plugins/com.nshkr.beam-deck
 ```
 
 Then rescan, enable, and restart the shell:
 
 ```bash
 omarchy-shell shell rescanPlugins
-omarchy plugin enable nshkr.beam-deck --section right
+omarchy plugin enable com.nshkr.beam-deck --section right
 omarchy restart shell
 ```
 
@@ -116,7 +116,7 @@ omarchy restart shell
 Update a Git-managed installation through Omarchy, then restart the shell:
 
 ```bash
-omarchy plugin update nshkr.beam-deck
+omarchy plugin update com.nshkr.beam-deck
 omarchy restart shell
 ```
 
@@ -125,7 +125,7 @@ omarchy restart shell
 Before removing BEAM Deck, **revert any active scheduler trial** and restore any scheduler changes you do not want to leave in place.
 
 ```bash
-omarchy plugin remove nshkr.beam-deck
+omarchy plugin remove com.nshkr.beam-deck
 omarchy restart shell
 ```
 
@@ -163,7 +163,7 @@ A non-distributed local VM will still appear in the host census with OS-level vi
 Click the BEAM Deck icon in the Omarchy bar, use Omarchy's bar-position shortcut, or call the shell IPC directly:
 
 ```bash
-omarchy-shell shell toggle nshkr.beam-deck '{}'
+omarchy-shell shell toggle com.nshkr.beam-deck '{}'
 ```
 
 Omarchy Quattro maps **`Super+Ctrl+1` through `Super+Ctrl+9`** to bar panels by position. BEAM Deck deliberately does not install or rewrite a global Hyprland binding of its own, so moving the widget in your bar changes which position number opens it without creating a second shortcut system.
@@ -362,20 +362,20 @@ BEAM Deck exposes the normal Omarchy shell surface for scripting, custom keybind
 
 ```bash
 # Toggle the panel
-omarchy-shell shell toggle nshkr.beam-deck '{}'
+omarchy-shell shell toggle com.nshkr.beam-deck '{}'
 
 # Open or close explicitly
-omarchy-shell shell summon nshkr.beam-deck '{}'
-omarchy-shell shell hide nshkr.beam-deck
+omarchy-shell shell summon com.nshkr.beam-deck '{}'
+omarchy-shell shell hide com.nshkr.beam-deck
 
 # Force an immediate telemetry refresh
-omarchy-shell nshkr.beam-deck refresh
+omarchy-shell com.nshkr.beam-deck refresh
 
 # Print the latest JSON snapshot
-omarchy-shell nshkr.beam-deck status
+omarchy-shell com.nshkr.beam-deck status
 
 # Ping the background service
-omarchy-shell nshkr.beam-deck ping
+omarchy-shell com.nshkr.beam-deck ping
 ```
 
 If you want a custom global binding beyond Omarchy's `Super+Ctrl+1–9` bar-position bindings, add it in your own Omarchy/Hyprland configuration. BEAM Deck does not silently modify desktop keybindings.

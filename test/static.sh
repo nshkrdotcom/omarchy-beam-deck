@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-jq -e '.schemaVersion == 1 and .id == "nshkr.beam-deck" and (.kinds | sort == ["bar-widget","service"])' manifest.json >/dev/null
+jq -e '.schemaVersion == 1 and .id == "com.nshkr.beam-deck" and (.kinds | sort == ["bar-widget","service"])' manifest.json >/dev/null
 
 for file in qml/Service.qml qml/BarWidget.qml qml/Panel.qml; do
   test -s "$file"
@@ -20,12 +20,12 @@ for file in qml/Service.qml qml/BarWidget.qml; do
   grep -q 'property var manifest' "$file"
 done
 
-grep -q 'target: "nshkr.beam-deck"' qml/Service.qml
+grep -q 'target: "com.nshkr.beam-deck"' qml/Service.qml
 grep -q 'function open(payloadJson)' qml/BarWidget.qml
 grep -q 'function open(payloadJson)' qml/Panel.qml
 grep -q 'function close()' qml/Panel.qml
 grep -q 'property var bar' qml/BarWidget.qml
-grep -q 'serviceFor("nshkr.beam-deck")' qml/BarWidget.qml
+grep -q 'serviceFor("com.nshkr.beam-deck")' qml/BarWidget.qml
 grep -q 'source: Qt.resolvedUrl("Panel.qml")' qml/BarWidget.qml
 grep -q 'panelLoader.item.anchorItem = button' qml/BarWidget.qml
 grep -q 'panelLoader.item.hostWidget = root' qml/BarWidget.qml

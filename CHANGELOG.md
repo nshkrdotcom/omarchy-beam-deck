@@ -63,7 +63,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- Omarchy Quattro service/bar-widget/panel plugin under `nshkr.beam-deck`.
+- Omarchy Quattro service/bar-widget/panel plugin under `com.nshkr.beam-deck`.
 - Graceful missing-BEAM, no-workload, OS-only, attached, and auth/unreachable states.
 - Mise-first onboarding and stale-shell-PATH `mise exec` recovery.
 - Local `/proc` BEAM census with command-line cookie redaction and deep-node OS PID correlation.

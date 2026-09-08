@@ -287,10 +287,10 @@ Item {
   }
 
   IpcHandler {
-    target: "nshkr.beam-deck"
+    target: "com.nshkr.beam-deck"
     function status(): string { return JSON.stringify(root.ipcStatusSnapshot()) }
     function refresh(): string { root.refresh(); return "ok" }
-    function open(): string { if (root.shell) root.shell.summon("nshkr.beam-deck", "{}"); return "ok" }
+    function open(): string { if (root.shell) root.shell.summon("com.nshkr.beam-deck", "{}"); return "ok" }
     function ping(): string { return "ok" }
   }
 }

@@ -4,7 +4,7 @@ Paused at the operator's request on 2026-09-07 after completing the current impl
 
 ## Repository and documents
 
-* Root: `/home/home/.config/omarchy/plugins/nshkr.beam-deck`.
+* Root: `/home/home/.config/omarchy/plugins/com.nshkr.beam-deck`.
 * Branch: `feat/operator-mission-control`; origin `git@github.com:nshkrdotcom/omarchy-beam-deck.git`.
 * Community research plan: `docs/COMMUNITY-FEATURE-PLAN.md`, mirrored at `~/Documents/BEAM-Deck/community-feature-plan.md`.
 * This handoff: `docs/CONTINUATION.md`, mirrored at `~/Documents/BEAM-Deck/CONTINUATION.md`.

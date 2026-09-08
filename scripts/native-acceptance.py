@@ -14,7 +14,7 @@ import subprocess
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN = "nshkr.beam-deck"
+PLUGIN = "com.nshkr.beam-deck"
 BUDGETS = {"helper": {"rss_growth_mib": 32, "cpu_percent": 10},
            "shell": {"rss_growth_mib": 128, "cpu_percent": 15},
            "target": {"rss_growth_mib": 16, "cpu_percent": 5}}

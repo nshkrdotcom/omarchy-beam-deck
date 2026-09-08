@@ -1,6 +1,6 @@
 # Community needs → BEAM Deck diagnostic workflows
 
-Date/access date: 2026-09-07. Repository `/home/home/.config/omarchy/plugins/nshkr.beam-deck`, clean baseline `f5a035170302f0459e03f1947eb7b5fb277b9bd2`, continuing the authorized `feat/operator-mission-control` branch. Origin is `git@github.com:nshkrdotcom/omarchy-beam-deck.git`. No new dependencies, application agents, workstation changes, sibling edits or main merge. Omarchy skill/plugin guidance and the earlier protected presentation contract remain applicable. This document is synchronized with `~/Documents/BEAM-Deck/community-feature-plan.md`.
+Date/access date: 2026-09-07. Repository `/home/home/.config/omarchy/plugins/com.nshkr.beam-deck`, clean baseline `f5a035170302f0459e03f1947eb7b5fb277b9bd2`, continuing the authorized `feat/operator-mission-control` branch. Origin is `git@github.com:nshkrdotcom/omarchy-beam-deck.git`. No new dependencies, application agents, workstation changes, sibling edits or main merge. Omarchy skill/plugin guidance and the earlier protected presentation contract remain applicable. This document is synchronized with `~/Documents/BEAM-Deck/community-feature-plan.md`.
 
 ## Checkpoint status
 

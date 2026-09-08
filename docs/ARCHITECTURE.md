@@ -2,7 +2,7 @@
 
 ## Scope and ownership
 
-The Omarchy plugin stays `nshkr.beam-deck`, with one service, one fixed-slot bar widget and one panel. This is a local development control surface, not an in-app APM agent, permanent target service, cluster federation layer or generic arbitrary-RPC console.
+The Omarchy plugin stays `com.nshkr.beam-deck`, with one service, one fixed-slot bar widget and one panel. This is a local development control surface, not an in-app APM agent, permanent target service, cluster federation layer or generic arbitrary-RPC console.
 
 ```text
 Omarchy shell / Quickshell

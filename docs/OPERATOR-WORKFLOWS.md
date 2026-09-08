@@ -1,6 +1,6 @@
 # Operating BEAM Deck
 
-Open the real bar icon, its configured bar-position shortcut, or `omarchy-shell nshkr.beam-deck open`. All use the same native panel. The main title and Cockpit / Investigate / Refresh / Shortcuts / Close rail keep their native layout.
+Open the real bar icon, its configured bar-position shortcut, or `omarchy-shell com.nshkr.beam-deck open`. All use the same native panel. The main title and Cockpit / Investigate / Refresh / Shortcuts / Close rail keep their native layout.
 
 ## Orient and follow evidence
 

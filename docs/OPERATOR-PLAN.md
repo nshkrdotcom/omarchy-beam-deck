@@ -14,7 +14,7 @@ Local gates pass 119 ExUnit tests including disposable peers, 27 JS tests, 5 Pyt
 
 ## Authority, repository and baseline
 
-Started 2026-09-07. Repository `/home/home/.config/omarchy/plugins/nshkr.beam-deck` was clean on `main` at `987ffb4` (preceded by `ca2b476`, `ead89d0`). Created and switched to **`feat/operator-mission-control`**, without replacing an existing branch. Confirmed origin: `git@github.com:nshkrdotcom/omarchy-beam-deck.git`. No applicable ancestor or repository `AGENTS.md` was found. Read the Omarchy skill and its `plugins.md` and `capture.md` guides. The sibling Tactical Display checkout is reference only; its initial status was clean.
+Started 2026-09-07. Repository `/home/home/.config/omarchy/plugins/com.nshkr.beam-deck` was clean on `main` at `987ffb4` (preceded by `ca2b476`, `ead89d0`). Created and switched to **`feat/operator-mission-control`**, without replacing an existing branch. Confirmed origin: `git@github.com:nshkrdotcom/omarchy-beam-deck.git`. No applicable ancestor or repository `AGENTS.md` was found. Read the Omarchy skill and its `plugins.md` and `capture.md` guides. The sibling Tactical Display checkout is reference only; its initial status was clean.
 
 All generated captures, protocol output, profiles and native resources go outside the watched plugin tree, under private `/tmp/beam-deck-operator-evidence` or dedicated temporary directories. No workstation font/theme/bar/keybinding/monitor changes, no main merge, release, force push, dependency installation or production runtime mutation. Before every commit and push recheck root, branch, diff and remote. Stage named task files only. Keep this document byte-identical to `~/Documents/BEAM-Deck/operator-mission-control.md`.
 
