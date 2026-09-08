@@ -42,7 +42,7 @@ defmodule BeamDeck.Diagnostics.Bundle do
   defp encode_frames(frames) do
     result =
       Enum.reduce_while(frames, {[], 2}, fn frame, {encoded, size} ->
-        bytes = frame |> Redaction.export() |> Json.encode()
+        bytes = frame |> BeamDeck.Projection.snapshot() |> Redaction.export() |> Json.encode()
         total = size + byte_size(bytes) + 1
         if total <= @limit, do: {:cont, {[bytes | encoded], total}}, else: {:halt, :too_large}
       end)
@@ -54,11 +54,7 @@ defmodule BeamDeck.Diagnostics.Bundle do
   end
 
   defp entries(snapshot, frames_json, frames, recorder, historical?) do
-    fields =
-      Map.take(
-        snapshot,
-        ~w(type protocol at_ms session_id host summary nodes alerts forecasts budget budget_trial topology)a
-      )
+    fields = BeamDeck.Projection.snapshot(snapshot)
 
     metadata = %{
       product: "BEAM Deck",
@@ -96,9 +92,18 @@ defmodule BeamDeck.Diagnostics.Bundle do
       {~c"metadata.json", Json.encode(metadata)},
       {~c"current-snapshot.json", fields |> Redaction.export() |> Json.encode()},
       {~c"flight-recorder.json", frames_json},
-      {~c"incidents.json", snapshot[:incidents] |> Redaction.export() |> Json.encode()},
-      {~c"recent-events.json", snapshot[:events] |> Redaction.export() |> Json.encode()},
-      {~c"crash-triage.json", snapshot[:crash_triage] |> Redaction.export() |> Json.encode()}
+      {~c"incidents.json",
+       snapshot[:incidents]
+       |> BeamDeck.Projection.incidents()
+       |> Redaction.export()
+       |> Json.encode()},
+      {~c"recent-events.json",
+       snapshot[:events] |> BeamDeck.Projection.events() |> Redaction.export() |> Json.encode()},
+      {~c"crash-triage.json",
+       snapshot[:crash_triage]
+       |> BeamDeck.Projection.crashes()
+       |> Redaction.export()
+       |> Json.encode()}
     ]
 
     if Enum.sum(Enum.map(data, fn {_, bytes} -> byte_size(bytes) end)) <= @limit,

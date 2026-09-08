@@ -222,6 +222,58 @@ defmodule BeamDeck.V11IntegrationTest do
     assert_scheduler_pair(node, 8, 4)
   end
 
+  test "safety owner rejects queued stale manual control and changed VM identity", c do
+    start_supervised!(BudgetTrial)
+    BudgetTrial.panel(true, 7, self())
+    assert {:ok, info} = Remote.identity(c.node)
+
+    assert {:error, :live_view_changed} =
+             BudgetTrial.set(c.name, :schedulers_online, 1,
+               epoch: 6,
+               expected_creation: info.creation
+             )
+
+    assert {:error, :target_restarted_or_unavailable} =
+             BudgetTrial.set(c.name, :schedulers_online, 1,
+               epoch: 7,
+               expected_creation: info.creation + 1
+             )
+
+    BudgetTrial.panel(false, 8, self())
+
+    assert {:error, :live_view_changed} =
+             BudgetTrial.set(c.name, :schedulers_online, 1,
+               epoch: 7,
+               expected_creation: info.creation
+             )
+
+    assert schedulers(c.node) == 3
+  end
+
+  test "recovery bypasses a saturated diagnostic queue", c do
+    start_supervised!({Task.Supervisor, name: BeamDeck.DiagnosticTasks})
+    start_supervised!({BeamDeck.Diagnostics, Config.defaults()["diagnostics"]})
+    start_supervised!(BudgetTrial)
+    {rows, budget, nodes} = proposal(c)
+    BudgetTrial.panel(true, 1, self())
+    assert {:ok, trial} = BudgetTrial.begin(rows, budget, nodes, 1, 30_000)
+
+    for i <- 1..18 do
+      assert :ok =
+               BeamDeck.Diagnostics.submit(self(), "held-#{i}", "test", nil, fn ->
+                 Process.sleep(10_000)
+               end)
+    end
+
+    assert {:error, :queue_full} =
+             BeamDeck.Diagnostics.submit(self(), "excess", "test", nil, fn -> :ok end)
+
+    BudgetTrial.request(self(), "recover", {:revert, trial.trial_id})
+    TestPeer.eventually(fn -> BudgetTrial.status().status == "reverted" end)
+    assert schedulers(c.node) == 3
+    BeamDeck.Diagnostics.cancel_interactive(self())
+  end
+
   defp scheduler_coupling_peer do
     name =
       String.to_atom("bd_scheduler_coupling_#{System.unique_integer([:positive])}")
@@ -308,10 +360,21 @@ defmodule BeamDeck.V11IntegrationTest do
       assert {:ok, probe} =
                BeamDeck.DeepEvents.start(c.node, Config.defaults()["event_thresholds"], parent)
 
-      Process.exit(parent, :kill)
+      assert :ok = BeamDeck.DeepEvents.request_stop(probe)
 
       TestPeer.eventually(fn ->
         Remote.call(c.node, :erlang, :is_process_alive, [probe], true) == false
+      end)
+
+      assert :ok = BeamDeck.DeepEvents.stop(c.node, probe)
+
+      assert {:ok, parent_probe} =
+               BeamDeck.DeepEvents.start(c.node, Config.defaults()["event_thresholds"], parent)
+
+      Process.exit(parent, :kill)
+
+      TestPeer.eventually(fn ->
+        Remote.call(c.node, :erlang, :is_process_alive, [parent_probe], true) == false
       end)
 
       assert Remote.call(c.node, :erlang, :system_monitor, [], nil) == before

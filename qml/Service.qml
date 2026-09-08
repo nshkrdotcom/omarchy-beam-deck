@@ -12,8 +12,12 @@ Item {
   property var snapshot: DeckState.emptySnapshot()
   property var jobs: ({})
   property bool historicalMode: false
+  onHistoricalModeChanged: send({cmd:"view",historical:historicalMode})
   property var operatorBaseline: null
   property int sequence: 0
+  property int lastSnapshotBytes: 0
+  property string workspace: "cockpit"
+  property string investigationTab: "triage"
   property string lastSession: ""
   property string notificationError: ""
   property var notificationQueue: []
@@ -43,10 +47,10 @@ Item {
     if (!open) { historicalMode = false; jobs = DeckState.cancelInteractive(jobs, Date.now()) }
     return send({ cmd: "panel", open: panelOpen })
   }
-  function setSchedulers(node, value) { if (!mayMutate(node)) return false; return send({ cmd: "set_schedulers", node: node, value: Number(value) }) }
-  function setDirtySchedulers(node, value) { if (!mayMutate(node)) return false; return send({ cmd: "set_dirty_schedulers", node: node, value: Number(value) }) }
-  function restore(node) { if (!mayMutate(node)) return false; return send({ cmd: "restore", node: node }) }
-  function deepEvents(node, enabled) { if (enabled && !mayMutate(node)) return false; return send({ cmd: "deep_events", node: node, enabled: !!enabled }) }
+  function setSchedulers(node, value) { if (!mayMutate(node)) return false; return send({ cmd: "set_schedulers", node: node, expected_creation: nodeCreation(node), value: Number(value) }) }
+  function setDirtySchedulers(node, value) { if (!mayMutate(node)) return false; return send({ cmd: "set_dirty_schedulers", node: node, expected_creation: nodeCreation(node), value: Number(value) }) }
+  function restore(node) { if (!mayMutate(node)) return false; return send({ cmd: "restore", node: node, expected_creation: nodeCreation(node) }) }
+  function deepEvents(node, enabled) { if (enabled && !mayMutate(node)) return false; return send({ cmd: "deep_events", node: node, expected_creation: nodeCreation(node), enabled: !!enabled }) }
   function collectGc(node, pid, creation) {
     if (!mayMutate(node) || !Number.isInteger(creation)) return false
     return send({cmd:"gc",node:node,pid:pid,expected_creation:creation})
@@ -65,8 +69,9 @@ Item {
     if (!send(command)) jobs = DeckState.acceptJob(jobs, {request_id:id, kind:kind, status:"error", error:"helper_unavailable"}, Date.now())
     return id
   }
-  function inspectProcess(node, pid) { return request("inspect_process", {node:node, pid:pid}) }
-  function inspectEts(node, sort) { return request("inspect_ets", {node:node, sort:sort || "memory"}) }
+  function nodeCreation(node) { return ((snapshot.nodes || []).filter(function(n){return n.name===node})[0] || {}).creation }
+  function inspectProcess(node, pid) { return request("inspect_process", {node:node, pid:pid,expected_creation:nodeCreation(node)}) }
+  function inspectEts(node, sort) { return request("inspect_ets", {node:node, sort:sort || "memory",expected_creation:nodeCreation(node)}) }
   function recorderFrame(id) { return request("recorder_frame", {frame_id:id}) }
   function compareFrames(from, to) { return request("compare_frames", {from_frame_id:from, to_frame_id:to}) }
   function exportBundle(from, to) { return request("export_bundle", {from_frame_id:from || null, to_frame_id:to || null}) }
@@ -103,7 +108,7 @@ Item {
     Quickshell.execDetached(["xdg-terminal-exec", "--app-id=TUI.float", "-e", "bash", "-lc", command + "; printf '\\nPress Enter to close...'; read -r"])
   }
   function installBeam() { openTerminal(shellQuote(pluginRoot + "/bin/beam-deck-onboard")) }
-  function remsh(node) { openTerminal(shellQuote(pluginRoot + "/bin/beam-deck-remsh") + " " + shellQuote(node)) }
+  function remsh(node) { if (!mayMutate(node)) return; openTerminal(shellQuote(pluginRoot + "/bin/beam-deck-remsh") + " " + shellQuote(node)) }
   function launchProfile(normalSchedulers, dirtyCpuSchedulers) { openTerminal(shellQuote(pluginRoot + "/bin/beam-deck-profile") + " --schedulers " + Number(normalSchedulers) + " --dirty-cpu " + Number(dirtyCpuSchedulers)) }
   function shellQuote(value) { return "'" + String(value || "").split("'").join("'\\''") + "'" }
 
@@ -112,6 +117,7 @@ Item {
     try {
       var data = JSON.parse(String(line))
       if (data.type === "snapshot") {
+        lastSnapshotBytes = String(line).length
         if (lastSession && data.session_id && lastSession !== data.session_id) {
           jobs = ({})
           historicalMode = false
@@ -244,6 +250,15 @@ Item {
     return {
       type: "snapshot",
       protocol: s.protocol || 1,
+      panel_open: panelOpen,
+      historical_mode: historicalMode,
+      workspace: workspace,
+      investigation_tab: investigationTab,
+      provider: s.provider || {},
+      collection: s.collection || {},
+      payload_bytes: lastSnapshotBytes,
+      ui_jobs: Object.keys(jobs).length,
+      watch_count: ((s.watchlist || {}).entries || []).length,
       session_id: s.session_id || "",
       at_ms: s.at_ms || 0,
       onboarding: s.onboarding || {},

@@ -9,19 +9,22 @@ defmodule BeamDeck.Activity do
     nodes = Enum.flat_map(frame.nodes, &node_changes(before[&1.name], &1))
     events = Enum.map(frame.new_events, &runtime_event/1)
 
-    (nodes ++ events)
-    |> Enum.take(64)
-    |> Enum.with_index()
-    |> Enum.map(fn {row, i} ->
-      Map.merge(row, %{
-        id: "activity:#{frame.sequence}:#{i}",
-        frame_id: frame.frame_id,
-        sequence: frame.sequence,
-        captured_at_ms: frame.at_ms,
-        at_ms: row[:at_ms] || frame.at_ms,
-        evidence_class: "observed"
-      })
-    end)
+    rows =
+      (nodes ++ events)
+      |> Enum.take(64)
+      |> Enum.with_index()
+      |> Enum.map(fn {row, i} ->
+        Map.merge(row, %{
+          id: "activity:#{frame.sequence}:#{i}",
+          frame_id: frame.frame_id,
+          sequence: frame.sequence,
+          captured_at_ms: frame.at_ms,
+          at_ms: row[:at_ms] || frame.at_ms,
+          evidence_class: "observed"
+        })
+      end)
+
+    %{rows: rows, omitted: max(0, length(nodes) + length(events) - 64)}
   end
 
   defp node_changes(nil, node),

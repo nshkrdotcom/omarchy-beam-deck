@@ -39,6 +39,7 @@ defmodule BeamDeck.Protocol do
       &valid_scheduler_value/2,
       &valid_gc_creation/2,
       &valid_panel/2,
+      &valid_view/2,
       &valid_deep_events/2
     ]
 
@@ -91,12 +92,16 @@ defmodule BeamDeck.Protocol do
 
   defp valid_scheduler_value(_cmd, _map), do: true
 
-  defp valid_gc_creation("gc", map) do
+  defp valid_gc_creation(cmd, map)
+       when cmd in ~w(gc inspect_process inspect_ets set_schedulers set_dirty_schedulers restore deep_events) do
     not Map.has_key?(map, "expected_creation") or
       (is_integer(map["expected_creation"]) and map["expected_creation"] >= 0)
   end
 
   defp valid_gc_creation(_cmd, _map), do: true
+
+  defp valid_view("view", map), do: is_boolean(map["historical"])
+  defp valid_view(_cmd, _map), do: true
 
   defp valid_panel("panel", map), do: is_boolean(map["open"])
   defp valid_panel(_cmd, _map), do: true

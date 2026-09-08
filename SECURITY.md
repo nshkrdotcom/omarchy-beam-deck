@@ -57,3 +57,11 @@ A slogan/current-function string is bounded and sanitized, but can itself contai
 ## Reporting
 
 Do not post live cookies, unsanitized dumps, raw helper logs, private node names or production exports in a public issue. Reproduce with a disposable peer and distinctive fake secrets. A private security contact is not declared by this repository; use an available private maintainer channel rather than inventing one. Current validation gates and known deployment limitations are in [docs/VALIDATION.md](docs/VALIDATION.md).
+
+## Operator report and control context
+
+ZIP JSON now passes explicit nested projections before redaction; unrecognized incident/node/frame fields cannot be serialized as an extension escape hatch. Captured activity explains only allowlisted fields and does not retain raw before/after state. The operator baseline is a frame reference with bounded metadata, not implicit persistence of a runtime snapshot. Deferred watch observations retain their age and a stale flag; they do not authorize a current PID action.
+
+Both daemon execution and the independent scheduler owner reject stale view epochs and changed/unknown creation. Historical mode cancels interactive work and revokes unkept trial permission. Revert stays callable under saturation. A queued timeout remains an uncertain side-effect outcome; recovery never overwrites an external conflicting value or restores a different VM incarnation. Journals remain helper-memory state: untrappable helper/host loss cannot guarantee rollback.
+
+Deep Events stop delivery is deliberately separate from confirmed teardown: a nonblocking stop request bypasses ordinary job admission, while exit/code unload still require confirmation. Standard agentless inspection does not install that probe. Enumeration APIs may allocate remotely before helper-side cardinality checks; admission caps and deadlines reduce exposure but cannot promise constant target allocation. Do not use production workloads for fault injection.

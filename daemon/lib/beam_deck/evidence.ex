@@ -35,4 +35,28 @@ defmodule BeamDeck.Evidence do
     |> Map.put(:memory, Map.take(node[:memory] || %{}, ~w(total processes binary ets code atom)a))
     |> Map.put(:scheduler_utilization, utilization(node))
   end
+
+  defp last_valid(%{attached: true} = prior, at_ms),
+    do:
+      prior
+      |> Map.take(~w(creation memory processes atoms ports run_queue)a)
+      |> Map.put(:at_ms, at_ms)
+
+  defp last_valid(prior, _at_ms), do: prior[:last_valid]
+
+  def retain_last(nodes, previous, at_ms) do
+    old = Map.new(previous, &{&1.name, &1})
+
+    Enum.map(nodes, fn node ->
+      prior = old[node.name]
+
+      if node[:attached] != true and prior do
+        known = last_valid(prior, at_ms)
+
+        Map.put(node, :last_valid, known)
+      else
+        node
+      end
+    end)
+  end
 end

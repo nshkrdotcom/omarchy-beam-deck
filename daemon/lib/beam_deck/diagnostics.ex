@@ -6,12 +6,28 @@ defmodule BeamDeck.Diagnostics do
   def submit(owner, id, kind, node, fun, opts \\ []),
     do: GenServer.call(__MODULE__, {:submit, owner, id, kind, node, fun, opts})
 
+  def status, do: GenServer.call(__MODULE__, :status)
+
   def cancel_interactive(owner), do: GenServer.cast(__MODULE__, {:cancel, owner})
 
   @impl true
   def init(config), do: {:ok, %{config: config, active: %{}, queue: [], owners: %{}, recent: []}}
 
   @impl true
+  def handle_call(:status, _from, state) do
+    now = System.monotonic_time(:millisecond)
+    oldest = Enum.map(state.queue, & &1.queued_at_ms) |> Enum.min(fn -> now end)
+
+    {:reply,
+     %{
+       active: map_size(state.active),
+       queued: length(state.queue),
+       max_active: state.config["max_concurrent_jobs"],
+       max_queued: state.config["max_queued_jobs"],
+       oldest_queued_ms: max(0, now - oldest)
+     }, state}
+  end
+
   def handle_call({:submit, owner, id, kind, node, fun, opts}, _from, state) do
     ids =
       Enum.map(state.queue, & &1.id) ++
@@ -30,6 +46,7 @@ defmodule BeamDeck.Diagnostics do
       true ->
         job = %{
           owner: owner,
+          queued_at_ms: System.monotonic_time(:millisecond),
           id: id,
           kind: kind,
           node: node,

@@ -13,6 +13,7 @@ Item {
   property string targetNode: ""
   property string targetPid: ""
   property string tab: "triage"
+  onTabChanged: if (service) service.investigationTab = tab
   readonly property var tabDefinitions: [{id:"triage",label:"Triage"},{id:"recorder",label:"Flight recorder"},{id:"process",label:"Process"},{id:"ets",label:"ETS lens"},{id:"pins",label:"Watchlist"},{id:"budget",label:"Budget trial"}]
   property string query: ""
   property string activityQuery: ""
@@ -22,6 +23,10 @@ Item {
   property string recorderMetric: "rss"
   property string recorderNode: ""
   property string etsQuery: ""
+  property string processQuery: ""
+  property string processSort: "mailbox"
+  property var navigationStack: []
+  readonly property var capturedNode: (viewSnapshot.nodes || []).filter(function(n){return n.name===root.targetNode})[0] || ({})
   property bool showResolved: false
   property var expandedIncidents: ({})
   property bool gcConfirmed: false
@@ -56,7 +61,7 @@ Item {
   onProcessResultChanged: gcConfirmed = false
   readonly property var etsResult: result(etsJob)
   readonly property var frameResult: result(frameJob)
-  readonly property string budgetSignature: JSON.stringify(snapshot.budget || [])
+  readonly property string budgetSignature: JSON.stringify({rows:snapshot.budget || [],identities:(snapshot.nodes || []).map(function(n){return [n.name,n.creation,n.attached]})})
   readonly property color fg: Color.popups.text
   readonly property color dim: Util.alpha(fg, 0.65)
   readonly property color accent: Color.accent
@@ -72,7 +77,7 @@ Item {
   Component.onCompleted: if (!targetNode && nodes.length) targetNode = nodes[0].name
   Connections {
     target: root.service
-    function onLastSessionChanged() { root.clearRecorderPause(); root.processRequest = ""; root.etsRequest = "" }
+    function onLastSessionChanged() { root.clearRecorderPause(); root.processRequest = ""; root.etsRequest = ""; root.navigationStack = [] }
   }
 
   function result(job) { return job && job.status === "complete" ? job.result : null }
@@ -83,6 +88,9 @@ Item {
     return job.status === "complete" ? "Captured result; refresh deliberately to inspect again." : "Inspecting\u2026 the cockpit remains live."
   }
   function activate(nextTab, node, pid) {
+    if ((targetPid || etsRequest) && ((nextTab && nextTab!==tab) || (pid && pid!==targetPid) || (node && node!==targetNode))) {
+      navigationStack = navigationStack.concat([{tab:tab,node:targetNode,pid:targetPid,processRequest:processRequest,etsRequest:etsRequest}]).slice(-8)
+    }
     if (node) targetNode = node
     tab = nextTab || "triage"
     if (pid && tab === "process") {
@@ -90,6 +98,14 @@ Item {
       gcConfirmed = false
       if (service && !service.historicalMode) processRequest = service.inspectProcess(targetNode, targetPid)
     }
+  }
+  function back() {
+    if (!navigationStack.length) return
+    var previous = navigationStack[navigationStack.length-1]
+    navigationStack = navigationStack.slice(0,-1)
+    targetNode=previous.node; targetPid=previous.pid; tab=previous.tab
+    processRequest=previous.processRequest; etsRequest=previous.etsRequest
+    gcConfirmed=false
   }
   function clearRecorderPause() {
     recorderPaused = false
@@ -224,6 +240,7 @@ Item {
     RowLayout {
       Layout.fillWidth: true
       visible: ["process","ets","pins"].indexOf(root.tab)>=0
+      ActionButton { text:"Inspection back"; visible:root.navigationStack.length>0; onClicked:root.back() }
       Label { text: "NODE" }
       Controls.ComboBox {
         Layout.fillWidth: true
@@ -288,6 +305,7 @@ Item {
           width:parent.width
           Heading { width:parent.width; text:"Provider and evidence quality" }
           Label { width:parent.width; text:DeckState.providerText(root.viewSnapshot,!!root.service && root.service.daemonRunning,root.recorderPaused?(root.viewSnapshot.at_ms || root.nowMs):root.nowMs) }
+          Label { width:parent.width; text:{var p=root.snapshot.provider || {},j=p.jobs || {};return "Interactive work: "+String(j.active===undefined?"unknown":j.active)+" active / "+String(j.queued===undefined?"unknown":j.queued)+" queued; oldest wait "+DeckState.duration(j.oldest_queued_ms)+". Last prior success "+DeckState.time(p.last_success_at_ms)+(p.collection_error?" / acquisition failed; evidence retained":"")} }
           Label { width:parent.width; text:"Authenticated distribution is privileged. Deep Events is explicit; process/ETS inspection runs only when requested." }
         }
         BaselineCard { width:parent.width; service:root.service; nodeName:root.targetNode; onExportRequested:function(a,b){root.exportRequest=root.service.exportBundle(a,b)} }
@@ -406,6 +424,20 @@ Item {
           ActionButton { text: "Pin registered name"; enabled: root.processResult && !!root.processResult.registered_name && root.service && !root.service.historicalMode; onClicked: root.service.pinProcess(root.targetNode,root.processResult.registered_name) }
           ActionButton { text: "IEx remsh"; enabled: root.service && !root.service.historicalMode && !!root.targetNode; onClicked: root.service.remsh(root.targetNode) }
         }
+        Flow {
+          width:parent.width; spacing:Style.space(6)
+          Repeater {
+            model:root.processResult?(root.processResult.ancestry || []).filter(function(a){return !!a.pid}):[]
+            ActionButton {
+              required property var modelData
+              text:"Ancestor: "+String(modelData.name || modelData.pid).slice(0,48)
+              tooltipText:String(modelData.name || "")+" "+String(modelData.pid || "")
+              enabled:root.processActionable
+              onClicked:root.activate("process",root.targetNode,modelData.pid)
+            }
+          }
+          ActionButton { text:"Tables owned by this PID"; enabled:root.processActionable; onClicked:{root.etsQuery=root.targetPid;root.activate("ets",root.targetNode,"");root.etsRequest=root.service.inspectEts(root.targetNode,root.etsSort)} }
+        }
         InfoCard {
           width: parent.width
           visible: !!root.processResult
@@ -415,6 +447,22 @@ Item {
           Controls.CheckBox { enabled: root.processActionable; width: parent.width; text: "I understand the pause risk for this process"; checked: root.gcConfirmed; onToggled: root.gcConfirmed=checked }
           ActionButton { text: "Collect this process"; enabled: root.gcConfirmed && root.processActionable; onClicked: { root.service.collectGc(root.targetNode,root.targetPid,root.processResult.creation); root.gcConfirmed=false } }
         }
+        Heading { text:"Captured hot set" }
+        Label { width:parent.width; text:"Captured "+DeckState.time(root.capturedNode.hot_processes_at_ms)+" / "+DeckState.duration(root.nowMs-root.capturedNode.hot_processes_at_ms)+" old / "+String((root.capturedNode.process_scan || {}).status || "unavailable")+" / "+String((root.capturedNode.process_scan || {}).scanned===undefined?"unknown":root.capturedNode.process_scan.scanned)+" scanned, up to 24 ranked rows retained. Sorting/filtering below is local; reductions are cumulative work counters." }
+        Controls.TextField { width:parent.width; placeholderText:"Filter captured processes by name or PID"; text:root.processQuery; onTextEdited:root.processQuery=text; Accessible.name:placeholderText }
+        Controls.ComboBox { model:["Mailbox messages","Memory bytes","Cumulative reductions"]; currentIndex:["mailbox","memory_bytes","reductions"].indexOf(root.processSort); onActivated:function(i){root.processSort=["mailbox","memory_bytes","reductions"][i]}; Accessible.name:"Captured process sort" }
+        Repeater {
+          model:KeyedRows { rows:DeckState.rankedProcesses(root.capturedNode.hot_processes || [],root.processQuery,root.processSort); keyField:"pid" }
+          InfoCard {
+            id:hotCard; required property string rowJson
+            property var entry:JSON.parse(rowJson)
+            width:processColumn.width
+            Heading { width:parent.width; text:(hotCard.entry.name || "unregistered")+" / "+hotCard.entry.pid }
+            Label { width:parent.width; text:hotCard.entry.mailbox+" messages / "+DeckState.bytes(hotCard.entry.memory_bytes)+" / "+hotCard.entry.reductions+" reductions" }
+            ActionButton { text:"Inspect exact PID"; enabled:root.service && !root.service.historicalMode && root.nowMs-root.capturedNode.hot_processes_at_ms<=10000; onClicked:root.activate("process",root.targetNode,hotCard.entry.pid) }
+          }
+        }
+        Label { width:parent.width; visible:!(root.capturedNode.hot_processes || []).length; text:"No captured hot set. Open-panel collection warms this bounded sample; missing/capped acquisition is not a zero-work runtime." }
       }
     }
   }
@@ -643,6 +691,7 @@ Item {
             width:pinsColumn.width
             Heading { width:parent.width; text:pinCard.modelData.label || pinCard.modelData.name || pinCard.modelData.node }
             Label { width:parent.width; text:pinCard.modelData.node+"  /  "+pinCard.modelData.kind+"  /  "+pinCard.modelData.status; color:pinCard.modelData.status==="present"?root.accent:root.dim }
+            Label { width:parent.width; text:"Observation "+DeckState.time(pinCard.modelData.observed_at_ms)+" / "+DeckState.duration(root.nowMs-pinCard.modelData.observed_at_ms)+" old"+(pinCard.modelData.stale?" / STALE retained values; current lookup unavailable":"") }
             Label { width:parent.width; visible:!!pinCard.modelData.pid; text:String(pinCard.modelData.pid || "")+"  |  Mailbox "+String(pinCard.modelData.mailbox || 0)+"  |  "+DeckState.bytes(pinCard.modelData.memory_bytes) }
             Flow {
               width:parent.width; spacing:Style.space(6)

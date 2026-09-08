@@ -211,4 +211,22 @@ defmodule BeamDeck.FlightRecorderTest do
     r = FR.push(r, Map.put(snapshot(3000, 1), :nodes, [c]), 10)
     refute Enum.any?(FR.present(r).activity, &(&1.kind == "process_exited"))
   end
+
+  test "excess activity counts remain explicit and old frame chronology is immutable" do
+    nodes = for i <- 1..80, do: %{name: "fixture#{i}@host", attached: true, creation: 1}
+    r = FR.push(FR.new(), Map.put(snapshot(1000, 1), :nodes, nodes), 10)
+    assert length(FR.present(r).activity) == 64
+    assert FR.present(r).omitted_activity == 16
+    assert {:ok, original} = FR.get(r, "frame-1")
+
+    r2 =
+      FR.push(
+        r,
+        Map.put(snapshot(2000, 2), :nodes, Enum.map(nodes, &Map.put(&1, :attached, false))),
+        10
+      )
+
+    assert {:ok, later} = FR.get(r2, "frame-1")
+    assert later.activity == original.activity
+  end
 end

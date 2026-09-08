@@ -179,6 +179,15 @@ defmodule BeamDeck.Watchlist do
 
     data = poll_data(entry, node, deadline)
 
+    data =
+      if data.status in ["present", "missing"],
+        do:
+          Map.merge(data, %{
+            observed_at_ms: System.system_time(:millisecond),
+            creation: node && node[:creation]
+          }),
+        else: data
+
     Map.merge(
       entry,
       Map.new(
@@ -218,6 +227,21 @@ defmodule BeamDeck.Watchlist do
       _ ->
         %{status: "node_unavailable"}
     end
+  end
+
+  def retain_observations(rows, previous) do
+    old = Map.new(previous, &{&1["id"], &1})
+
+    Enum.map(rows, fn row ->
+      if row["status"] in ["deferred", "unavailable", "node_unavailable"] and old[row["id"]] do
+        old[row["id"]]
+        |> Map.take(~w(pid mailbox memory_bytes reductions observed_at_ms creation))
+        |> Map.merge(row)
+        |> Map.put("stale", true)
+      else
+        Map.put(row, "stale", false)
+      end
+    end)
   end
 
   def resolve(node, name) do

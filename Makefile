@@ -1,7 +1,13 @@
 CACHE_HOME ?= $(if $(XDG_CACHE_HOME),$(XDG_CACHE_HOME),$(HOME)/.cache)/beam-deck/dev
 MIX_ENV_VARS = MIX_BUILD_PATH="$(CACHE_HOME)/_build" MIX_DEPS_PATH="$(CACHE_HOME)/deps"
 
-.PHONY: static qt deps format test integration protocol credo dialyzer lint check
+.PHONY: static qt native-lint native-tools deps format test integration protocol credo dialyzer lint check
+
+native-lint:
+	python3 scripts/lint-qml.py --lint /usr/lib/qt6/bin/qmllint --shell /usr/share/omarchy/shell qml/*.qml
+
+native-tools:
+	python3 -B -m unittest discover -s test -p 'test_native_tools.py'
 
 qt:
 	./test/qt.sh

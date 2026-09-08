@@ -33,21 +33,22 @@ defmodule BeamDeck.Remote do
         elixir: text(elixir),
         os_pid: call(node, :os, :getpid, [], "") |> text() |> int_text(),
         creation: call(node, :erlang, :system_info, [:creation], nil),
-        uptime_ms: num(sys[:uptime]),
-        processes: num(sys[:process_count]),
-        process_limit: num(sys[:process_limit]),
-        atoms: num(sys[:atom_count]),
-        atom_limit: num(sys[:atom_limit]),
-        ports: num(sys[:port_count]),
-        port_limit: num(sys[:port_limit]),
-        ets: num(sys[:ets_count]),
-        ets_limit: num(sys[:ets_limit]),
-        schedulers: num(sys[:schedulers]),
-        schedulers_online: num(sys[:schedulers_online]),
-        dirty_cpu_schedulers: num(call(node, :erlang, :system_info, [:dirty_cpu_schedulers], 0)),
+        uptime_ms: measurement(sys[:uptime]),
+        processes: measurement(sys[:process_count]),
+        process_limit: measurement(sys[:process_limit]),
+        atoms: measurement(sys[:atom_count]),
+        atom_limit: measurement(sys[:atom_limit]),
+        ports: measurement(sys[:port_count]),
+        port_limit: measurement(sys[:port_limit]),
+        ets: measurement(sys[:ets_count]),
+        ets_limit: measurement(sys[:ets_limit]),
+        schedulers: measurement(sys[:schedulers]),
+        schedulers_online: measurement(sys[:schedulers_online]),
+        dirty_cpu_schedulers:
+          measurement(call(node, :erlang, :system_info, [:dirty_cpu_schedulers], nil)),
         dirty_cpu_schedulers_online:
-          num(call(node, :erlang, :system_info, [:dirty_cpu_schedulers_online], 0)),
-        run_queue: num(sys[:run_queue]),
+          measurement(call(node, :erlang, :system_info, [:dirty_cpu_schedulers_online], nil)),
+        run_queue: measurement(sys[:run_queue]),
         run_queue_lengths: numeric_list(runqs),
         total_run_queue_lengths: numeric_list(total_runqs),
         memory: memory_map(sys),
@@ -148,12 +149,12 @@ defmodule BeamDeck.Remote do
 
     vals = Enum.map(keys, &{&1, call(node, :erlang, :system_info, [&1], nil)})
     mem = call(node, :erlang, :memory, [], []) |> List.wrap()
-    runq = call(node, :erlang, :statistics, [:run_queue], 0)
+    runq = call(node, :erlang, :statistics, [:run_queue], nil)
 
     uptime =
-      case call(node, :erlang, :statistics, [:wall_clock], {0, 0}) do
+      case call(node, :erlang, :statistics, [:wall_clock], nil) do
         {ms, _} -> ms
-        _ -> 0
+        _ -> nil
       end
 
     if Enum.all?(vals, fn {_key, value} -> is_nil(value) end) do
@@ -163,8 +164,10 @@ defmodule BeamDeck.Remote do
     end
   end
 
-  def processes(_node, count, max) when count > max,
+  def processes(_node, count, max) when is_number(count) and count > max,
     do: {:error, {:too_many_processes, count, max}}
+
+  def processes(_node, nil, _max), do: {:error, :process_count_unavailable}
 
   def processes(node, _count, _max) do
     parent = self()
@@ -207,15 +210,15 @@ defmodule BeamDeck.Remote do
     }
   end
 
-  def proc_row(other) do
+  def proc_row(_other) do
     %{
       pid: "?",
-      memory_bytes: 0,
-      reductions: 0,
-      name: term(other),
+      memory_bytes: nil,
+      reductions: nil,
+      name: "[unavailable process metadata]",
       identity_kind: "other",
       current_function: "",
-      mailbox: 0
+      mailbox: nil
     }
   end
 
@@ -231,6 +234,12 @@ defmodule BeamDeck.Remote do
   end
 
   def hot_union(rows, n) do
+    rows =
+      Enum.filter(
+        rows,
+        &(is_number(&1[:mailbox]) and is_number(&1[:memory_bytes]) and is_number(&1[:reductions]))
+      )
+
     picks =
       Enum.take(Enum.sort_by(rows, & &1.mailbox, :desc), n) ++
         Enum.take(Enum.sort_by(rows, & &1.memory_bytes, :desc), n) ++
@@ -387,15 +396,16 @@ defmodule BeamDeck.Remote do
           :ets
         ],
         into: %{} do
-      {key, num(sys[key])}
+      {key, measurement(sys[key])}
     end
   end
 
-  defp numeric_list(list) when is_list(list), do: Enum.map(list, &num/1)
+  defp numeric_list(list) when is_list(list), do: Enum.map(list, &measurement/1)
   defp numeric_list(_), do: []
-  defp num(value) when is_integer(value), do: value
-  defp num(value) when is_float(value), do: value
-  defp num(_), do: 0
+  def measurement(value) when is_integer(value), do: value
+  def measurement(value) when is_float(value), do: value
+  def measurement(_), do: nil
+  defp text(nil), do: ""
   defp text(value) when is_binary(value), do: value
   defp text(value) when is_list(value), do: to_string(value)
   defp text(value) when is_atom(value), do: Atom.to_string(value)

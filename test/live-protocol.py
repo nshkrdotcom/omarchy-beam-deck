@@ -164,6 +164,9 @@ def main() -> None:
                 for key in ("forecasts", "incidents", "flight_recorder", "watchlist", "budget_trial", "crash_triage"):
                     assert key in snapshot, key
                 assert snapshot["protocol"] == 1
+                assert snapshot["provider"]["panel_open"] is False
+                assert snapshot["provider"]["jobs"]["active"] <= 2
+                assert snapshot["provider"]["jobs"]["queued"] <= 16
                 assert snapshot["collection"]["duration_ms"] >= 0
                 assert snapshot["collection"]["poll_interval_ms"] == 500
                 assert isinstance(snapshot["sample_mono_ms"], int)
@@ -186,6 +189,30 @@ def main() -> None:
                 delta = wire.job({"cmd": "compare_frames", "request_id": "protocol-diff",
                                   "from_frame_id": frame_id, "to_frame_id": frame_id})
                 assert delta["summary_delta"]["beam_rss_bytes"] == 0
+                # UI read-only state is enforced at the actual daemon boundary too.
+                wire.send({"cmd": "view", "historical": True})
+                wire.until(lambda m: m.get("type") == "snapshot" and m.get("provider", {}).get("historical_mode") is True)
+                wire.send({"cmd": "set_schedulers", "node": target, "value": 1})
+                denied = wire.until(lambda m: m.get("type") == "action" and m.get("action") == "set_schedulers")
+                assert denied["result"].get("error")
+                wire.send({"cmd": "view", "historical": False})
+                current = wire.until(lambda m: m.get("type") == "snapshot" and m.get("provider", {}).get("historical_mode") is False)
+                assert next(n for n in current["nodes"] if n["name"] == target)["schedulers_online"] == 3
+                wire.send({"cmd": "inspect_process", "request_id": "wrong-incarnation", "node": target,
+                           "pid": process["pid"], "expected_creation": node["creation"] + 1})
+                wrong = wire.until(lambda m: m.get("request_id") == "wrong-incarnation" and m.get("status") == "error")
+                assert wrong["error"] == "target_restarted_or_unavailable"
+                if int(node["otp"]) >= 28:
+                    wire.send({"cmd": "deep_events", "node": target, "enabled": True, "expected_creation": node["creation"] + 1})
+                    refused_probe = wire.until(lambda m: m.get("type") == "action" and m.get("action") == "deep_events")
+                    assert refused_probe["result"].get("error"), "wrong-incarnation probe was started"
+                    for _ in range(5):
+                        wire.send({"cmd": "deep_events", "node": target, "enabled": True})
+                    probe_state = wire.until(lambda m: m.get("type") == "snapshot" and m.get("provider", {}).get("active_probes") == 1)
+                    assert probe_state["provider"]["pending_probes"] <= 1
+                    wire.send({"cmd": "view", "historical": True})
+                    wire.until(lambda m: m.get("type") == "snapshot" and m.get("provider", {}).get("active_probes") == 0 and m["provider"]["historical_mode"])
+                    wire.send({"cmd": "view", "historical": False})
                 wire.send({"cmd": "watchlist_add", "entry": {"kind": "registered_process", "node": target, "name": "bd_protocol_worker"}})
                 wire.until(lambda m: m.get("type") == "snapshot" and any(
                     p.get("name") == "bd_protocol_worker" and p.get("status") == "present"

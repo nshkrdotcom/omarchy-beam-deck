@@ -4,6 +4,16 @@ All notable changes to BEAM Deck are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased — operator mission control
+
+* Integrate dated provider quality, filtered activity and exact recorder pivots into Triage.
+* Add one explicit retained-frame intervention baseline with replace/clear, directional comparison and report export.
+* Extend recorder graphs with node memory/queue/utilization/capacity views, measured spacing, honest missing segments, bounded markers, precise keyboard/pointer selection and font-responsive legends.
+* Preserve investigation context, exact missing targets, keyed rows, selected-control focus and actual scroll reveal. Add captured process/ETS filters and reversible inspection pivots.
+* Reject stale view epochs and VM identities at control execution; stop Deep Events independently of diagnostic admission, while confirming cleanup separately.
+* Keep missing measurements null, avoid false incident resolution on repeated/unavailable samples, retain dated failed-node/watch evidence, and project private ZIP contents through explicit nested allowlists.
+* Add production Qt tests, real-peer/protocol regressions, strict native import lint and native failure-evidence/soak tooling. Preserve the native main title and action rail.
+
 ## [1.1.0] - 2026-09-06
 
 ### Added

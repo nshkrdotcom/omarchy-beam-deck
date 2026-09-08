@@ -26,6 +26,10 @@ defmodule BeamDeck.DeepEvents do
     end
   end
 
+  # Stop the event stream immediately even when diagnostics admission is full.
+  # Sending is not confirmation; the normal stop job confirms exit and unloads code.
+  def request_stop(pid) when is_pid(pid), do: :erlang.send(pid, :stop, [:noconnect, :nosuspend])
+
   def stop(node, pid) do
     case BeamDeck.Remote.call_raw(node, @probe, :stop, [pid], 3_000) do
       {:ok, :ok} -> unload(node)

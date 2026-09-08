@@ -97,3 +97,9 @@ No LAN enumeration is done. Observed peer discovery is capped, and lifetime node
 `BEAM_DECK_PROTOCOL_PATH` is launcher-internal inherited-fd routing. `BEAM_DECK_MISSING_POLL_SECONDS` controls the no-runtime retry loop for testing. `BEAM_DECK_INTEGRATION=1` enables real-peer ExUnit tests. Test/development build/cache paths are described by Makefile, separate from user application builds.
 
 Use private directories; do not point XDG roots at shared or adversarial writable paths. Neither a reload nor config changes erase an active control journal; close/revert/restore intentionally before changing environments.
+
+## Operator context and budgets
+
+This tranche adds no persistent global controls or workstation settings. The intervention baseline, activity filters, process/table filters and bounded inspection back stack are session context. Registered-name/node watches retain the existing normalized private atomic persistence. Closing the panel preserves the persistent service and its light/watch cadence; it does not imply helper exit.
+
+New derived limits are 200 activity rows, 64 changes/sample, 150 rendered timeline points, 16 node metric projections/point, 24 captured hot processes and a 64 KiB text report. Existing recorder retention and 16 MiB ZIP limits still apply; large configured ranges can truthfully fail export admission. No screen-share switch is added: all runtime names remain normal operational metadata and exports must be reviewed. Use disposable identities for acceptance captures; the installed bar-widget routing discards arbitrary summon payloads.

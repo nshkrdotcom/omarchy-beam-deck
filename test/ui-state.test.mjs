@@ -195,3 +195,9 @@ test("scan labels stay compact and missing counters stay unavailable", () => {
   assert.match(S.processText({pid:"<0.1.0>"}),/Reductions: unavailable/);
   assert.equal(S.filterRows([{name:"table",owner:"<0.2.0>"}],"<0.2.0>").length,1);
 });
+test("captured hot-set sorting is stable, bounded and keeps unknown measurements last", () => {
+  const rows=[{pid:"<0.2.0>",mailbox:4},{pid:"<0.1.0>",mailbox:4},{pid:"<0.3.0>",mailbox:null}];
+  assert.deepEqual(plain(S.rankedProcesses(rows,"","mailbox")).map(r=>r.pid),["<0.1.0>","<0.2.0>","<0.3.0>"]);
+  assert.equal(S.rankedProcesses(rows,"<0.2.0>","mailbox").length,1);
+  assert.equal(S.rankedProcesses(Array.from({length:40},(_,i)=>({pid:String(i)})),"","mailbox").length,24);
+});

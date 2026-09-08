@@ -63,6 +63,7 @@ node "$ROOT/test/qml-balance.mjs" qml/*.qml
 node "$ROOT/test/qml-functions.mjs" qml/*.qml
 node --test "$ROOT/test/ui-state.test.mjs"
 node "$ROOT/test/source-contracts.mjs"
+python3 -B -m unittest discover -s "$ROOT/test" -p 'test_native_tools.py'
 "$ROOT/test/scripts.sh"
 
 echo "static checks: ok"

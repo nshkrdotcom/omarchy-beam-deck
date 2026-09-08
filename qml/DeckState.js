@@ -255,3 +255,14 @@ function providerText(snapshot,running,now) {
     +(deep<nodes.length?" Distribution unavailable: check the node's reachability, naming and cookie source; do not share cookies.":"")
     +(nodes.length===0?" OS discovery alone cannot show OTP internals. A named distributed node and matching trusted credentials are needed.":"");
 }
+
+function rankedProcesses(rows,query,sort) {
+  var key=["mailbox","memory_bytes","reductions"].indexOf(sort)>=0?sort:"mailbox";
+  return filterRows((rows || []).slice(0,24),query).slice().sort(function(a,b){
+    var x=finite(a[key]),y=finite(b[key]);
+    if(x===null && y!==null)return 1;
+    if(y===null && x!==null)return -1;
+    if(x!==y)return y-x;
+    return String(a.pid).localeCompare(String(b.pid));
+  });
+}

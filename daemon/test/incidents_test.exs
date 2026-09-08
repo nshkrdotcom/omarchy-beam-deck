@@ -3,7 +3,14 @@ defmodule BeamDeck.IncidentsTest do
   alias BeamDeck.{Config, Incidents}
 
   defp snapshot(at, alerts),
-    do: %{at_ms: at, alerts: alerts, nodes: [], forecasts: [], events: [], crash_triage: []}
+    do: %{
+      at_ms: at,
+      alerts: alerts,
+      nodes: [%{name: "n", attached: true, processes: 1, atoms: 1, ports: 1}],
+      forecasts: [],
+      events: [],
+      crash_triage: []
+    }
 
   test "persistent conditions retain identity and resolve after two quiet polls" do
     a = %{
@@ -40,7 +47,11 @@ defmodule BeamDeck.IncidentsTest do
       message: "12 runnable tasks"
     }
 
-    live = Map.put(snapshot(1000, [alert]), :nodes, [%{name: "api@host", attached: true}])
+    live =
+      Map.put(snapshot(1000, [alert]), :nodes, [
+        %{name: "api@host", attached: true, run_queue: 12}
+      ])
+
     [incident] = Incidents.update([], live, Config.defaults())
     lost = %{live | at_ms: 2000, alerts: [], nodes: [%{name: "api@host", attached: false}]}
     [unknown] = Incidents.update([incident], lost, Config.defaults())
@@ -137,5 +148,26 @@ defmodule BeamDeck.IncidentsTest do
     one = Incidents.update([i], snapshot(2, []), Config.defaults())
     two = Incidents.update(one, snapshot(3, []), Config.defaults())
     assert Incidents.update(two, snapshot(300_004, []), Config.defaults()) == []
+  end
+
+  test "missing node evidence and repeated sample timestamps cannot resolve a symptom" do
+    a = %{
+      id: "n.run_queue",
+      node: "n",
+      title: "Queue",
+      severity: "warning",
+      message: "12 runnable tasks"
+    }
+
+    live = Map.put(snapshot(1000, [a]), :nodes, [%{name: "n", attached: true, run_queue: 12}])
+    [one] = Incidents.update([], live, Config.defaults())
+    [missing] = Incidents.update([one], %{snapshot(2000, []) | nodes: []}, Config.defaults())
+    assert missing.status == "unknown"
+    quiet = %{live | at_ms: 3000, alerts: [], nodes: [%{name: "n", attached: true, run_queue: 0}]}
+    [once] = Incidents.update([missing], quiet, Config.defaults())
+    [repeat] = Incidents.update([once], quiet, Config.defaults())
+    assert repeat.status != "resolved"
+    [resolved] = Incidents.update([repeat], %{quiet | at_ms: 4000}, Config.defaults())
+    assert resolved.status == "resolved"
   end
 end

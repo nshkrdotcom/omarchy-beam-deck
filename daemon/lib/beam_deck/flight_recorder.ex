@@ -1,7 +1,7 @@
 defmodule BeamDeck.FlightRecorder do
   @moduledoc "Compact bounded in-memory frames. No process state, arguments or recursive snapshots."
-  @node_fields ~w(name attached local otp creation uptime_ms processes process_limit atoms atom_limit ports port_limit ets memory run_queue schedulers schedulers_online dirty_cpu_schedulers_online hot_processes_at_ms process_scan_error)a
-  def new, do: %{sequence: 0, frames: [], seen_events: [], activity: []}
+  @node_fields ~w(name attached local otp creation uptime_ms processes process_limit atoms atom_limit ports port_limit ets memory run_queue schedulers schedulers_online dirty_cpu_schedulers_online hot_processes_at_ms process_scan_error process_scan)a
+  def new, do: %{sequence: 0, frames: [], seen_events: [], activity: [], omitted_activity: 0}
 
   def push(recorder, snapshot, limit) do
     sequence = recorder.sequence + 1
@@ -35,11 +35,16 @@ defmodule BeamDeck.FlightRecorder do
     }
 
     frame = Map.merge(frame, context(snapshot))
-    activity = BeamDeck.Activity.derive(List.first(recorder.frames) || %{}, frame)
+    changes = BeamDeck.Activity.derive(List.first(recorder.frames) || %{}, frame)
+    all_activity = Enum.reverse(changes.rows) ++ recorder.activity
+    activity = Enum.take(all_activity, 200)
+    omitted = recorder.omitted_activity + changes.omitted + max(length(all_activity) - 200, 0)
+    frame = Map.merge(frame, %{activity: activity, omitted_activity: omitted})
 
     %{
       sequence: sequence,
-      activity: Enum.take(Enum.reverse(activity) ++ recorder.activity, 200),
+      activity: activity,
+      omitted_activity: omitted,
       frames: Enum.take([frame | recorder.frames], min(limit, 2_000)),
       seen_events:
         (Enum.map(events, &event_id/1) ++ recorder.seen_events) |> Enum.uniq() |> Enum.take(200)
@@ -112,6 +117,7 @@ defmodule BeamDeck.FlightRecorder do
       frame_count: length(recorder.frames),
       timeline: shown,
       activity: recorder.activity,
+      omitted_activity: recorder.omitted_activity,
       omitted_frames: length(timeline) - length(shown),
       oldest_frame_id: if(timeline == [], do: nil, else: hd(timeline).frame_id),
       newest_frame_id: if(timeline == [], do: nil, else: List.last(timeline).frame_id)
@@ -124,12 +130,7 @@ defmodule BeamDeck.FlightRecorder do
         {:error, :frame_expired}
 
       frame ->
-        {:ok,
-         Map.put(
-           frame,
-           :activity,
-           Enum.filter(recorder.activity, &(&1.sequence <= frame.sequence))
-         )}
+        {:ok, frame}
     end
   end
 

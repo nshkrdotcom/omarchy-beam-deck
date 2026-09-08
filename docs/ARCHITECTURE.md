@@ -88,3 +88,12 @@ Only normalized watchlist state and explicit exports are new disk data. Export u
 ## Upstream contracts used
 
 Official OTP documentation: `erlang:process_info/2`, `erlang:system_info/1`, `erpc`, `scheduler`, `supervisor`, `trace`, `ets`, `json`, `zip`. Sources consulted are catalogued in [the implementation review](IMPLEMENTATION-1.1.md). Their runtime behavior is covered by authored peer tests but was not executable in the implementation container.
+## Operator context and evidence ownership
+
+`Service.qml` remains the one persistent shell-owned helper owner. Panel-close cancels interactive diagnostics and deep acquisition; bounded light discovery and durable registered-name watches continue. `Investigation.qml` is retained across Cockpit transitions, with its clock/Canvas inactive when hidden. Cockpit stays live; returning to Investigate restores its frozen range and daemon read-only mode. Helper-session changes invalidate jobs and ephemeral inspection history. One baseline stores only frame/session/time/node/quality metadata in the service, never a second snapshot engine or a new disk preference.
+
+FlightRecorder owns sequence identity, activity derivation, immutable frame context and A/B comparison. Activity stores safe changed-field names instead of sensitive before/after values. Missing/expired endpoints never rebound. KeyedRows updates existing delegate objects; ActionButton uses installed native focus styling and reveals focus in the actual ancestor Flickable. The protected header continues to use installed host title tokens, native buttons and KeyboardPanel geometry.
+
+ControlAccess checks live panel, epoch, known incarnation and capture age immediately before execution; BudgetTrial independently checks scheduler-control epochs and target identity. Its memory journal still precedes mutation, and failed rollback remains evidence rather than success. Deep Events receives an immediate nonblocking stop request outside ordinary diagnostic admission; normal teardown separately confirms exit and unloads code. The existing `rest_for_one` supervision strategy is retained.
+
+Projection defines nested retained/exported field allowlists. Generic redaction remains a second defense. Provider diagnostics expose bounded counts and lifecycle reasons, not raw job payloads or credentials. Native acceptance records process start identities before cleanup and distinguishes panel loss from helper death; no cause is inferred from an empty log.

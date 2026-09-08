@@ -62,7 +62,7 @@ Global active/queue defaults are 2/16; remote diagnostics serialize per node. In
 | `gc` | `node,pid`, optional `expected_creation` nonnegative integer; new UI always supplies it after fresh explicit process confirmation. |
 | `deep_events` | `node,enabled:boolean`; explicit OTP 28+ probe activation or acknowledged teardown. |
 
-Daemon authorization is independent of string-shape validation. It checks observed attached targets and snapshot age; command names do not admit arbitrary RPC, atoms or shell code. The UI is stricter at 10-second live/process freshness, including report/VM creation equality. The daemon's legacy target snapshot authorization is 30 seconds; it rechecks live identity on mutations. Historical mode is a frontend context, not a security claim against a malicious same-user protocol client.
+Daemon authorization is independent of string-shape validation. It checks observed attached targets and snapshot age; command names do not admit arbitrary RPC, atoms or shell code. Runtime mutations and focused diagnostics recheck a 10-second snapshot window, view epoch and exact known creation at execution. The scheduler safety owner also validates the epoch/creation before manual application. General node admission retains its 30-second ceiling. Historical mode is a daemon-enforced read-only context; a same-user client can explicitly request live mode, so this is not an authentication boundary.
 
 ## Result projections
 
@@ -81,3 +81,17 @@ Export result: generated private `path,bytes,frame_count,privacy`. The exact sev
 ## Failure behavior
 
 Invalid/oversized JSON is drained through the next newline and rejected; subsequent lines remain usable. Unsupported/partial target capabilities do not crash the shell. Frame expiry, duplicate requests, queue saturation, process exit, remote deadline, private write failure, trace collision and rollback conflict each remain visible failures. A cleared UI error on a later successful snapshot does not prove an earlier mutation was reverted; trial status/Restore evidence is authoritative.
+
+## Operator mission-control additions (protocol 1)
+
+`view` accepts `historical:boolean`. Entering historical mode increments the view epoch, cancels interactive jobs, stops optional probes and revokes the live permission held by unkept trials (which then roll back). Going live does not repeat an intervention. Revert remains independent of ordinary diagnostic saturation.
+
+Focused inspection and scheduler/probe/GC commands accept an optional nonnegative `expected_creation`; the UI supplies it for focused inspections and GC. Legacy callers still undergo daemon target/epoch checks. Request and frame IDs are exact; helper sessions never share frame identity.
+
+Snapshots include `sample_mono_ms`, `collection` (duration/cadence/deep/status) and `provider` (panel/historical epoch, bounded job counts/oldest wait, probe counts, prior successful capture and bounded lifecycle reasons). Collection metadata describes the last capture, not a promise that a pending RPC succeeded. Status IPC adds visible panel/workspace/tab, payload size, UI-job/watch counts and these allowlisted health fields.
+
+`flight_recorder.activity` retains 200 observed safe change explanations, at most 64 per sample, with cumulative `omitted_activity`. Each has exact frame/sequence/capture time, node/domain/kind, optional registered name/PID and allowlisted changed field names. Frames retain immutable activity/findings/watch context. The timeline carries at most 150 points and 16 node metric projections each, plus omitted frame/node counts. Missing metrics remain null; process scans report status, scanned/reported/returned counts and admission limit.
+
+Comparison adds `utilization_delta_pp`, `occupancy_delta_pp` and comparable captured `hot_changes` (mailbox/memory deltas and reductions/second). Equal hard limits and known unchanged VM creation are required. `pp` means percentage points. Repeated deep samples cannot produce a new rate. A/B frames remain ordered by sequence even if wall time reverses.
+
+The ZIP's text entry is an operator report. A selected-range report uses its last historical frame; `current-snapshot.json` and the separately named current incident/event/crash companions still describe export-time live evidence. All companion JSON and frames use nested allowlists; unknown extension fields are omitted. The report is capped at 64 KiB and the existing 16 MiB uncompressed/archive limit still applies.

@@ -55,4 +55,13 @@ defmodule BeamDeck.RemoteTest do
     assert summary.registered_processes == [%{name: "Orders.Server", pid: "<0.1.0>"}]
     assert Enum.any?(summary.hot_processes, &(&1.pid == "<0.2.0>"))
   end
+
+  test "unknown process records and missing metrics never become measured zeros or raw payloads" do
+    row = Remote.proc_row({:unexpected, "UNKNOWN_PROCESS_CANARY"})
+    refute BeamDeck.Json.encode(row) =~ "UNKNOWN_PROCESS_CANARY"
+    assert is_nil(row.mailbox)
+    assert Remote.process_summary([row]).hot_processes == []
+    assert is_nil(Remote.measurement(nil))
+    assert Remote.measurement(0) == 0
+  end
 end

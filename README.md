@@ -13,6 +13,14 @@ It is intentionally local-first. You do not add a BEAM Deck dependency to the ap
 
 ![BEAM Deck preview](preview.png)
 
+## Operator mission control (feature branch)
+
+Investigate now connects an aged provider briefing, active/resolved/unknown findings, bounded filtered activity, exact historical pivots, and an explicit intervention baseline. Recorder views include VM memory composition, run queues, scheduler utilization and hard-capacity occupancy with measured spacing and gaps. Baseline deltas distinguish bytes, rates and percentage points; unknown VM identity disables continuity claims.
+
+Captured process/ETS filters run locally. Keyed rows preserve focus, and inspection back navigation keeps the previous exact request. Watch failures retain dated stale observations. Diagnostic ZIPs include a concise operator report and nested allowlisted JSON projections. Historical state and stale queued mutations are rejected by the daemon as well as the UI.
+
+Start with the [operator workflow guide](docs/OPERATOR-WORKFLOWS.md). The [implementation and evidence plan](docs/OPERATOR-PLAN.md) distinguishes completed checks from remaining native acceptance. The native BEAM DECK identity, top-right action rail, bar routing and editor-first PanelKeyCatcher conventions are preserved.
+
 ## Features
 
 - **Zero application dependencies** — no Hex package, instrumentation library, or BEAM Deck service is required inside the application being observed.

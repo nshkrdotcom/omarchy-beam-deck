@@ -81,6 +81,10 @@ defmodule BeamDeck.DiagnosticsTest do
       assert :ok = Diagnostics.submit(self(), "queued-#{i}", "test", "one", hold)
     end
 
+    assert %{active: 2, queued: 16, max_active: 2, max_queued: 16, oldest_queued_ms: age} =
+             Diagnostics.status()
+
+    assert age >= 0
     assert {:error, :queue_full} = Diagnostics.submit(self(), "overflow", "test", "three", hold)
     refute_receive {:held_worker, _}, 50
     first_ref = Process.monitor(first)

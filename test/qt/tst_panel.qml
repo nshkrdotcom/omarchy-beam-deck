@@ -11,6 +11,8 @@ TestCase {
   height: 840
   QtObject {
     id: fakeService
+    property string workspace:"cockpit"
+    property string investigationTab:"triage"
     property bool daemonRunning: true
     property bool panelOpen: false
     property bool historicalMode: false

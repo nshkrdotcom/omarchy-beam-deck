@@ -58,8 +58,12 @@ defmodule BeamDeck.Daemon do
       history: [],
       learned: [],
       panel_open: false,
+      historical_mode: false,
       panel_epoch: 0,
       probes: %{},
+      pending_probes: MapSet.new(),
+      lifecycle: [%{reason: "helper_started", at_ms: System.system_time(:millisecond)}],
+      collection_error: nil,
       events: [],
       poll_timer: nil,
       poll_task: nil,
@@ -96,7 +100,8 @@ defmodule BeamDeck.Daemon do
     Process.demonitor(ref, [:flush])
     Process.cancel_timer(state.poll_deadline)
     state = %{state | poll_task: nil, poll_deadline: nil}
-    next = incorporate(state, telemetry)
+    state = if state.panel_open and not state.historical_mode, do: state, else: stop_probes(state)
+    next = incorporate(%{state | collection_error: nil}, telemetry)
     delay = if state.refresh_requested, do: 0, else: next.config["poll_interval_ms"]
     {:noreply, schedule_poll(%{next | refresh_requested: false}, delay)}
   end
@@ -114,7 +119,7 @@ defmodule BeamDeck.Daemon do
 
     {:noreply,
      schedule_poll(
-       %{state | poll_task: nil, poll_deadline: nil},
+       %{state | poll_task: nil, poll_deadline: nil, collection_error: "collection_failed"},
        state.config["poll_interval_ms"]
      )}
   end
@@ -125,7 +130,7 @@ defmodule BeamDeck.Daemon do
 
     {:noreply,
      schedule_poll(
-       %{state | poll_task: nil, poll_deadline: nil},
+       %{state | poll_task: nil, poll_deadline: nil, collection_error: "collection_failed"},
        state.config["poll_interval_ms"]
      )}
   end
@@ -148,9 +153,15 @@ defmodule BeamDeck.Daemon do
         {:diagnostic, %{kind: "_probe_start", status: "complete", result: result}},
         state
       ) do
-    next = %{state | probes: Map.put(state.probes, result.name, result.pid)}
-    next = if next.panel_open, do: next, else: stop_probes(next)
-    emit_action("deep_events", result.name, %{enabled: next.panel_open})
+    next = %{
+      state
+      | probes: Map.put(state.probes, result.name, result.pid),
+        pending_probes: MapSet.delete(state.pending_probes, result.name)
+    }
+
+    valid = next.panel_open and not next.historical_mode and result.epoch == next.panel_epoch
+    next = if valid, do: next, else: stop_probes(next)
+    emit_action("deep_events", result.name, %{enabled: valid})
     {:noreply, reschedule_now(next)}
   end
 
@@ -174,6 +185,14 @@ defmodule BeamDeck.Daemon do
       end)
 
     update_watchlist(Watchlist.add(state.watchlist_entries, entry, observed, state.config), state)
+  end
+
+  def handle_info(
+        {:diagnostic, %{kind: "_probe_start", status: "error", node: name} = message},
+        state
+      ) do
+    emit(%{type: "error", error: message[:error] || "probe_start_failed"})
+    {:noreply, %{state | pending_probes: MapSet.delete(state.pending_probes, name)}}
   end
 
   def handle_info({:diagnostic, message}, state) do
@@ -236,6 +255,18 @@ defmodule BeamDeck.Daemon do
   def handle_info(_message, state), do: {:noreply, state}
 
   @impl true
+  def handle_call({:authorize_control, epoch, name, creation}, _from, state) do
+    {:reply,
+     BeamDeck.ControlAccess.authorize(
+       state,
+       epoch,
+       name,
+       creation,
+       System.system_time(:millisecond)
+     ), state}
+  end
+
+  @impl true
   def handle_cast({:protocol_error, _reason}, state) do
     emit(%{
       type: "error",
@@ -253,11 +284,24 @@ defmodule BeamDeck.Daemon do
 
   def handle_cast({:command, "refresh", _args}, state), do: {:noreply, reschedule_now(state)}
 
+  def handle_cast({:command, "view", %{"historical" => historical}}, state) do
+    epoch = state.panel_epoch + 1
+    BudgetTrial.panel(state.panel_open and not historical, epoch, self())
+    if historical, do: Diagnostics.cancel_interactive(self())
+    next = %{state | historical_mode: historical, panel_epoch: epoch}
+    next = lifecycle(next, if(historical, do: "historical_view", else: "live_view"))
+    {:noreply, reschedule_now(if(historical, do: stop_probes(next), else: next))}
+  end
+
+  def handle_cast({:command, "panel", %{"open" => open}}, %{panel_open: open} = state),
+    do: {:noreply, state}
+
   def handle_cast({:command, "panel", %{"open" => open}}, state) do
     epoch = state.panel_epoch + 1
-    BudgetTrial.panel(open, epoch, self())
+    BudgetTrial.panel(open and not state.historical_mode, epoch, self())
     if not open, do: Diagnostics.cancel_interactive(self())
     next = %{state | panel_open: open, panel_epoch: epoch, last_deep_ms: 0}
+    next = lifecycle(next, if(open, do: "panel_opened", else: "panel_closed"))
     {:noreply, reschedule_now(if(open, do: next, else: stop_probes(next)))}
   end
 
@@ -280,12 +324,13 @@ defmodule BeamDeck.Daemon do
   end
 
   def handle_cast(
-        {:command, "deep_events", %{"node" => name, "enabled" => enabled}},
+        {:command, "deep_events", %{"node" => name, "enabled" => enabled} = args},
         state
       ) do
     cond do
-      enabled and state.panel_open and not Map.has_key?(state.probes, name) ->
-        {:noreply, start_probe(state, name)}
+      enabled and state.panel_open and not state.historical_mode and
+        not Map.has_key?(state.probes, name) and not MapSet.member?(state.pending_probes, name) ->
+        {:noreply, start_probe(state, name, args["expected_creation"])}
 
       enabled ->
         {:noreply, state}
@@ -323,7 +368,18 @@ defmodule BeamDeck.Daemon do
 
     case mutation_target(name, state) do
       {:ok, node, expected} ->
-        action = fn -> execute_mutation(command, args, name, node, expected) end
+        owner = self()
+
+        authorize = fn ->
+          GenServer.call(owner, {:authorize_control, state.panel_epoch, name, expected})
+        end
+
+        opts = [epoch: state.panel_epoch, expected_creation: expected, authorize: authorize]
+
+        action = fn ->
+          authorized_mutation(authorize, command, args, name, node, expected, opts)
+        end
+
         submit(action_id(), command, name, action, interactive: false, timeout: 10_000)
 
       :error ->
@@ -331,38 +387,53 @@ defmodule BeamDeck.Daemon do
     end
   end
 
+  defp authorized_mutation(authorize, command, args, name, node, expected, opts) do
+    with :ok <- authorize.(), do: execute_mutation(command, args, name, node, expected, opts)
+  end
+
   defp mutation_target(name, state) do
-    with true <- state.panel_open,
+    with true <- state.panel_open and not state.historical_mode,
          {:ok, node} <- authorized_node(name, state),
          observed when not is_nil(observed) <-
            Enum.find(snapshot_nodes(state), &(&1.name == name)) do
-      {:ok, node, observed[:creation]}
+      case BeamDeck.ControlAccess.authorize(
+             state,
+             state.panel_epoch,
+             name,
+             observed[:creation],
+             System.system_time(:millisecond)
+           ) do
+        :ok -> {:ok, node, observed[:creation]}
+        _ -> :error
+      end
     else
       _ -> :error
     end
   end
 
-  defp execute_mutation(command, args, name, node, observed_creation) do
+  defp execute_mutation(command, args, name, node, observed_creation, opts) do
     expected = args["expected_creation"] || observed_creation
 
     with {:ok, %{creation: creation}} <- Remote.identity(node),
          true <- creation == expected do
-      mutation_result(command, args, name, node, expected)
+      mutation_result(command, args, name, node, expected, opts)
     else
       _ -> {:error, :target_restarted_or_unavailable}
     end
   end
 
-  defp mutation_result("set_schedulers", args, name, _node, _expected),
-    do: BudgetTrial.set(name, :schedulers_online, args["value"])
+  defp mutation_result("set_schedulers", args, name, _node, _expected, opts),
+    do: BudgetTrial.set(name, :schedulers_online, args["value"], opts)
 
-  defp mutation_result("set_dirty_schedulers", args, name, _node, _expected),
-    do: BudgetTrial.set(name, :dirty_cpu_schedulers_online, args["value"])
+  defp mutation_result("set_dirty_schedulers", args, name, _node, _expected, opts),
+    do: BudgetTrial.set(name, :dirty_cpu_schedulers_online, args["value"], opts)
 
-  defp mutation_result("restore", _args, name, _node, _expected), do: BudgetTrial.restore(name)
+  defp mutation_result("restore", _args, name, _node, _expected, opts),
+    do: BudgetTrial.restore(name, opts)
 
-  defp mutation_result("gc", args, _name, node, expected),
-    do: Remote.trigger_gc(node, args["pid"], expected)
+  defp mutation_result("gc", args, _name, node, expected, opts) do
+    with :ok <- opts[:authorize].(), do: Remote.trigger_gc(node, args["pid"], expected)
+  end
 
   defp process_pin?(entry) do
     entry["kind"] == "registered_process" and is_binary(entry["name"])
@@ -393,31 +464,46 @@ defmodule BeamDeck.Daemon do
     end
   end
 
-  defp start_probe(state, name) do
-    case authorized_node(name, state) do
-      {:ok, node} -> queue_probe_start(node, name, state)
-      _ -> emit_action("deep_events", name, %{error: "fresh_attached_node_required"})
-    end
+  defp start_probe(state, name, expected) do
+    case mutation_target(name, state) do
+      {:ok, node, creation} when is_nil(expected) or expected == creation ->
+        if queue_probe_start(node, name, creation, state) == :ok,
+          do: %{state | pending_probes: MapSet.put(state.pending_probes, name)},
+          else: state
 
-    state
+      _ ->
+        emit_action("deep_events", name, %{error: "fresh_attached_node_required"})
+        state
+    end
   end
 
-  defp queue_probe_start(node, name, state) do
+  defp queue_probe_start(node, name, creation, state) do
     owner = self()
 
     submit(
       action_id(),
       "_probe_start",
       name,
-      fn -> probe_start_result(node, name, owner, state.config["event_thresholds"]) end,
+      fn ->
+        with :ok <- GenServer.call(owner, {:authorize_control, state.panel_epoch, name, creation}),
+             :ok <- inspection_identity(node, creation) do
+          probe_start_result(
+            node,
+            name,
+            owner,
+            state.config["event_thresholds"],
+            state.panel_epoch
+          )
+        end
+      end,
       interactive: false,
       timeout: 10_000
     )
   end
 
-  defp probe_start_result(node, name, owner, thresholds) do
+  defp probe_start_result(node, name, owner, thresholds, epoch) do
     case DeepEvents.start(node, thresholds, owner) do
-      {:ok, pid} -> {:ok, %{name: name, pid: pid}}
+      {:ok, pid} -> {:ok, %{name: name, pid: pid, epoch: epoch}}
       _ -> {:error, :probe_unavailable}
     end
   end
@@ -442,7 +528,10 @@ defmodule BeamDeck.Daemon do
       command,
       args["node"],
       state,
-      fn node -> ProcessDiagnostics.inspect_process(node, args["pid"], opts) end,
+      fn node ->
+        with :ok <- inspection_identity(node, args["expected_creation"]),
+             do: ProcessDiagnostics.inspect_process(node, args["pid"], opts)
+      end,
       opts["process_timeout_ms"] + 1_000
     )
   end
@@ -455,7 +544,10 @@ defmodule BeamDeck.Daemon do
       command,
       args["node"],
       state,
-      fn node -> EtsDiagnostics.inspect_tables(node, args["sort"] || "memory", opts) end,
+      fn node ->
+        with :ok <- inspection_identity(node, args["expected_creation"]),
+             do: EtsDiagnostics.inspect_tables(node, args["sort"] || "memory", opts)
+      end,
       opts["ets_timeout_ms"] + 1_000
     )
   end
@@ -491,27 +583,57 @@ defmodule BeamDeck.Daemon do
   end
 
   defp submit_job("budget_trial_begin" = command, args, state) do
+    owner = self()
+
     submit(
       args["request_id"],
       command,
       "_control",
       fn ->
-        BudgetTrial.begin(
-          args["rows"],
-          (state.snapshot && state.snapshot.budget) || [],
-          snapshot_nodes(state),
-          state.panel_epoch,
-          state.config["budget_trial_lease_ms"]
-        )
+        with :ok <- authorize_budget(owner, state, args["rows"]) do
+          BudgetTrial.begin(
+            args["rows"],
+            (state.snapshot && state.snapshot.budget) || [],
+            snapshot_nodes(state),
+            state.panel_epoch,
+            state.config["budget_trial_lease_ms"]
+          )
+        end
       end,
       interactive: false,
       timeout: 30_000
     )
   end
 
+  defp authorize_budget(owner, state, rows) do
+    Enum.reduce_while(rows, :ok, fn row, _ ->
+      node = Enum.find(snapshot_nodes(state), &(&1.name == row["node"])) || %{}
+
+      case GenServer.call(
+             owner,
+             {:authorize_control, state.panel_epoch, row["node"], node[:creation]}
+           ) do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
   defp remote_job(id, kind, name, state, fun, timeout) do
-    with true <- state.panel_open, {:ok, node} <- authorized_node(name, state) do
-      submit(id, kind, name, fn -> fun.(node) end, timeout: timeout)
+    with true <- state.panel_open and not state.historical_mode,
+         {:ok, node} <- authorized_node(name, state) do
+      owner = self()
+      creation = Enum.find(snapshot_nodes(state), &(&1.name == name))[:creation]
+
+      submit(
+        id,
+        kind,
+        name,
+        fn ->
+          authorized_read(owner, state.panel_epoch, name, creation, node, fun)
+        end,
+        timeout: timeout
+      )
     else
       _ ->
         emit(%{
@@ -521,6 +643,19 @@ defmodule BeamDeck.Daemon do
           status: "error",
           error: "node_unavailable_or_panel_closed"
         })
+    end
+  end
+
+  defp authorized_read(owner, epoch, name, creation, node, fun) do
+    with :ok <- GenServer.call(owner, {:authorize_control, epoch, name, creation}), do: fun.(node)
+  end
+
+  defp inspection_identity(_node, nil), do: :ok
+
+  defp inspection_identity(node, expected) do
+    case Remote.identity(node) do
+      {:ok, %{creation: ^expected}} -> :ok
+      _ -> {:error, :target_restarted_or_unavailable}
     end
   end
 
@@ -545,6 +680,33 @@ defmodule BeamDeck.Daemon do
       else: {:error, :unknown_or_stale_node}
   end
 
+  defp lifecycle(state, reason) do
+    %{
+      state
+      | lifecycle:
+          Enum.take(
+            [%{reason: reason, at_ms: System.system_time(:millisecond)} | state.lifecycle],
+            32
+          )
+    }
+  end
+
+  defp health(state) do
+    %{
+      panel_open: state.panel_open,
+      historical_mode: state.historical_mode,
+      view_epoch: state.panel_epoch,
+      jobs: Diagnostics.status(),
+      collection_in_flight: not is_nil(state.poll_task),
+      refresh_pending: state.refresh_requested,
+      last_success_at_ms: state.snapshot && state.snapshot.at_ms,
+      collection_error: state.collection_error,
+      active_probes: map_size(state.probes),
+      pending_probes: MapSet.size(state.pending_probes),
+      lifecycle: state.lifecycle
+    }
+  end
+
   defp snapshot_nodes(state), do: (state.snapshot && state.snapshot.nodes) || []
 
   defp update_watchlist({:ok, entries}, state) do
@@ -561,8 +723,12 @@ defmodule BeamDeck.Daemon do
 
   defp stop_probe(state, name) do
     case state.probes[name] do
-      nil -> :ok
-      pid -> queue_probe_stop(name, pid)
+      nil ->
+        :ok
+
+      pid ->
+        DeepEvents.request_stop(pid)
+        queue_probe_stop(name, pid)
     end
 
     state
@@ -633,10 +799,21 @@ defmodule BeamDeck.Daemon do
         {_, node} -> unattached(node, state.config, "collection_deadline")
       end)
 
-    nodes = Procfs.verify_local_nodes(host, nodes) |> Enum.sort_by(& &1.name)
+    nodes =
+      Procfs.verify_local_nodes(host, nodes)
+      |> BeamDeck.Evidence.retain_last(
+        snapshot_nodes(state),
+        state.snapshot && state.snapshot.at_ms
+      )
+      |> Enum.sort_by(& &1.name)
+
     host = correlate_runtimes(host, nodes)
 
-    watches = Watchlist.poll(state.watchlist_entries, nodes)
+    watches =
+      Watchlist.poll(state.watchlist_entries, nodes)
+      |> Watchlist.retain_observations(
+        get_in(state.snapshot || %{}, [:watchlist, :entries]) || []
+      )
 
     %{
       host: host,
@@ -694,6 +871,7 @@ defmodule BeamDeck.Daemon do
       :registered_processes,
       :hot_processes_at_ms,
       :process_scan_error,
+      :process_scan,
       :scheduler_utilization
     ]
   end
@@ -767,6 +945,7 @@ defmodule BeamDeck.Daemon do
       session_id: state.session_id,
       at_ms: at,
       sample_mono_ms: telemetry.mono,
+      provider: health(state),
       collection: %{
         duration_ms: telemetry.duration_ms,
         poll_interval_ms: state.config["poll_interval_ms"],

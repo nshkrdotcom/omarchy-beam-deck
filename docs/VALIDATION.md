@@ -53,8 +53,29 @@ The original shell test records IEx argv with a tiny executable stub to verify q
 
 Compare closed/open helper CPU/RSS, target overhead and snapshot size against the baseline under the same disposable workloads. Closed panel must not cause full process/ETS/stack/binary scans; only light collection and bounded pinned observations continue. Measure pathological node count, long names, unreachable peers, process/table population and job-queue saturation. Native enumeration costs are documented limits, not assumed fixed by a displayed top-N cap.
 
-Record typical and capped snapshot/export size, deadline responsiveness and recovery latency. Verify collections do not accumulate, requests stay bounded and Keep/Revert remain serviceable while ordinary jobs are saturated. No numeric performance pass is claimed in this container.
+Record typical and capped snapshot/export size, deadline responsiveness and recovery latency. Verify collections do not accumulate, requests stay bounded and Keep/Revert remain serviceable while ordinary jobs are saturated. Original validation did not claim a numeric performance pass. The operator tranche below records its measured baseline separately from acceptance.
 
 ## Full-environment evidence to retain
 
 Record exact OTP/Elixir/Quickshell/Omarchy versions, each command and exit status, ExUnit counts including exclusions, matrix results, real harness output, strict-analysis logs, rendered screenshots with dimensions/theme, before/after target scheduler values and privacy-canary search results. Update this file and HANDOFF with observed evidence and remaining issues; do not convert unrun checks into passes by editing a checkbox.
+
+## Operator mission-control tranche — 2026-09-07
+
+Branch: `feat/operator-mission-control`, baseline `987ffb4`. Local toolchain: OTP 29.0.6 / Elixir 1.20.4; installed Quickshell 0.3.1, Qt 6.11.2 and Omarchy 4.0.0.r2026.gf1b065c. Earlier feature milestone CI (through `0c62930`) passes OTP27/Elixir1.18, OTP28/Elixir1.19, OTP29/Elixir1.20; the final revision's CI status must be checked separately.
+
+Current full local gate: 99 default ExUnit + 18 opt-in exclusions, 117 with real-peer integration; 25 JS tests; 3 native-tool unit tests; strict Credo/Dialyzer; 27-message real launcher protocol including historical control rejection, exact incarnation rejection, repeated Deep Events admission/confirmed teardown and private ZIP canaries. `make qt` has 24 results including setup/cleanup, at scale 1 and Qt scale factor 1.5. These execute production components with isolated host input adapters and actual installed controls; they are component coverage, not native or fractional-Wayland proof.
+
+`make native-lint` maps `qs` to the actual installed shell and treats unresolved imports as errors. A real negative import test confirms failure; this is not suppression of all lint errors. `omarchy plugin validate .` and whitespace checks pass. Mix format caching initially left a newly edited call unformatted; `mix format --force` followed by the unchanged strict check resolved that validation failure. Earlier red/failed logs remain separate from green runs.
+
+Native baseline and interim actual-click captures are in the private external evidence directory `/tmp/beam-deck-operator-evidence`; baseline title metrics and same-size pointer/IPC appearance were inspected at actual size. The main title, action rail and host padding/container remain protected. Final native matrix, cycles and soak are still pending at this documentation revision; see [the synchronized plan](OPERATOR-PLAN.md) for the execution record.
+
+Run opt-in native acceptance only with a verified test-owned peer and external artifacts:
+
+```sh
+python3 -B scripts/native-acceptance.py \
+  --evidence /tmp/beam-deck-native-acceptance-UNIQUE \
+  --pointer /path/to/verified/virtual-pointer-client \
+  --target-pid TEST_OWNED_PID --cycles 50 --soak 600 --closed 60
+```
+
+The runner records observed opens/closes through pointer, actual bar shortcut and IPC, then an uninterrupted live soak with one persistent helper and unchanged process start identities. It checks predeclared RSS/CPU/FD/task/child budgets, fresh samples, recorder progress and bounded jobs. It preserves bounded identity-safe status before failure cleanup and never reopens a lost soak instance. Shorter runs are explicitly labeled smoke. All output and temporary state stay outside the watched tree; do not edit, commit or build inside it during a soak. Only scale-1 single-output native hardware is currently available; other orientations/monitors/native fractional scaling remain unverified without workstation changes.

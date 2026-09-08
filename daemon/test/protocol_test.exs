@@ -32,4 +32,16 @@ defmodule BeamDeck.ProtocolTest do
     assert {:error, :invalid_arguments} =
              Protocol.parse(~s({"cmd":"budget_trial_begin","request_id":"ui-2","rows":[]}))
   end
+
+  test "historical view commands are typed and exact inspection identities are validated" do
+    assert {:ok, "view", _} = BeamDeck.Protocol.parse(~s({"cmd":"view","historical":true}))
+
+    assert {:error, :invalid_arguments} =
+             BeamDeck.Protocol.parse(~s({"cmd":"view","historical":"false"}))
+
+    assert {:error, :invalid_arguments} =
+             BeamDeck.Protocol.parse(
+               ~s({"cmd":"inspect_process","request_id":"p1","node":"fixture@host","pid":"<0.1.0>","expected_creation":"bad"})
+             )
+  end
 end

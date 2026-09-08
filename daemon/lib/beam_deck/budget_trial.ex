@@ -13,8 +13,11 @@ defmodule BeamDeck.BudgetTrial do
   def revert(id), do: GenServer.call(__MODULE__, {:revert, id})
   def status, do: GenServer.call(__MODULE__, :status)
   def request(owner, id, command), do: GenServer.cast(__MODULE__, {:request, owner, id, command})
-  def set(name, flag, value), do: GenServer.call(__MODULE__, {:set, name, flag, value}, 5_000)
-  def restore(name), do: GenServer.call(__MODULE__, {:restore, name}, 10_000)
+
+  def set(name, flag, value, opts \\ []),
+    do: GenServer.call(__MODULE__, {:set, name, flag, value, opts}, 5_000)
+
+  def restore(name, opts \\ []), do: GenServer.call(__MODULE__, {:restore, name, opts}, 10_000)
 
   def validate(rows, budget, nodes) do
     normalized = Enum.map(rows, &normalize_row/1)
@@ -155,20 +158,19 @@ defmodule BeamDeck.BudgetTrial do
 
   def handle_call({:revert, _id}, _from, state), do: {:reply, {:error, :trial_not_found}, state}
 
-  def handle_call({:set, name, flag, value}, _from, state) do
+  def handle_call({:set, name, flag, value, opts}, _from, state) do
     Process.put(:beam_deck_rpc_deadline, System.monotonic_time(:millisecond) + 1_500)
 
-    if busy?(state) do
-      {:reply, {:error, :trial_active}, state}
+    with :ok <- control_allowed(state, opts), false <- busy?(state) do
+      set_flag(name, flag, value, state, opts)
     else
-      set_flag(name, flag, value, state)
+      true -> {:reply, {:error, :trial_active}, state}
+      error -> {:reply, error, state}
     end
   end
 
-  def handle_call({:restore, name}, _from, state) do
-    if busy?(state) do
-      {:reply, {:error, :trial_active}, state}
-    else
+  def handle_call({:restore, name, opts}, _from, state) do
+    with :ok <- control_allowed(state, opts), false <- busy?(state) do
       {originals, failures} = restore_entries(state.originals, name)
 
       result =
@@ -177,18 +179,36 @@ defmodule BeamDeck.BudgetTrial do
           else: {:ok, %{restored: false, failures: failures}}
 
       {:reply, result, %{state | originals: originals}}
+    else
+      true -> {:reply, {:error, :trial_active}, state}
+      error -> {:reply, error, state}
     end
   end
 
-  defp set_flag(name, flag, value, state) do
+  defp control_allowed(state, opts) do
+    cond do
+      not state.panel or Keyword.get(opts, :epoch, state.epoch) != state.epoch ->
+        {:error, :live_view_changed}
+
+      is_function(opts[:authorize], 0) ->
+        opts[:authorize].()
+
+      true ->
+        :ok
+    end
+  end
+
+  defp set_flag(name, flag, value, state, opts) do
     with {:ok, node} <- Discovery.existing_node(name),
          {:ok, identity} <- Remote.identity(node),
+         true <- Keyword.get(opts, :expected_creation, identity.creation) == identity.creation,
          {:ok, current} when is_integer(current) <-
            Remote.call_raw(node, :erlang, :system_info, [flag]),
          {:ok, entries} <- mutation_entries(node, name, flag, current, value, identity) do
       next = %{state | originals: remember_all(state.originals, entries)}
       finish_set_flag(node, flag, value, entries, next)
     else
+      false -> {:reply, {:error, :target_restarted_or_unavailable}, state}
       _ -> {:reply, {:error, :mutation_failed}, state}
     end
   end

@@ -123,6 +123,7 @@ defmodule BeamDeck.BundleTest do
     assert report =~ "+50 B"
     assert report =~ "Observed queue"
     refute report =~ "REPORT_PRIVATE_CANARY"
+    refute Enum.map_join(entries, fn {_, bytes} -> bytes end) =~ "REPORT_PRIVATE_CANARY"
     assert byte_size(report) <= 65_536
   end
 end

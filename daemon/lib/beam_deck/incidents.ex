@@ -22,7 +22,8 @@ defmodule BeamDeck.Incidents do
         Map.merge(item, %{
           status: "active",
           first_seen_ms: if(before, do: before.first_seen_ms, else: now),
-          last_seen_ms: now,
+          last_seen_ms: observation_time(item, snapshot),
+          last_checked_ms: now,
           resolved_at_ms: nil,
           quiet_polls: 0
         })
@@ -45,22 +46,39 @@ defmodule BeamDeck.Incidents do
     |> Enum.take(100)
   end
 
+  defp observation_time(item, snapshot) do
+    node = Enum.find(snapshot[:nodes] || [], &(&1.name == item.node)) || %{}
+
+    if item.family in ["mailbox", "restart"] and is_integer(node[:hot_processes_at_ms]),
+      do: min(snapshot.at_ms, node.hot_processes_at_ms),
+      else: snapshot.at_ms
+  end
+
   defp quiet_incident(item, snapshot, now) do
     unknown = unavailable_evidence?(item, snapshot)
+
+    if not unknown and now <= (item[:last_checked_ms] || item.last_seen_ms),
+      do: item,
+      else: update_quiet(item, unknown, now)
+  end
+
+  defp update_quiet(item, unknown, now) do
     misses = if unknown, do: 0, else: item.quiet_polls + 1
     resolved = misses >= 2
 
-    %{
-      item
-      | quiet_polls: misses,
-        status:
-          cond do
-            unknown -> "unknown"
-            resolved -> "resolved"
-            true -> "active"
-          end,
-        resolved_at_ms: if(resolved, do: item.resolved_at_ms || now, else: nil)
-    }
+    status =
+      cond do
+        unknown -> "unknown"
+        resolved -> "resolved"
+        true -> "active"
+      end
+
+    Map.merge(item, %{
+      quiet_polls: misses,
+      status: status,
+      last_checked_ms: now,
+      resolved_at_ms: if(resolved, do: item.resolved_at_ms || now, else: nil)
+    })
   end
 
   defp unavailable_evidence?(%{status: "resolved"}, _snapshot), do: false
@@ -71,12 +89,25 @@ defmodule BeamDeck.Incidents do
         item.family not in ["runtime_exit", "watch", "budget"]
 
       node when is_map(node) ->
-        item.family in ["mailbox", "restart"] and !!node[:process_scan_error]
+        unavailable_metric?(item.family, node)
 
       _ ->
-        false
+        is_binary(item.node) and item.node != "host" and
+          item.family not in ["runtime_exit", "watch", "budget"]
     end
   end
+
+  defp unavailable_metric?(family, node) when family in ["mailbox", "restart"],
+    do: !!node[:process_scan_error] or not is_integer(node[:hot_processes_at_ms])
+
+  defp unavailable_metric?("runq", node), do: not is_number(node[:run_queue])
+
+  defp unavailable_metric?("resource", node),
+    do:
+      not is_number(node[:processes]) or not is_number(node[:atoms]) or
+        not is_number(node[:ports])
+
+  defp unavailable_metric?(_, _), do: false
 
   defp alert_conditions(snapshot, recorder) do
     Enum.flat_map(snapshot[:alerts] || [], &alert_condition_rows(&1, snapshot, recorder))

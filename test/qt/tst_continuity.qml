@@ -11,6 +11,8 @@ TestCase {
   property int seq:0
   QtObject {
     id:fakeService
+    property string workspace:"cockpit"
+    property string investigationTab:"triage"
     property bool daemonRunning:true
     property bool panelOpen:true
     property bool historicalMode:false
@@ -62,6 +64,21 @@ TestCase {
     inv.targetPid="<0.2.0>"; compare(inv.processRequest,"")
     fakeService.jobs=({[prior]:{request_id:prior,kind:"inspect_process",node:"fixture@host",status:"complete",result:{pid:"<0.1.0>"}}}); wait(10)
     compare(inv.processResult,null)
+  }
+  function test_budget_confirmation_resets_on_vm_replacement() {
+    var p=createTemporaryObject(factory,suite,{width:1270,height:764})
+    p.openInvestigation("budget","fixture@host",""); wait(30)
+    var inv=investigation(p); inv.budgetConfirmed=true
+    var next=sample(201,"same finding"); next.nodes[0].creation=2
+    fakeService.snapshot=next; wait(20); compare(inv.budgetConfirmed,false)
+  }
+  function test_process_pivot_has_exact_back_navigation() {
+    var p=createTemporaryObject(factory,suite,{width:1270,height:764})
+    p.openInvestigation("process","fixture@host","<0.1.0>"); wait(30)
+    var inv=investigation(p), original=inv.processRequest
+    inv.activate("process","fixture@host","<0.2.0>")
+    verify(typeof inv.back === "function"); inv.back()
+    compare(inv.targetPid,"<0.1.0>"); compare(inv.processRequest,original)
   }
   function test_operator_baseline_and_activity_pivot() {
     var p=createTemporaryObject(factory,suite,{width:1270,height:764})

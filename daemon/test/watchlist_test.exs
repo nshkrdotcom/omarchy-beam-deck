@@ -87,4 +87,24 @@ defmodule BeamDeck.WatchlistTest do
                c.watchlist_path
              )
   end
+
+  test "deferred watches retain dated evidence without becoming actionable" do
+    old = [
+      %{
+        "id" => "p",
+        "node" => "fixture@host",
+        "status" => "present",
+        "pid" => "<0.1.0>",
+        "observed_at_ms" => 1000,
+        "mailbox" => 3
+      }
+    ]
+
+    latest = [%{"id" => "p", "node" => "fixture@host", "status" => "deferred"}]
+    [row] = Watchlist.retain_observations(latest, old)
+    assert row["status"] == "deferred"
+    assert row["pid"] == "<0.1.0>"
+    assert row["observed_at_ms"] == 1000
+    assert row["stale"] == true
+  end
 end

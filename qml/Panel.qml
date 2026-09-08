@@ -15,6 +15,7 @@ Panel {
   property var hostWidget: null
   property var service: null
   property string workspace: "cockpit"
+  onWorkspaceChanged: if (service) service.workspace = workspace
   property bool shortcutsVisible: false
   property bool investigationLoaded: false
   property double nowMs: Date.now()
@@ -619,6 +620,13 @@ Panel {
 
       Text { textFormat: Text.PlainText; width: parent.width; text: nd.node ? nd.node.name : ""; color: root.fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true; elide: Text.ElideRight }
       Text { textFormat: Text.PlainText; visible: nd.node && !nd.node.attached; width: parent.width; text: nd.pinned ? "Pinned node unavailable: " + String((nd.node || {}).error || "authentication/unreachable") + ". It remains listed because it is in your Watchlist." : "Node discovered but not attached: " + String((nd.node || {}).error || "authentication/unreachable"); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
+
+      Text {
+        visible:!!(nd.node && nd.node.last_valid)
+        width:parent.width
+        text:{var v=(nd.node || {}).last_valid || {};return "Last valid OTP evidence: "+DeckState.time(v.at_ms)+" / "+DeckState.duration(root.nowMs-v.at_ms)+" old / memory "+root.bytes((v.memory || {}).total)+" / "+String(v.processes===undefined?"unknown":v.processes)+" processes. Current attachment is unavailable."}
+        color:root.dim; font.family:Style.font.family; font.pixelSize:Style.font.caption; textFormat:Text.PlainText; wrapMode:Text.Wrap
+      }
 
       GridLayout {
         visible: nd.node && nd.node.attached
