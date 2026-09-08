@@ -1,66 +1,30 @@
-# BEAM Deck release continuation
+# BEAM Deck 1.2.0 delivery record
 
-Release closeout resumed on 2026-09-08. Version 1.2.0 includes both implementation tranches and the identifier migration in `ff2956a`. The operator now authorizes merging to main, pushing and deleting the feature branch after validation. The older checkpoint below remains a dated execution record.
+Date: 2026-09-08. Repository: `/home/home/.config/omarchy/plugins/com.nshkr.beam-deck`. Origin: `git@github.com:nshkrdotcom/omarchy-beam-deck.git`. Version 1.2.0 includes all changes since 1.1.0, including the identifier migration in `ff2956a`. The user authorized main merge, push and local/remote feature-branch removal. Resolve final commits from git history; no release tag/publication was requested.
 
-## Repository and documents
+## Delivered scope
 
-* Root: `/home/home/.config/omarchy/plugins/nshkr.beam-deck`.
-* Branch: `feat/operator-mission-control`; origin `git@github.com:nshkrdotcom/omarchy-beam-deck.git`.
-* Community research plan: `docs/COMMUNITY-FEATURE-PLAN.md`, mirrored at `~/Documents/BEAM-Deck/community-feature-plan.md`.
-* This handoff: `docs/CONTINUATION.md`, mirrored at `~/Documents/BEAM-Deck/CONTINUATION.md`.
-* Earlier mission-control plan: `docs/OPERATOR-PLAN.md`, mirrored at `~/Documents/BEAM-Deck/operator-mission-control.md`.
-* Prior checkpoint `f5a0351`; community plan `376f8d1`; tested/pushed backend milestone `21d50a7`. This checkpoint is their next implementation descendant. Resolve its exact hash with `git log -1 --format=%H` and verify `git rev-parse HEAD '@{upstream}'`; avoid embedding a self-referential commit hash in its own file.
+The original operator mission-control tranche is documented in OPERATOR-PLAN.md. The community tranche in COMMUNITY-FEATURE-PLAN.md delivers explicit process activity windows, ETS growth windows and exact-PID stack sampling, with cancellation, filtering, paging, measured units, exact inspection pivots and safe copy projections. These are on-demand diagnostics, not additional continuous samplers. The broader topology/socket/application-telemetry ideas remain alternatives outside this release.
 
-Read current `AGENTS.md` instructions if any appear, plus the Omarchy skill/plugin guide and capture guide before native captures. Preserve the main title's host font tokens/placement, five-action rail order/padding, native KeyboardPanel geometry, shared pointer/IPC/bar-key route, editor-first PanelKeyCatcher and persistent helper lifecycle. The sibling Tactical Display repository is unchanged. The operator's documentation vocabulary restriction remains in force; describe concrete limits and dimensions.
+## Milestone 3 evidence
 
-## Implemented and tested
+Release artifacts are in private `/tmp/beam-deck-release-evidence`, outside the watched source. `final-check.log` passes 109 default ExUnit (23 excluded), 132 including disposable real peers, 30 JavaScript and 5 Python tests; strict format, warnings-as-errors compilation, Credo and Dialyzer; actual launcher protocol passes with 45 JSONL messages. Message count varies with interleaved snapshots. `final-qt.log` passes 29 results; `qt15.log` previously passed 29 at 1.5 scale. Actual-import lint, manifest validation and whitespace checks pass. Only OTP29 was executed locally. CI for release preparation fc1dbfb passed all OTP27/Elixir1.18, OTP28/1.19 and OTP29/1.20 jobs: https://github.com/nshkrdotcom/omarchy-beam-deck/actions/runs/34288375371 . The final startup fix receives its own CI run.
 
-The research ranks process activity, ETS growth and exact-PID stack observations as the next useful connected workflows. All three now have backend collectors, typed protocol commands, cancellation, native QML controls, measured reports and explicit copying. Other ranked ideas (whole supervision browser, sockets, application telemetry) are alternatives for later work, not partially implemented promises.
+Native acceptance found a real installed-host compatibility failure: `publicPluginManifest` in `/usr/share/omarchy/shell/shell.qml` removes `__sourceDir`. Service.qml used it to launch the helper, leaving the panel without samples. Production now resolves its own component location. `helper-path-red.log` fails for the missing path function; `helper-path-green.log` passes, including encoded spaces and invalid/non-local URLs. A shell restart proved that the actual corrected service starts and receives fresh telemetry. The main title and action rail were not edited.
 
-* `Diagnostics.Window`: two explicit admitted metadata passes. Process admission uses `min(max_process_scan,10000)`; ETS uses at most 256 rows and honors lower settings. There is no extra continuous sampler or second retained history engine.
-* `Diagnostics.Interval`: same-incarnation/exact-identity comparisons; signed memory/mailbox/element deltas; reductions/s from comparable counters; unmatched rows have null deltas, reset counters have no rate. At most 60 ranked rows selected across relevant metrics.
-* `Diagnostics.StackSample`: one exact PID, up to 20 observations at 250ms plus RPC time; status counts, argument-free stacks, actual span and resource deltas. Frequency is not CPU time or allocation attribution. No GC, tracing or code installation.
-* `process_window`, `ets_window`, `sample_process`: require request ID, node, expected creation and 1000/5000ms duration; stack sampling also requires PID. Collectors recheck identity independently of dispatch authorization.
-* `cancel_job`: owner/ID-selected interactive cancellation. Panel close/historical state and owner death retain existing cleanup. It cannot cancel safety recovery or exports.
-* `DiagnosticWindow.qml`: reused in Process and ETS, five-row paging, local filter/sort, exact process/owner pivots that reveal the inspector, sample-frequency bars and expandable stacks. Target/session/history changes reject obsolete replies. Existing service job retention remains 32 jobs/120 seconds.
-* Existing hot-set admission now includes reduction leaders even when mailbox and memory rankings differ. ETS metadata now carries a digest of the underlying table identifier so name reuse cannot imply continuity.
+Actual 1280x800, scale-1 Wayland screenshots inspected at full size:
 
-README, changelog, architecture, protocol, configuration, security and operator workflows document the current behavior. Survey reports can be copied but are not automatically inserted into the recorder or ZIP.
+* `screenshot-2026-09-08_13-02-45.png`: actual icon opening and populated Cockpit.
+* `screenshot-2026-09-08_13-03-19.png`: process window, 51 matched processes over 5004ms, signed values and five-row paging. Filtered bd_test_worker and fresh exact PID pivot revealed its inspector (`13-03-59`). An older report correctly disabled its pivot until measured again.
+* `screenshot-2026-09-08_13-04-36.png` and `13-04-46`: 20/20 waiting samples, frequency bar and expanded argument-free stack. Frequency is not CPU attribution.
+* `screenshot-2026-09-08_13-05-05.png`: ETS window, 22 matched tables, test-owned table grew by 96 bytes and one element through its owner. No table content was collected.
+* `screenshot-2026-09-08_13-05-26.png`: explicit cancellation. Closing during a subsequent request left zero active/queued jobs or probes (`closed.json`).
+* `screenshot-2026-09-08_13-05-43.png` and `13-05-55`: pointer/IPC shared native panel; title-region pixel difference is zero (`title-difference.txt`), same container dimensions and five-action order/placement. Existing Qt tests cover protected geometry and keyboard ownership.
 
-## Actual validation
+No ten-minute soak or new 50-cycle run was performed, per the revised user scope. Physical bar-position shortcut, alternate native scales/themes, native clipboard round trip, ETS owner pivot/replacement and historical cancellation were not repeated in this focused pass; earlier Qt/real-peer/protocol coverage remains explicitly distinct from native evidence. No claim covers all possible desktop configurations. Older boot-local `/tmp/beam-deck-community-evidence` and `/tmp/beam-deck-operator-evidence` artifacts are no longer present; their earlier results remain dated records in the plans.
 
-Final local logs are private external artifacts in `/tmp/beam-deck-community-evidence`:
+## Cleanup and continuation
 
-| Evidence | Result |
-|---|---|
-| `checkpoint-check-final.log` | Full `make check` passed: 109 default ExUnit/23 integration exclusions, all 132 with real peers; 29 JS and 5 Python tests; formatting, warnings-as-errors compilation, strict Credo, Dialyzer zero errors; actual launcher protocol, 46 JSONL messages |
-| `checkpoint-qt.log`, `checkpoint-qt15.log` | 29 passing results each, including setup/cleanup, normal and 1.5 scale; real production components/native controls with isolated host inputs |
-| `checkpoint-native-lint.log` | Actual installed qs import root resolves; real missing-import negative test preserved. Dynamic host-token lint warnings are not native runtime acceptance |
-| Manifest / whitespace | `omarchy plugin validate .` and `git diff --check` passed |
-| Earlier backend CI | All three OTP27/Elixir1.18, OTP28/1.19, OTP29/1.20 combinations passed on `21d50a7`; inspect the checkpoint's new CI separately |
+Only the disposable `bd_release_acceptance` VM was changed (one fixture-owned ETS insertion). Its scheduler count was confirmed as 3 before orderly shutdown. The panel was closed; no test watches, probes, trials, clipboard action or saved diagnostic preferences were introduced. The user explicitly authorized replacing the old ID in their existing shell.json entry; its position/settings were preserved. The renamed checkout and host were rescanned/restarted. No sibling code, user workloads, exports or recovery journals were changed. The persistent shell-owned helper remains by design.
 
-Local versions: OTP29.0.6 / ERTS17.0.6, Elixir1.20.4, Qt6.11.2, Quickshell0.3.1. External Mix caches remain `/home/home/.cache/beam-deck/dev/_build` and `/home/home/.cache/beam-deck/dev/deps`. Use the resolved toolchain PATH; do not automatically install or upgrade anything.
-
-TDD artifacts include `interval-{red,green}.log`, `peers-{red,green}.log`, `cancel-protocol-{red,green}.log`, `wire-{red,green}.log`, `ui-model-{red,green}.log`, `ui-qt-red.log`, `ui-pivot-red.log`, `ui-results-green.log`, `collector-identity-{red,green}.log`, and `admission-{red,green}.log`. Intended failures covered missing commands/measurements/cancellation, wrong incarnation, omitted reduction leaders, result paging, late replies and missing scroll reveal. A Qt test initially counted button text children as extra controls; that fixture was corrected. A stack-bar selector was added for geometry testing, not claimed as a product bug. Strict formatting caught a temporary missing delimiter during refactoring; it was corrected before the final gate. The first checkpoint gate was interrupted by the session permission transition after static checks; only `checkpoint-check-final.log` is the completed gate.
-
-## Next work when explicitly resumed
-
-1. Recheck root/branch/status/remotes and upstream. Run `gh run list --branch feat/operator-mission-control --limit 3` and inspect this checkpoint's run. Fix any genuine CI regression before further implementation.
-2. Perform focused native acceptance of the three new controls on a disposable peer: process window and exact pivot, ETS growth/owner and named replacement, stack frequency/expansion, single cancellation, close/historical cancellation, and copy privacy canaries if clipboard restoration is prepared. Use actual pointer and IPC openings; verify title/rail against the existing reference and actual shared geometry. Production Qt coverage is not a screenshot claim.
-3. Verify that the live host actually loaded the new QML/helper. It was not restarted or proven updated during this checkpoint. Before any necessary restart, inspect status for a user-owned trial/probe/operation and announce the restart. Do not change workstation settings. Native evidence from the previous mission-control tranche does not validate these new controls.
-4. Keep runtime output, fixture builds and captures under `/tmp` or private state/cache directories outside the watched plugin tree. Prior external input helpers remain `/tmp/tactical-pointer-check.wAn1rl/click` and `/tmp/beam-deck-operator-evidence/input/bar-key`; verify they still exist and their screen coordinates/keycodes still match the host before use. Do not type into an unverified surface.
-5. Add regressions only for demonstrated failures, make scoped corrections, then update research plan/validation evidence and synchronize Documents copies before guarded commits/pushes. No long desktop soak or repeated 50-cycle run is requested. The user explicitly prioritized useful feature work and then asked for this pause.
-
-No native acceptance claim is made for the new workflows yet. Optional follow-up runtime coverage could strengthen active-work sampling and mid-window process-exit cases beyond current waiting-stack/ended-PID, census, ETS replacement, protocol cancellation and identity tests; do not silently call those extra cases already tested.
-
-## Cleanup and pause state
-
-Read-only final status showed the panel closed, live mode, zero active/queued/UI jobs, no trial/probe and no watches. Fixture peers were stopped by test teardown; a final process check found none. The existing shell-owned helper remains, as designed. No new native test peer, clipboard action, saved preference change or workstation change was made in this tranche. User workloads, watches, exports and journals were not modified. No test or acceptance runner should remain active after this checkpoint. Pause after the final commit/push; do not begin the next native step automatically.
-
-## 2026-09-08 release validation
-
-Actual checkout directory remains `nshkr.beam-deck`; manifest/IPC ID is `com.nshkr.beam-deck`. The directory name does not define the ID. CI run [34287879201](https://github.com/nshkrdotcom/omarchy-beam-deck/actions/runs/34287879201) passed static, lint and all three supported OTP/Elixir combinations for the rename commit.
-
-Release checks in `/tmp/beam-deck-release-evidence`: `check.log` passes 109 default ExUnit (23 excluded), 132 including real peers, 29 JavaScript, 5 Python, strict formatting/compilation/Credo/Dialyzer and 46 launcher protocol messages. `qt.log` and `qt15.log` each pass 29 results at normal/1.5 scale. `native-lint.log`, manifest validation and whitespace checks pass. Version contract first failed with actual 1.1.0 versus expected 1.2.0 (`version-red.log`); product, export and source contracts now agree on 1.2.0.
-
-The host currently has an old-ID bar entry, so the renamed plugin is disabled and both IPC targets return Target not found. Permission to replace only that entry's ID is pending; no workstation configuration has been changed. New-workflow native acceptance remains pending. The previous boot's `/tmp/beam-deck-community-evidence` and `/tmp/beam-deck-operator-evidence` artifacts are no longer present; their earlier recorded results are historical evidence, not currently available captures. No endurance rerun is requested.
+The implementation and focused milestone 3 are complete. Release closeout requires the final fix/docs commit to pass CI, then the authorized fast-forward to main and branch removal. After merge, continue from main. Future work should begin from the qualitative research ranking rather than repeat cosmetic work or waived endurance runs. Copies of this record and both plans are synchronized under `~/Documents/BEAM-Deck/`.

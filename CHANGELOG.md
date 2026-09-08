@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [1.2.0] - 2026-09-08
 
+* Resolve the helper from the installed QML component location. Current Omarchy sanitizes private manifest paths; relying on them previously left the panel without telemetry.
+
 * Rename the plugin identifier from `nshkr.beam-deck` to `com.nshkr.beam-deck` across the manifest, service registration, IPC, tests and documentation. Existing installations must update their existing bar entry to the new ID.
 
 * Add explicit process activity and ETS growth surveys with signed interval deltas, exact identity, five-row paging, local filtering and direct inspection pivots.

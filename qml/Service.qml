@@ -30,7 +30,7 @@ Item {
   property bool daemonRunning: daemon.running
   property bool panelOpen: false
   property int restartDelayMs: 1000
-  readonly property string pluginRoot: manifest && manifest.__sourceDir ? String(manifest.__sourceDir) : ""
+  readonly property string pluginRoot: DeckState.localFilePath(Qt.resolvedUrl("..").toString()).replace(/\/$/, "")
 
   function send(command) {
     if (!daemon.running) return false

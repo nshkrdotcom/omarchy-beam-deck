@@ -1,10 +1,10 @@
 # Community needs → BEAM Deck diagnostic workflows
 
-Date/access date: 2026-09-07. Repository `/home/home/.config/omarchy/plugins/nshkr.beam-deck`, clean baseline `f5a035170302f0459e03f1947eb7b5fb277b9bd2`, continuing the authorized `feat/operator-mission-control` branch. Origin is `git@github.com:nshkrdotcom/omarchy-beam-deck.git`. No new dependencies, application agents or sibling edits. Main merge and branch cleanup were subsequently authorized on 2026-09-08. Omarchy skill/plugin guidance and the earlier protected presentation contract remain applicable. This document is synchronized with `~/Documents/BEAM-Deck/community-feature-plan.md`.
+Date/access date: 2026-09-07. Repository `/home/home/.config/omarchy/plugins/com.nshkr.beam-deck`, clean baseline `f5a035170302f0459e03f1947eb7b5fb277b9bd2`, continuing the authorized `feat/operator-mission-control` branch. Origin is `git@github.com:nshkrdotcom/omarchy-beam-deck.git`. No new dependencies, application agents or sibling edits. Main merge and branch cleanup were subsequently authorized on 2026-09-08. Omarchy skill/plugin guidance and the earlier protected presentation contract remain applicable. This document is synchronized with `~/Documents/BEAM-Deck/community-feature-plan.md`.
 
 ## Checkpoint status
 
-Milestones 1 and 2 are implemented. The final local gate passes 132 ExUnit including real peers, 29 JS, 5 Python and 29 Qt results at each scale, plus strict compilation/lint/Dialyzer and the actual-launcher protocol. The operator requested a stable commit/push and pause before further work. Native acceptance of these new controls is still unverified; no long desktop test was run. See [CONTINUATION.md](CONTINUATION.md) for exact state, files, commands, evidence and the next steps after an explicit resume. Earlier execution entries below describe their original milestone state.
+All three implementation milestones are complete, including focused native acceptance and an installed-host startup fix. See [CONTINUATION.md](CONTINUATION.md) for final release evidence, actual test counts and remaining validation limits. Earlier entries below are historical execution records.
 
 ## What people are asking for
 
@@ -64,3 +64,5 @@ Full gate remains strict (format, warnings-as-errors, ExUnit/default and real pe
 * Pause requested by the operator: milestone 3 native acceptance is deliberately unexecuted. No new screen interaction or long soak. `CONTINUATION.md` records native-loader uncertainty, precise next steps and test gaps. Final read-only status showed panel closed, no jobs/trials/probes/watches, no remaining fixture peers; persistent helper retained. Documentation updated and both existing plans plus this handoff synchronized to Documents. Commit/push this stable implementation and pause.
 
 * 2026-09-08: release 1.2.0 closeout resumed after identifier migration `ff2956a`; all local release gates pass. See the dated release section in CONTINUATION.md for actual counts, current native migration blocker and artifact availability.
+
+* 2026-09-08 final milestone 3: focused native process/ETS/stack/cancellation acceptance completed. Fixed actual host manifest sanitization preventing helper startup, with red/green regression and full gate. See CONTINUATION.md for current evidence, cleanup and explicit unexecuted cases; this supersedes the earlier paused/pending state. Final main merge and branch cleanup are authorized.

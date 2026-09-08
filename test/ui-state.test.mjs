@@ -235,3 +235,9 @@ test("panel close cancels interval jobs and refuses late success", () => {
   jobs=S.acceptJob(jobs,{request_id:"sample_process",kind:"sample_process",status:"complete",result:{secret:"LATE"}},300);
   assert.equal(jobs.sample_process.status,"canceled");assert.equal(jobs.sample_process.result,undefined);
 });
+
+test('helper path comes from the component URL without private host manifest fields', () => {
+  assert.equal(S.localFilePath('file:///tmp/BEAM%20Deck/bin/beam-deckd'), '/tmp/BEAM Deck/bin/beam-deckd');
+  assert.equal(S.localFilePath('https://example.invalid/helper'), '');
+  assert.equal(S.localFilePath('file:///tmp/%ZZ'), '');
+});

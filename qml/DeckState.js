@@ -1,5 +1,11 @@
 .pragma library
 
+function localFilePath(url) {
+  var value = String(url || "");
+  if (value.indexOf("file:///") !== 0) return "";
+  try { return decodeURIComponent(value.slice(7)); } catch (e) { return ""; }
+}
+
 function emptySnapshot() {
   return {type:"snapshot", protocol:1, onboarding:{state:"starting"}, summary:{runtime_count:0, attached_count:0, warning_count:0, critical_count:0},
     host:{logical_cpus:0,runtimes:[],memory:{}}, nodes:[], alerts:[], budget:[], history:[], events:[],
