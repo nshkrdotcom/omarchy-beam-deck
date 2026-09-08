@@ -11,6 +11,10 @@ init([]) ->
     Binary = binary:copy(<<"BD_FIXTURE_BINARY_MUST_NOT_LEAVE_TARGET">>, 32768),
     {ok, {Binary, Table}}.
 handle_call(ping, _From, State) -> {reply, pong, State};
+handle_call(silent_ancestor, _From, State) ->
+    Silent = spawn(fun() -> receive stop -> ok end end),
+    put('$ancestors', [bd_test_sup, Silent]),
+    {reply, ok, State};
 handle_call({make_tables, Count}, _From, State) ->
     Tables = [ets:new(bd_extra, [set, private]) || _ <- lists:seq(1, Count)],
     {reply, length(Tables), State};

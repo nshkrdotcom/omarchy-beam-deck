@@ -25,8 +25,8 @@ defmodule BeamDeck.Diagnostics.Process do
          {:ok, info} when is_list(info) <-
            rpc(node, :erlang, :process_info, [pid, @fields], deadline) do
       data = Map.new(info)
-      {ancestry, warnings} = ancestry(node, pid, opts, deadline)
       binaries = binaries(node, pid, opts, deadline)
+      {ancestry, warnings} = ancestry(node, pid, opts, deadline)
 
       result = %{
         node: Atom.to_string(node),
@@ -159,7 +159,10 @@ defmodule BeamDeck.Diagnostics.Process do
   defp ancestry_row(node, ancestor, child, deadline) do
     case ancestor_pid(node, ancestor, deadline) do
       {:ok, parent} ->
-        focused = child_info(node, parent, child, deadline)
+        # An ancestor is not necessarily a supervisor. A live process that does
+        # not implement supervisor calls must not consume the whole report.
+        child_deadline = min(deadline, System.monotonic_time(:millisecond) + 200)
+        focused = child_info(node, parent, child, child_deadline)
         {%{pid: Remote.pid_text(parent), name: ancestor_name(ancestor), child: focused}, parent}
 
       _ ->

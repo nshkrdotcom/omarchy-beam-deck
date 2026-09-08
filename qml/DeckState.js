@@ -226,6 +226,22 @@ function recorderSeries(timeline,metric,nodeName) {
 }
 function metricText(value,unit) { return finite(value)===null ? "unavailable" : unit==="bytes" ? bytes(value) : Number(value.toFixed(1))+" "+unit; }
 
+function metricScale(min,max,unit) {
+  if(finite(min)===null || finite(max)===null) return "unavailable";
+  var span=max-min;
+  if(unit==="bytes" && span>0) {
+    var units=["B","KiB","MiB","GiB","TiB"], index=0, divisor=1;
+    while(Math.abs(max)/divisor>=1024 && index<units.length-1){index++;divisor*=1024;}
+    var precision=Math.max(index?1:0,Math.min(6,Math.ceil(-Math.log(span/divisor)/Math.LN10)));
+    return (min/divisor).toFixed(precision)+" "+units[index]+" … "+(max/divisor).toFixed(precision)+" "+units[index]+" (span "+bytes(span)+")";
+  }
+  return metricText(min,unit)+" … "+metricText(max,unit)+(span===0?" (flat)":" (span "+metricText(span,unit)+")");
+}
+function metricY(value,min,max,top,bottom) {
+  if(finite(value)===null || finite(min)===null || finite(max)===null)return null;
+  return min===max?(top+bottom)/2:bottom-(value-min)/(max-min)*(bottom-top);
+}
+
 function revealFocus(item) {
   var parent = item.parent;
   while (parent) {

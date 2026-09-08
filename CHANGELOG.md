@@ -72,3 +72,5 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 [1.1.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/releases/tag/v1.0.0
+
+Native acceptance refinements: precise small-range recorder scale labels and bounded optional ancestry queries that preserve binary metadata.

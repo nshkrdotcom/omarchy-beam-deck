@@ -87,7 +87,7 @@ FocusScope {
   Text {
     id:heading; x:Style.space(12); y:Style.space(8); width:parent.width-Style.space(24)
     text:root.series.title+(root.metric!=="rss"?" / "+(root.nodeName || "choose a node"):"")
-      +"\nScale "+DeckState.metricText(root.series.min,root.series.unit)+" … "+DeckState.metricText(root.series.max,root.series.unit)
+      +"\nScale "+DeckState.metricScale(root.series.min,root.series.max,root.series.unit)
       +" · "+(root.series.positionsMeasured?"measured time":"sequence spacing (time unavailable)")
       +"\n▲ symptoms  ■ events · gaps and VM boundaries break traces"
     color:root.dim; font.family:Style.font.family; font.pixelSize:Style.font.caption; textFormat:Text.PlainText; wrapMode:Text.Wrap
@@ -100,20 +100,20 @@ FocusScope {
       var ctx=getContext("2d"); ctx.clearRect(0,0,width,height)
       ctx.lineWidth=1; ctx.strokeStyle=Util.alpha(root.fg,0.1)
       for(var g=0;g<3;g++) { var gy=root.plotTop+g/2*root.plotHeight;ctx.beginPath();ctx.moveTo(root.plotLeft,gy);ctx.lineTo(root.plotRight,gy);ctx.stroke() }
-      var min=root.series.min, max=root.series.max, span=Math.max(1,max-min)
+      var min=root.series.min, max=root.series.max
       var colors=[root.accent,root.fg,root.urgent,root.dim], dashes=[[],[6,3],[1,3],[6,3,1,3]]
       root.series.traces.forEach(function(trace,t) {
         ctx.beginPath();var connected=false
         trace.points.forEach(function(p,i) {
           if(p.value===null) { connected=false;return }
-          var x=root.xForIndex(i),y=min===max?(root.plotTop+root.plotBottom)/2:root.plotBottom-(p.value-min)/span*root.plotHeight
+          var x=root.xForIndex(i),y=DeckState.metricY(p.value,min,max,root.plotTop,root.plotBottom)
           if(!connected || p.breakBefore) ctx.moveTo(x,y); else ctx.lineTo(x,y)
           connected=true
         })
         ctx.strokeStyle=colors[t];ctx.lineWidth=2;ctx.setLineDash(dashes[t]);ctx.stroke();ctx.setLineDash([])
         trace.points.forEach(function(p,i) {
           if(p.value===null) return
-          var y=min===max?(root.plotTop+root.plotBottom)/2:root.plotBottom-(p.value-min)/span*root.plotHeight
+          var y=DeckState.metricY(p.value,min,max,root.plotTop,root.plotBottom)
           ctx.fillStyle=colors[t];ctx.fillRect(root.xForIndex(i)-1,y-1,2,2)
         })
       })

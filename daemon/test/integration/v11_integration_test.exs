@@ -31,6 +31,20 @@ defmodule BeamDeck.V11IntegrationTest do
     refute wire =~ "private_fixture_data"
   end
 
+  test "a live non-supervisor ancestor cannot starve binary metadata", c do
+    assert {:ok, :ok} =
+             Remote.call_raw(c.node, :gen_server, :call, [:bd_test_worker, :silent_ancestor])
+
+    pid = Remote.call(c.node, :erlang, :whereis, [:bd_test_worker], nil)
+    started = System.monotonic_time(:millisecond)
+    opts = Map.put(c.opts, "process_timeout_ms", 1_000)
+    assert {:ok, report} = ProcessDiagnostics.inspect_process(c.node, Remote.pid_text(pid), opts)
+    assert report.binaries.status == "available"
+    assert report.binaries.referenced_bytes > 0
+    assert System.monotonic_time(:millisecond) - started < 750
+    assert Enum.any?(report.ancestry, &(&1[:child] == %{status: "unavailable_or_capped"}))
+  end
+
   test "registered pin follows a supervised replacement without persisting PID", c do
     assert %{status: "present", pid: old} = Watchlist.resolve(c.node, "bd_test_worker")
     pid = Remote.call(c.node, :erlang, :whereis, [:bd_test_worker], nil)

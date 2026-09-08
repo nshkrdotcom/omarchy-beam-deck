@@ -201,3 +201,11 @@ test("captured hot-set sorting is stable, bounded and keeps unknown measurements
   assert.equal(S.rankedProcesses(rows,"<0.2.0>","mailbox").length,1);
   assert.equal(S.rankedProcesses(Array.from({length:40},(_,i)=>({pid:String(i)})),"","mailbox").length,24);
 });
+
+test("small measured chart ranges retain distinct labels and full plotted precision", () => {
+  assert.match(S.metricScale(60*1048576,60*1048576+4096,"bytes"),/60.000 MiB.*60.004 MiB.*4.0 KiB/);
+  assert.equal(S.metricY(.3,.2,.3,10,122),10);
+  assert.equal(S.metricY(.2,.2,.3,10,122),122);
+  assert.equal(S.metricY(null,.2,.3,10,122),null);
+  assert.equal(S.metricY(7,7,7,10,122),66);
+});
