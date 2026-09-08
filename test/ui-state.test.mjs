@@ -209,3 +209,9 @@ test("small measured chart ranges retain distinct labels and full plotted precis
   assert.equal(S.metricY(null,.2,.3,10,122),null);
   assert.equal(S.metricY(7,7,7,10,122),66);
 });
+
+test("action receipts describe requests without serializing internal payloads or claiming current probe state", () => {
+  const text=S.actionReceipt({action:"deep_events",result:{enabled:true,secret:"PRIVATE_ACTION_CANARY"}});
+  assert.match(text,/start accepted/);assert.match(text,/current probe state/);assert.doesNotMatch(text,/PRIVATE_ACTION_CANARY|enabled/);
+  assert.equal(S.actionReceipt({action:"watchlist",result:{saved:true}}),"Watchlist saved.");
+});

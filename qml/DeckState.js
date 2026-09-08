@@ -282,3 +282,10 @@ function rankedProcesses(rows,query,sort) {
     return String(a.pid).localeCompare(String(b.pid));
   });
 }
+
+function actionReceipt(data) {
+  var result=data.result || {};
+  if(data.action==="deep_events") return result.enabled?"Deep Events start accepted. Check the node for current probe state.":"Deep Events stop accepted. Check provider status for cleanup confirmation.";
+  if(data.action==="watchlist") return result.saved?"Watchlist saved.":"Watchlist update received.";
+  return "Action response received; inspect the relevant live control for its current state.";
+}

@@ -24,6 +24,8 @@ Item {
   property bool notificationBusy: false
   property string lastError: ""
   property string lastAction: ""
+  property double lastActionAt: 0
+  onLastActionChanged: lastActionAt = Date.now()
   property bool budgetRequestPending: false
   property bool daemonRunning: daemon.running
   property bool panelOpen: false
@@ -127,7 +129,7 @@ Item {
         snapshot = Object.assign(DeckState.emptySnapshot(), data)
         lastError = ""
       } else if (data.type === "action") {
-        lastAction = String(data.action || "") + ": " + (typeof data.result === "object" ? JSON.stringify(data.result) : String(data.result || ""))
+        lastAction = DeckState.actionReceipt(data)
       } else if (data.type === "job") {
         jobs = DeckState.acceptJob(jobs, data, Date.now())
         if (data.kind === "budget_trial_begin" && DeckState.terminal(data.status)) {
@@ -158,7 +160,7 @@ Item {
         snapshot = next
       }
     } catch (e) {
-      lastError = "Invalid daemon output: " + e
+      lastError = "Invalid daemon output; the last valid evidence is retained."
     }
   }
 

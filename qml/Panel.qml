@@ -319,7 +319,7 @@ Panel {
         }
         Text { textFormat: Text.PlainText; visible: !!root.snapshotData.config_error || (root.service && root.service.lastError !== ""); Layout.fillWidth: true; text: root.snapshotData.config_error ? ("Config: " + root.snapshotData.config_error) : (root.service ? root.service.lastError : ""); color: root.urgent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
 
-        Text { textFormat: Text.PlainText; visible: root.service && root.service.lastAction !== ""; Layout.fillWidth: true; text: root.service ? root.service.lastAction : ""; color: root.accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
+        Text { textFormat: Text.PlainText; visible: root.service && root.service.lastAction !== ""; Layout.fillWidth: true; text: root.service ? "Last response / "+DeckState.time(root.service.lastActionAt)+" / "+root.service.lastAction : ""; color: root.accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
         Text { textFormat: Text.PlainText; visible: root.service && root.service.notificationError !== ""; Layout.fillWidth: true; text: root.service ? root.service.notificationError : ""; color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap }
         TrialBar { Layout.fillWidth: true; service: root.service }
         Item {

@@ -19,6 +19,7 @@ TestCase {
     property var jobs: ({})
     property string lastError: ""
     property string lastAction: ""
+    property double lastActionAt: 0
     property string notificationError: ""
     property bool budgetRequestPending: false
     property var snapshot: ({at_ms:Date.now(),budget_trial:null,onboarding:{state:"no_runtimes"},summary:{},nodes:[],host:{},incidents:[]})
