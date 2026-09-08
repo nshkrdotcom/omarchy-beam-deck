@@ -75,7 +75,10 @@ Run opt-in native acceptance only with a verified test-owned peer and external a
 python3 -B scripts/native-acceptance.py \
   --evidence /tmp/beam-deck-native-acceptance-UNIQUE \
   --pointer /path/to/verified/virtual-pointer-client \
+  --bar-keyboard /path/to/physical-code-10-keyboard-client \
   --target-pid TEST_OWNED_PID --cycles 50 --soak 600 --closed 60
 ```
 
 The runner records observed opens/closes through pointer, actual bar shortcut and IPC, then an uninterrupted live soak with one persistent helper and unchanged process start identities. It checks predeclared RSS/CPU/FD/task/child budgets, fresh samples, recorder progress and bounded jobs. It preserves bounded identity-safe status before failure cleanup and never reopens a lost soak instance. Shorter runs are explicitly labeled smoke. All output and temporary state stay outside the watched tree; do not edit, commit or build inside it during a soak. Only scale-1 single-output native hardware is currently available; other orientations/monitors/native fractional scaling remain unverified without workstation changes.
+
+The native runner uses a standard-XKB virtual keyboard client for the configured Super+Ctrl+physical-code-10 bar shortcut. `wtype` assigns temporary keycodes, so its named `1` does not test this physical binding. Ordinary panel key tests still use `wtype`. Wait for the host surface to unmap and settle before the next cycle, and let plugin file watching settle after source changes.

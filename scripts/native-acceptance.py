@@ -115,11 +115,15 @@ def source_fingerprint():
     return digest.hexdigest()
 
 
+def panel_surface_mapped():
+    layers = json.loads(command("hyprctl", "layers", "-j"))
+    return any(row.get("namespace") == "omarchy-keyboard-panel" and row.get("w", 0) > 700 and row.get("h", 0) > 400
+               for monitor in layers.values() for row in monitor["levels"].get("3", []))
+
+
 def assert_surface():
     assert status().get("panel_open") is True, "refusing_keys_without_beam_panel"
-    layers = json.loads(command("hyprctl", "layers", "-j"))
-    assert any(row.get("w", 0) > 700 and row.get("h", 0) > 400
-               for monitor in layers.values() for row in monitor["levels"].get("3", [])), "native_panel_layer_missing"
+    assert panel_surface_mapped(), "native_panel_layer_missing"
 
 
 def keys(*args):
@@ -127,13 +131,26 @@ def keys(*args):
     command("wtype", *args)
 
 
+def open_route(route, pointer, bar_keyboard):
+    if route == "pointer": command(str(pointer), "940", "12")
+    elif route == "ipc": command("omarchy-shell", "shell", "summon", PLUGIN, "{}")
+    elif route == "bar_shortcut": command(str(bar_keyboard))
+    else: raise ValueError("unknown_native_route")
+
+
 def wait_panel(opened, timeout=15):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         value = status()
         if value.get("panel_open") is opened and value.get("provider", {}).get("panel_open") is opened:
-            if opened: assert_surface()
-            return value
+            if opened:
+                assert_surface()
+                return value
+            if not panel_surface_mapped():
+                # Let the compositor complete the unmap/input transition before the
+                # next distinct human interaction; logical state alone is earlier.
+                time.sleep(.5)
+                return value
         time.sleep(.15)
     raise AssertionError("panel_transition_not_observed")
 
@@ -186,9 +203,7 @@ def run(args):
         wait_panel(False)
         for i in range(args.cycles):
             route = ("pointer", "ipc", "bar_shortcut")[i % 3]
-            if route == "pointer": command(str(args.pointer), "940", "12")
-            elif route == "ipc": command("omarchy-shell", "shell", "summon", PLUGIN, "{}")
-            else: command("wtype", "-M", "ctrl", "-M", "logo", "-k", "1", "-m", "logo", "-m", "ctrl")
+            open_route(route, args.pointer, args.bar_keyboard)
             opened = wait_panel(True)
             # Real context transition each cycle, with focus returned to catcher on open.
             keys("-k", "i"); time.sleep(.1); keys("-k", "f"); time.sleep(.1)
@@ -261,6 +276,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument("--pointer", type=Path, required=True)
+    parser.add_argument("--bar-keyboard", type=Path, required=True, help="virtual keyboard client sending configured physical Super+Ctrl+code:10")
     parser.add_argument("--target-pid", type=int, required=True)
     parser.add_argument("--cycles", type=int, default=50)
     parser.add_argument("--soak", type=int, default=600)

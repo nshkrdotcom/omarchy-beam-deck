@@ -33,6 +33,19 @@ class NativeTools(unittest.TestCase):
         for changed in ({**s, "panel_open": False}, {**s, "session_id": "two"}, {**s, "at_ms": -20000}):
             with self.assertRaises(AssertionError): runner.check_live(changed, "one", 2000)
 
+    def test_physical_bar_shortcut_uses_explicit_keycode_client(self):
+        runner = load("native_routes", ROOT / "scripts/native-acceptance.py")
+        with patch.object(runner, "command") as command:
+            runner.open_route("bar_shortcut", Path("/tmp/pointer"), Path("/tmp/physical-keyboard"))
+        command.assert_called_once_with("/tmp/physical-keyboard")
+
+    def test_close_waits_for_native_surface_to_unmap(self):
+        runner = load("native_unmap", ROOT / "scripts/native-acceptance.py")
+        closed = {"panel_open": False, "provider": {"panel_open": False}}
+        with patch.object(runner, "status", return_value=closed), patch.object(runner, "panel_surface_mapped", side_effect=[True, False]) as mapped, patch.object(runner.time, "sleep"):
+            self.assertEqual(runner.wait_panel(False), closed)
+        self.assertEqual(mapped.call_count, 2)
+
     @unittest.skipUnless(Path("/usr/lib/qt6/bin/qmllint").exists() and Path("/usr/share/omarchy/shell").exists(), "installed Qt/Omarchy needed for native import lint")
     def test_native_lint_maps_real_qs_root_and_rejects_missing_import(self):
         lint = load("beam_lint", ROOT / "scripts/lint-qml.py")
