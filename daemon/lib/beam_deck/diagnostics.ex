@@ -6,6 +6,8 @@ defmodule BeamDeck.Diagnostics do
   def submit(owner, id, kind, node, fun, opts \\ []),
     do: GenServer.call(__MODULE__, {:submit, owner, id, kind, node, fun, opts})
 
+  def cancel_job(owner, id), do: GenServer.call(__MODULE__, {:cancel_job, owner, id})
+
   def status, do: GenServer.call(__MODULE__, :status)
 
   def cancel_interactive(owner), do: GenServer.cast(__MODULE__, {:cancel, owner})
@@ -26,6 +28,16 @@ defmodule BeamDeck.Diagnostics do
        max_queued: state.config["max_queued_jobs"],
        oldest_queued_ms: max(0, now - oldest)
      }, state}
+  end
+
+  def handle_call({:cancel_job, owner, id}, _from, state) do
+    matches = fn job -> job.owner == owner and job.id == id and job.interactive end
+
+    if Enum.any?(state.queue ++ Map.values(state.active), matches) do
+      {:reply, :ok, cancel_matching(state, matches) |> dispatch()}
+    else
+      {:reply, {:error, :not_cancelable}, state}
+    end
   end
 
   def handle_call({:submit, owner, id, kind, node, fun, opts}, _from, state) do
@@ -164,6 +176,10 @@ defmodule BeamDeck.Diagnostics do
 
   defp cancel(state, owner, interactive_only) do
     matches = fn job -> job.owner == owner and (not interactive_only or job.interactive) end
+    cancel_matching(state, matches)
+  end
+
+  defp cancel_matching(state, matches) do
     {removed, queue} = Enum.split_with(state.queue, matches)
     {killed, kept} = Enum.split_with(state.active, fn {_ref, job} -> matches.(job) end)
 

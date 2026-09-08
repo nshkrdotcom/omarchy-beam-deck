@@ -40,7 +40,7 @@ TestCase {
     Style.font=Object.assign({},Style.font,{caption:15,subtitle:19,body:18,bodySmall:16})
     test_header({w:900})
   }
-  function test_header_data() { return [{tag:"narrow",w:900},{tag:"native",w:1270},{tag:"wide",w:1900}] }
+  function test_header_data() { return [{tag:"compact",w:900},{tag:"native",w:1270},{tag:"wide",w:1900}] }
   function test_header(data) {
     var p=createTemporaryObject(factory,suite,{width:data.w,height:764})
     verify(p)

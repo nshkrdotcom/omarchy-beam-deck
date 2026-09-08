@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## Unreleased — operator mission control
 
+* Add explicit process activity and ETS growth surveys with signed interval deltas, exact identity, five-row paging, local filtering and direct inspection pivots.
+* Add exact-PID stack sampling with frequency bars, expandable argument-free stacks and explicit report copying.
+* Add owner-scoped request cancellation and require target incarnation/duration on interval commands. Respect the configured process admission limit.
+* Admit reduction leaders fairly into the existing captured hot set, even when mailbox and memory rankings differ.
+
 * Integrate dated provider quality, filtered activity and exact recorder pivots into Triage.
 * Add one explicit retained-frame intervention baseline with replace/clear, directional comparison and report export.
 * Extend recorder graphs with node memory/queue/utilization/capacity views, measured spacing, honest missing segments, capped markers, precise keyboard/pointer selection and font-responsive legends.

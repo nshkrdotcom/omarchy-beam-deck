@@ -439,7 +439,7 @@ defmodule BeamDeck.Incidents do
   defp crash_title(true), do: "Runtime exit with crash-dump evidence"
   defp crash_title(false), do: "Local runtime disappeared"
 
-  defp crash_summary(crash, true), do: crash[:slogan] || "Matched bounded crash-dump header"
+  defp crash_summary(crash, true), do: crash[:slogan] || "Matched crash-dump header"
 
   defp crash_summary(_crash, false),
     do: "Observed OS process disappearance; normal shutdown is possible."

@@ -35,3 +35,13 @@ Read pending, applied, uncertain and rollback-failed states literally. A timeout
 Export diagnostics or a selected comparison. The owner-only ZIP contains an operator text report, metadata, current live companions and the selected recorder frames. A historical report identifies its range and uses captured findings/watch/activity context; current companion filenames identify their different capture scope. Review operational identities before sharing. No automatic upload or partial presentation-privacy switch is provided.
 
 See [validation](VALIDATION.md) and the [execution plan](OPERATOR-PLAN.md) for actual local/CI/native evidence and limitations.
+
+## Find work and growth during an interval
+
+Open Process and choose **Measure process activity · 5s**. Sort by **Reductions/s**, **Memory change** or **Mailbox change**. This compares two admitted census passes, so a process with a large lifetime counter but little new work no longer dominates the interval ranking. Filter locally, use Previous/Next rows, and select **Inspect PID** to jump to its inspector. First-only/last-only rows have no invented zero baseline; short-lived work between samples can be missed.
+
+For a selected PID, choose **Sample this PID · 5s**. Read status counts alongside the frequency bars and expand a stack to see its argument-free call path. A waiting stack sampled repeatedly is not proof that it consumed CPU; these observations cannot attribute allocations or short function calls. Memory/mailbox changes and reductions/s are separate measured evidence.
+
+In ETS lens, choose **Measure ETS growth · 5s**. Sort by memory or element change and select **Inspect owner**. Matching uses the table identifier and VM incarnation; name reuse is not continuity. An owner change is shown separately. Missing rows can reflect a racing or incomplete scan.
+
+Each workflow has **Cancel** and **Copy measurements**. Closing the panel or entering historical mode cancels acquisition; changing target/session discards obsolete reply handles. Results have capture times and expire with session job retention. These reports are not automatically inserted into the recorder or diagnostic ZIP. See [CONTINUATION.md](CONTINUATION.md) for the latest acceptance status.

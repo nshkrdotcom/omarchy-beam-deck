@@ -30,7 +30,7 @@ function cancelInteractive(jobs, now) {
   var next={};
   Object.keys(jobs).forEach(function(k) {
     var job=jobs[k];
-    next[k]=["inspect_process","inspect_ets","recorder_frame","compare_frames"].indexOf(job.kind)>=0 && !terminal(job.status)
+    next[k]=["inspect_process","inspect_ets","recorder_frame","compare_frames","process_window","ets_window","sample_process"].indexOf(job.kind)>=0 && !terminal(job.status)
       ? Object.assign({},job,{status:"canceled",updated_at:now}) : job;
   }); return next;
 }
@@ -288,4 +288,42 @@ function actionReceipt(data) {
   if(data.action==="deep_events") return result.enabled?"Deep Events start accepted. Check the node for current probe state.":"Deep Events stop accepted. Check provider status for cleanup confirmation.";
   if(data.action==="watchlist") return result.saved?"Watchlist saved.":"Watchlist update received.";
   return "Action response received; inspect the relevant live control for its current state.";
+}
+
+function intervalRows(report,query,sort) {
+  var rows=filterRows((report && report.rows) || [],query).slice(0,60);
+  var allowed=["reductions_per_second","memory_delta_bytes","mailbox_delta","size_delta"];
+  var key=allowed.indexOf(sort)>=0?sort:"memory_delta_bytes";
+  return rows.sort(function(a,b){ var av=finite(a[key]),bv=finite(b[key]);return av===bv?String(a.key).localeCompare(String(b.key)):av===null?1:bv===null?-1:bv-av; });
+}
+function measured(n,unit) { return finite(n)===null?"unavailable":signed(n)+(unit?" "+unit:""); }
+function signedBytes(n) { return finite(n)===null?"unavailable":(n>0?"+":"")+bytes(n); }
+function intervalRowText(row,kind) {
+  var lines=[boundedText(row.name || row.pid || row.key,255)+" / "+boundedText(row.pid || row.owner || "",64)+" / "+String(row.status || "unknown"),
+    "Memory change "+signedBytes(row.memory_delta_bytes)];
+  if(kind==="process_window") lines.push(measured(row.reductions_per_second,"reductions/s")+" / mailbox change "+measured(row.mailbox_delta,"messages")+(row.counter_reset?" / counter reset":""));
+  else lines.push("Element change "+measured(row.size_delta,"elements")+(row.owner_changed?" / owner changed":""));
+  return lines.join("\n");
+}
+function intervalText(report) {
+  if(!report)return "";
+  var lines=["BEAM Deck / "+report.kind,boundedText(report.node,255)+(report.pid?" / "+boundedText(report.pid,64):""),
+    "Captured "+time(report.from_at_ms)+" → "+time(report.at_ms)+" / measured "+measured(report.span_ms,"ms"),
+    "VM creation "+measured(report.creation,"")+" / "+(report.partial?"PARTIAL":"completed acquisition")];
+  if(report.kind==="sample_process") {
+    lines.push(measured(report.samples,"samples")+" / requested "+measured(report.requested_samples,"")+" / missing "+measured(report.missed_samples,""));
+    lines.push("Memory change "+signedBytes(report.memory_delta_bytes)+" / "+measured(report.reductions_per_second,"reductions/s")+" / mailbox change "+measured(report.mailbox_delta,"messages"));
+    (report.statuses || []).slice(0,8).forEach(function(s){lines.push(boundedText(s.status,32)+": "+measured(s.count,"samples"));});
+    (report.stacks || []).slice(0,40).forEach(function(s){lines.push(measured(s.count,"observed samples"));(s.frames || []).slice(0,20).forEach(function(f){lines.push("  "+stackFrame(f));});});
+    lines.push("Sample frequency is not CPU time, call count or allocation attribution; short work may be missed.");
+  } else {
+    lines.push("Scanned "+measured(report.first_scanned,"")+" → "+measured(report.last_scanned,"")+"; matched "+measured(report.matched,"")+"; first only "+measured(report.first_only,"")+"; last only "+measured(report.last_only,"")+"; omitted "+measured(report.omitted_rows,"rows"));
+    (report.rows || []).slice(0,60).forEach(function(r){lines.push(intervalRowText(r,report.kind));});
+    lines.push("Racing endpoint samples; unmatched does not prove exit/creation. Reductions/s is not CPU percent and growth does not prove a leak.");
+  }
+  return lines.join("\n").slice(0,65536);
+}
+function stackFraction(stack,report) {
+  var count=finite(stack && stack.count),total=finite(report && report.samples);
+  return count===null || total===null || total<=0?0:Math.max(0,Math.min(1,count/total));
 }

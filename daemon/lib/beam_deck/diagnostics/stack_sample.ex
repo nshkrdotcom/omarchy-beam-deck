@@ -6,11 +6,12 @@ defmodule BeamDeck.Diagnostics.StackSample do
   alias BeamDeck.Diagnostics.Window
   alias BeamDeck.{Redaction, Remote}
 
-  def run(node, text, duration) do
+  def run(node, text, duration, expected \\ nil) do
     count = min(div(duration, 250), 20)
     deadline = System.monotonic_time(:millisecond) + duration + 2000
 
     with {:ok, creation} <- Window.creation(node),
+         true <- is_nil(expected) or creation == expected,
          {:ok, pid} <- Remote.parse_pid(node, text),
          {entries, reason} <- collect(node, pid, count, deadline, []),
          {:ok, current} <- Window.creation(node),

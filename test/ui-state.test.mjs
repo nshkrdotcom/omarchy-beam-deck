@@ -215,3 +215,23 @@ test("action receipts describe requests without serializing internal payloads or
   assert.match(text,/start accepted/);assert.match(text,/current probe state/);assert.doesNotMatch(text,/PRIVATE_ACTION_CANARY|enabled/);
   assert.equal(S.actionReceipt({action:"watchlist",result:{saved:true}}),"Watchlist saved.");
 });
+
+test("interval reports rank measured changes, preserve unavailable units and reject arbitrary fields", () => {
+  const report={kind:"process_window",node:"fixture@host",creation:1,from_at_ms:1000,at_ms:2000,span_ms:1000,matched:2,first_only:0,last_only:0,first_scanned:2,last_scanned:2,omitted_rows:0,rows:[
+    {key:"a",pid:"<0.1.0>",name:"one",status:"matched",reductions_per_second:null,memory_delta_bytes:-1024,mailbox_delta:null,secret:"REPORT_CANARY"},
+    {key:"b",pid:"<0.2.0>",name:"two",status:"matched",reductions_per_second:20,memory_delta_bytes:2048,mailbox_delta:1}]};
+  assert.equal(S.intervalRows(report,"","reductions_per_second")[0].pid,"<0.2.0>");
+  assert.equal(S.intervalRows(report,"one","memory_delta_bytes").length,1);
+  const text=S.intervalText(report);assert.match(text,/20 reductions\/s/);assert.match(text,/-1.0 KiB/);assert.match(text,/unavailable/);assert.doesNotMatch(text,/REPORT_CANARY/);
+  assert.equal(S.stackFraction({count:5},{samples:20}),.25);
+  assert.equal(S.stackFraction({count:30},{samples:20}),1);
+  assert.equal(S.stackFraction({count:NaN},{samples:0}),0);
+});
+
+test("panel close cancels interval jobs and refuses late success", () => {
+  let jobs={};for(const kind of ["process_window","ets_window","sample_process"]) jobs=S.acceptJob(jobs,{request_id:kind,kind,status:"started"},100);
+  jobs=S.cancelInteractive(jobs,200);
+  assert.ok(Object.values(jobs).every(j=>j.status==="canceled"));
+  jobs=S.acceptJob(jobs,{request_id:"sample_process",kind:"sample_process",status:"complete",result:{secret:"LATE"}},300);
+  assert.equal(jobs.sample_process.status,"canceled");assert.equal(jobs.sample_process.result,undefined);
+});

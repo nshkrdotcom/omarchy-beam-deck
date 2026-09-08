@@ -27,6 +27,9 @@ TestCase {
     function setPanelOpen(v) { panelOpen=v }
     function returnLive() { historicalMode=false }
     function refresh() {}
+    property var canceledIds:[]
+    function diagnosticWindow(kind,n,p) { return kind+"-"+(++suite.seq) }
+    function cancelJob(id) { canceledIds=canceledIds.concat([id]); return true }
     function inspectProcess(n,p) { return "process-"+(++suite.seq) }
     function recorderFrame(id) { return "frame-"+(++suite.seq) }
     function compareFrames(a,b) { return "diff-"+(++suite.seq) }
@@ -109,4 +112,27 @@ TestCase {
     compare(p.workspace,"investigate"); compare(field.selectedText,"hello")
     keyClick(Qt.Key_R,Qt.AltModifier); compare(p.workspace,"investigate")
   }
+  function test_interval_workflow_keeps_exact_target_and_rejects_late_results() {
+    failOnWarning(/TypeError|ReferenceError/)
+    fakeService.snapshot=sample(Date.now(),"live");fakeService.canceledIds=[]
+    var p=createTemporaryObject(factory,suite,{width:1270,height:764})
+    p.openInvestigation("process","fixture@host","");wait(30)
+    var inv=investigation(p)
+    var start=all(p).filter(function(x){return x.text==="Measure process activity · 5s" && x.clicked})[0]
+    verify(start,"Process activity start exists");verify(start.enabled);start.clicked();wait(20)
+    var id=inv.processWindowRequest;verify(id!=="")
+    fakeService.jobs=({[id]:{request_id:id,kind:"process_window",node:"fixture@host",status:"started"}});wait(20)
+    var cancel=all(p).filter(function(x){return x.text==="Cancel" && x.visible && x.clicked})[0]
+    verify(cancel);cancel.clicked();compare(fakeService.canceledIds[0],id)
+    fakeService.jobs=({[id]:{request_id:id,kind:"process_window",node:"fixture@host",status:"complete",result:{kind:"process_window",node:"fixture@host",creation:1,at_ms:Date.now(),rows:[{key:"one",pid:"<0.1.0>",status:"matched",name:"fixture",reductions_per_second:100}]}}});wait(20)
+    var inspect=all(p).filter(function(x){return x.text==="Inspect PID" && x.clicked})[0];verify(inspect);verify(inspect.enabled)
+    inspect.clicked();wait(20);compare(inv.targetPid,"<0.1.0>");verify(inv.currentScroll().contentY>0,"survey pivot reveals the inspector")
+    inv.targetNode="replacement@host"
+    fakeService.jobs=({[id]:{request_id:id,kind:"process_window",node:"fixture@host",status:"complete",result:{node:"fixture@host",rows:[]}}});wait(20)
+    compare(inv.processWindowJob,null)
+    inv.targetNode="fixture@host";inv.targetPid="<0.1.0>";inv.startDiagnostic("sample_process");var old=inv.stackRequest;verify(old!=="")
+    inv.targetPid="<0.99.0>";compare(inv.stackRequest,"")
+    fakeService.historicalMode=true;wait(20);compare(inv.processWindowRequest,"")
+  }
+
 }

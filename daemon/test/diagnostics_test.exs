@@ -118,4 +118,40 @@ defmodule BeamDeck.DiagnosticsTest do
     assert_receive {:DOWN, ^ref, :process, ^worker, _}, 1000
     assert Process.alive?(Process.whereis(Diagnostics))
   end
+
+  test "single cancellation stops only the selected interactive job owned by the caller" do
+    parent = self()
+
+    hold = fn ->
+      send(parent, {:single_worker, self()})
+
+      receive do
+        :done -> {:ok, %{}}
+      end
+    end
+
+    :ok = Diagnostics.submit(self(), "chosen", "process_window", "node-a", hold)
+    :ok = Diagnostics.submit(self(), "queued", "ets_window", "node-a", hold)
+    :ok = Diagnostics.submit(self(), "other", "sample_process", "node-b", hold)
+    assert_receive {:single_worker, first}
+    assert_receive {:single_worker, second}
+
+    unrelated =
+      spawn(fn ->
+        receive do
+          :stop -> :ok
+        end
+      end)
+
+    assert {:error, :not_cancelable} = Diagnostics.cancel_job(unrelated, "chosen")
+    Process.exit(unrelated, :kill)
+    assert :ok = Diagnostics.cancel_job(self(), "queued")
+    assert_receive {:diagnostic, %{request_id: "queued", status: "canceled"}}
+    assert Process.alive?(first) && Process.alive?(second)
+    assert :ok = Diagnostics.cancel_job(self(), "chosen")
+    assert_receive {:diagnostic, %{request_id: "chosen", status: "canceled"}}
+    assert Process.alive?(first) != Process.alive?(second)
+    Diagnostics.cancel_interactive(self())
+    assert_receive {:diagnostic, %{request_id: "other", status: "canceled"}}
+  end
 end

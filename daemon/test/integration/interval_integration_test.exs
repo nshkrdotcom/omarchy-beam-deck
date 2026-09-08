@@ -61,4 +61,14 @@ defmodule BeamDeck.IntervalIntegrationTest do
     assert {:ok, true} = Remote.call_raw(c.node, :erlang, :exit, [pid, :kill])
     assert {:error, :process_exited} = StackSample.run(c.node, Remote.pid_text(pid), 1000)
   end
+
+  test "collectors preserve the requested incarnation at their own entry point", c do
+    {:ok, creation} = Window.creation(c.node)
+    opts = Map.put(c.opts, "expected_creation", creation + 1)
+    assert {:error, :incomparable_identity} = Window.capture("process_window", c.node, opts)
+    pid = Remote.call(c.node, :erlang, :whereis, [:bd_test_worker], nil)
+
+    assert {:error, :incomparable_identity} =
+             StackSample.run(c.node, Remote.pid_text(pid), 1000, creation + 1)
+  end
 end

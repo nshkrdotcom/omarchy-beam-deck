@@ -56,6 +56,14 @@ BEAM Deck 1.1 keeps the live **Cockpit** as the fast operational overview and ad
 
 The 1.1 UI also makes the **live vs. historical boundary** explicit. Historical recorder frames are read-only for runtime mutation. Process GC and scheduler changes require fresh live state and the current VM incarnation rather than acting on stale evidence.
 
+## Interval diagnostics
+
+In **Investigate → Process**, choose **Measure process activity · 5s** to rank measured reductions/s, memory change and mailbox change. Filter the captured results locally, page through five rows at a time, then select **Inspect PID** to reveal that exact process's inspector. **Sample this PID · 5s** collects up to 20 argument-free stack observations and displays sample-frequency bars with expandable stacks.
+
+In **Investigate → ETS lens**, choose **Measure ETS growth · 5s** for byte/element changes and owner inspection. Tables match by their real identifier and VM incarnation, so recreating a named table does not inherit its predecessor's measurements. Cancel stops the selected request; panel close or historical mode cancels interactive acquisition. Reports are session-only and can be copied explicitly. They are not added automatically to the recorder or ZIP.
+
+The process survey admits at most `min(max_process_scan, 10000)` reported processes; ETS surveys inspect up to 256 tables while respecting lower configured caps. Unmatched rows are observations, not proof of exit or creation. Reductions/s is not CPU percent; stack frequency is not CPU time or allocation attribution. See the [research and TDD plan](docs/COMMUNITY-FEATURE-PLAN.md), [workflow guide](docs/OPERATOR-WORKFLOWS.md), and [continuation checkpoint](docs/CONTINUATION.md).
+
 ## Requirements and External Dependencies
 
 ### Required runtime

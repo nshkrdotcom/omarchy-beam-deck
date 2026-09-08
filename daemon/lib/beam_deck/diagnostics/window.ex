@@ -3,6 +3,14 @@ defmodule BeamDeck.Diagnostics.Window do
   alias BeamDeck.Diagnostics.{Ets, Interval}
   alias BeamDeck.{Redaction, Remote}
 
+  def options(config),
+    do:
+      Map.put(
+        config["diagnostics"],
+        "window_max_processes",
+        min(config["max_process_scan"], 10_000)
+      )
+
   def run(kind, node, duration, opts) do
     with {:ok, first} <- capture(kind, node, opts),
          :ok <- Process.sleep(duration),
@@ -20,6 +28,7 @@ defmodule BeamDeck.Diagnostics.Window do
 
   def capture(kind, node, opts) do
     with {:ok, before} <- creation(node),
+         true <- is_nil(opts["expected_creation"]) or opts["expected_creation"] == before,
          {:ok, sample} <- collect(kind, node, opts),
          {:ok, after_creation} <- creation(node),
          true <- before == after_creation do

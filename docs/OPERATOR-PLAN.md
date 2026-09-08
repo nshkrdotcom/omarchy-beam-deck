@@ -1,5 +1,7 @@
 # BEAM Deck operator mission control
 
+Subsequent community-driven feature work and the latest requested pause are recorded in [COMMUNITY-FEATURE-PLAN.md](COMMUNITY-FEATURE-PLAN.md) and [CONTINUATION.md](CONTINUATION.md). This earlier plan retains its original tranche evidence.
+
 ## Delivery status and revised acceptance scope
 
 Implementation milestones 1–5 and the substantive native-review corrections are complete and pushed through `a257854` on `feat/operator-mission-control`. All three supported OTP/Elixir CI combinations pass. Milestone 6 closes with the measured evidence below and in [VALIDATION.md](VALIDATION.md) / [operator-validation.json](operator-validation.json); this is not a release or universal desktop-validation claim.

@@ -1,6 +1,6 @@
 defmodule BeamDeck.IntervalTest do
   use ExUnit.Case, async: true
-  alias BeamDeck.Diagnostics.{Interval, StackSample}
+  alias BeamDeck.Diagnostics.{Interval, StackSample, Window}
 
   defp sample(rows, mono \\ 1000, extra \\ %{}) do
     Map.merge(
@@ -128,5 +128,15 @@ defmodule BeamDeck.IntervalTest do
     refute encoded =~ "STACK_ARGUMENT_CANARY"
     refute encoded =~ "SECRET_PATH"
     assert hd(hd(r.stacks).frames).arity == 1
+  end
+
+  test "surveys respect the operator's lower process admission setting" do
+    assert Window.options(%{"max_process_scan" => 17, "diagnostics" => %{}})[
+             "window_max_processes"
+           ] == 17
+
+    assert Window.options(%{"max_process_scan" => 100_000, "diagnostics" => %{}})[
+             "window_max_processes"
+           ] == 10_000
   end
 end

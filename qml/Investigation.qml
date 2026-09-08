@@ -33,6 +33,13 @@ Item {
   property double nowMs: Date.now()
   Timer { interval: 1000; running: root.surfaceActive; repeat: true; onTriggered: root.nowMs = Date.now() }
   property bool budgetConfirmed: false
+  property string processWindowRequest: ""
+  property string etsWindowRequest: ""
+  property string stackRequest: ""
+  readonly property var processWindowJob: DeckState.jobFor(jobs,processWindowRequest,"process_window",targetNode)
+  readonly property var etsWindowJob: DeckState.jobFor(jobs,etsWindowRequest,"ets_window",targetNode)
+  readonly property var stackJob: DeckState.jobFor(jobs,stackRequest,"sample_process",targetNode)
+  readonly property bool maySample: !!service && service.panelOpen && DeckState.canMutate(snapshot,service.historicalMode,service.daemonRunning,nowMs,targetNode) && Number.isInteger(capturedNode.creation)
   property string processRequest: ""
   property string etsRequest: ""
   property string frameRequest: ""
@@ -72,13 +79,32 @@ Item {
     ;(viewSnapshot.incidents || []).forEach(function(i) { if (root.expandedIncidents[i.id]) next[i.id] = true })
     expandedIncidents = next
   }
-  onTargetNodeChanged: { processRequest = ""; etsRequest = ""; targetPid = ""; gcConfirmed = false }
-  onTargetPidChanged: { processRequest = ""; gcConfirmed = false }
+  onTargetNodeChanged: { clearDiagnostics(); processRequest = ""; etsRequest = ""; targetPid = ""; gcConfirmed = false }
+  onTargetPidChanged: { cancelDiagnostic(stackRequest); stackRequest=""; processRequest = ""; gcConfirmed = false }
   Component.onCompleted: if (!targetNode && nodes.length) targetNode = nodes[0].name
   Connections {
     target: root.service
-    function onLastSessionChanged() { root.clearRecorderPause(); root.processRequest = ""; root.etsRequest = ""; root.navigationStack = [] }
+    function onHistoricalModeChanged() { if(root.service.historicalMode) root.clearDiagnostics() }
+    function onLastSessionChanged() { root.clearDiagnostics(); root.clearRecorderPause(); root.processRequest = ""; root.etsRequest = ""; root.navigationStack = [] }
   }
+
+  function cancelDiagnostic(id) { if(id && service && jobs[id] && !DeckState.terminal(jobs[id].status)) service.cancelJob(id) }
+  function clearDiagnostics() {
+    cancelDiagnostic(processWindowRequest);cancelDiagnostic(etsWindowRequest);cancelDiagnostic(stackRequest)
+    processWindowRequest="";etsWindowRequest="";stackRequest=""
+  }
+  function startDiagnostic(kind) {
+    if(!maySample || (kind==="sample_process" && !targetPid)) return
+    var id=service.diagnosticWindow(kind,targetNode,targetPid)
+    if(kind==="process_window")processWindowRequest=id
+    else if(kind==="ets_window")etsWindowRequest=id
+    else if(kind==="sample_process")stackRequest=id
+  }
+  function inspectMeasuredPid(pid) {
+    activate("process",targetNode,pid)
+    Qt.callLater(function(){var scroll=root.currentScroll();if(scroll && scroll.revealInspection)scroll.revealInspection()})
+  }
+  function reportActionable(job) { return service && service.panelOpen && DeckState.canActOnProcess(snapshot,result(job),service.historicalMode,service.daemonRunning,nowMs) }
 
   function result(job) { return job && job.status === "complete" ? job.result : null }
   function jobText(job, idle) {
@@ -404,13 +430,21 @@ Item {
     id: processView
     Flickable {
       id: processScroll
+      function revealInspection() { contentY=Math.max(0,Math.min(focusedHeading.y,contentHeight-height)) }
       contentWidth: width; contentHeight: processColumn.implicitHeight; clip: true
       Controls.ScrollBar.vertical: Controls.ScrollBar {}
       Column {
         id: processColumn
         width: processScroll.width; spacing: Style.space(12)
-        Heading { text: "Focused process inspection" }
-        Label { width: parent.width; text: "Open a process from Hot Processes or the Watchlist. Snapshot metadata is bounded; application state and message contents are never collected." }
+        DiagnosticWindow {
+          width:parent.width; kind:"process_window"; job:root.processWindowJob
+          canStart:root.maySample; canInspect:root.reportActionable(job)
+          onStartRequested:root.startDiagnostic(kind)
+          onCancelRequested:root.service.cancelJob(root.processWindowRequest)
+          onInspectRequested:function(pid){root.inspectMeasuredPid(pid)}
+        }
+        Heading { id:focusedHeading; text: "Focused process inspection" }
+        Label { width: parent.width; text: "Open a process from Hot Processes or the Watchlist. Snapshot metadata has explicit limits; application state and message contents are never collected." }
         RowLayout {
           width: parent.width
           CopyText { Layout.fillWidth: true; text: root.targetPid || "No process selected" }
@@ -438,6 +472,12 @@ Item {
           }
           ActionButton { text:"Tables owned by this PID"; enabled:root.processActionable; onClicked:{root.etsQuery=root.targetPid;root.activate("ets",root.targetNode,"");root.etsRequest=root.service.inspectEts(root.targetNode,root.etsSort)} }
         }
+        DiagnosticWindow {
+          width:parent.width; kind:"sample_process"; job:root.stackJob
+          canStart:root.maySample && !!root.targetPid
+          onStartRequested:root.startDiagnostic(kind)
+          onCancelRequested:root.service.cancelJob(root.stackRequest)
+        }
         InfoCard {
           width: parent.width
           visible: !!root.processResult
@@ -462,7 +502,7 @@ Item {
             ActionButton { text:"Inspect exact PID"; enabled:root.service && !root.service.historicalMode && root.nowMs-root.capturedNode.hot_processes_at_ms<=10000; onClicked:root.activate("process",root.targetNode,hotCard.entry.pid) }
           }
         }
-        Label { width:parent.width; visible:!(root.capturedNode.hot_processes || []).length; text:"No captured hot set. Open-panel collection warms this bounded sample; missing/capped acquisition is not a zero-work runtime." }
+        Label { width:parent.width; visible:!(root.capturedNode.hot_processes || []).length; text:"No captured hot set. Open-panel collection warms this sample of up to 24 rows; missing/capped acquisition is not a zero-work runtime." }
       }
     }
   }
@@ -481,6 +521,13 @@ Item {
           Heading { text: "ETS metadata lens"; Layout.fillWidth: true }
           Controls.ComboBox { model:["Memory","Elements"]; currentIndex:root.etsSort==="memory"?0:1; onActivated:function(index) { root.etsSort=index===0?"memory":"size" }; Accessible.name:"ETS sort order" }
           ActionButton { text: "Inspect tables"; enabled: root.service && !!root.targetNode && !root.service.historicalMode; onClicked: root.etsRequest=root.service.inspectEts(root.targetNode,root.etsSort) }
+        }
+        DiagnosticWindow {
+          width:parent.width; kind:"ets_window"; job:root.etsWindowJob
+          canStart:root.maySample; canInspect:root.reportActionable(job)
+          onStartRequested:root.startDiagnostic(kind)
+          onCancelRequested:root.service.cancelJob(root.etsWindowRequest)
+          onInspectRequested:function(pid){root.inspectMeasuredPid(pid)}
         }
         Controls.TextField { width:parent.width; text:root.etsQuery; onTextEdited:root.etsQuery=text; placeholderText:"Filter captured tables by name or owner"; Accessible.name:placeholderText }
         Label { width: parent.width; text: root.jobText(root.etsJob,"No tables have been enumerated. Inspection is explicit and metadata-only.") }

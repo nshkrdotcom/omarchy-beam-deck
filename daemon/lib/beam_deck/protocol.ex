@@ -2,7 +2,8 @@ defmodule BeamDeck.Protocol do
   @moduledoc "Additive protocol v1 command validation, without creating atoms from input."
   alias BeamDeck.Json
 
-  @jobs ~w(inspect_process inspect_ets recorder_frame compare_frames export_bundle budget_trial_begin)
+  @windows ~w(process_window ets_window sample_process)
+  @jobs ~w(process_window ets_window sample_process inspect_process inspect_ets recorder_frame compare_frames export_bundle budget_trial_begin)
   def request_id?(id),
     do: is_binary(id) and byte_size(id) in 1..64 and Regex.match?(~r/^[A-Za-z0-9._:-]+$/, id)
 
@@ -27,6 +28,7 @@ defmodule BeamDeck.Protocol do
   defp validate(cmd, map) do
     checks = [
       &valid_request/2,
+      &valid_window/2,
       &valid_node/2,
       &valid_pid/2,
       &valid_ets_sort/2,
@@ -48,22 +50,31 @@ defmodule BeamDeck.Protocol do
       else: {:error, :invalid_arguments}
   end
 
-  defp valid_request(cmd, map) when cmd in @jobs, do: request_id?(map["request_id"])
+  defp valid_request(cmd, map) when cmd in @jobs or cmd == "cancel_job",
+    do: request_id?(map["request_id"])
+
   defp valid_request(_cmd, _map), do: true
 
   defp valid_node(cmd, map)
-       when cmd in ~w(inspect_process inspect_ets set_schedulers set_dirty_schedulers gc restore deep_events),
+       when cmd in ~w(process_window ets_window sample_process inspect_process inspect_ets set_schedulers set_dirty_schedulers gc restore deep_events),
        do: node_name?(map["node"])
 
   defp valid_node(_cmd, _map), do: true
 
-  defp valid_pid(cmd, map) when cmd in ~w(inspect_process gc), do: pid?(map["pid"])
+  defp valid_pid(cmd, map) when cmd in ~w(inspect_process sample_process gc), do: pid?(map["pid"])
   defp valid_pid(_cmd, _map), do: true
 
   defp valid_ets_sort("inspect_ets", map),
     do: Map.get(map, "sort", "memory") in ["memory", "size"]
 
   defp valid_ets_sort(_cmd, _map), do: true
+
+  defp valid_window(cmd, map) when cmd in @windows do
+    is_integer(map["expected_creation"]) and map["expected_creation"] >= 0 and
+      map["duration_ms"] in [1000, 5000]
+  end
+
+  defp valid_window(_cmd, _map), do: true
 
   defp valid_frame("recorder_frame", map), do: request_id?(map["frame_id"])
   defp valid_frame(_cmd, _map), do: true

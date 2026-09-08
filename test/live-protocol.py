@@ -97,10 +97,11 @@ class Wire:
 
     def job(self, command: dict) -> dict:
         self.send(command)
-        response = self.until(lambda m: m.get("type") == "job"
+        response = self.until(lambda m: (m.get("type") == "job"
                               and m.get("request_id") == command["request_id"]
                               and m.get("status") in ("complete", "error", "canceled"))
-        assert response["status"] == "complete", response
+                              or (m.get("type") == "error" and m.get("command") == command["cmd"]))
+        assert response.get("status") == "complete", response
         return response["result"]
 
 
@@ -183,6 +184,28 @@ def main() -> None:
                 tables = wire.job({"cmd": "inspect_ets", "request_id": "protocol-ets", "node": target, "sort": "memory"})
                 assert tables["scanned_tables"] > 0
                 assert "DO_NOT_EXPORT_ETS_CONTENT" not in json.dumps(tables)
+                for kind in ("process_window", "ets_window", "sample_process"):
+                    survey = wire.job({"cmd": kind, "request_id": "protocol-"+kind, "node": target,
+                                       "pid": process["pid"], "expected_creation": node["creation"], "duration_ms": 1000})
+                    assert survey["creation"] == node["creation"]
+                    assert survey["span_ms"] >= (750 if kind == "sample_process" else 1000)
+                    assert "DO_NOT_EXPORT_ETS_CONTENT" not in json.dumps(survey)
+                for mode in ("cancel", "historical", "close"):
+                    request = "stop-survey-"+mode
+                    wire.send({"cmd": "process_window", "request_id": request, "node": target,
+                               "expected_creation": node["creation"], "duration_ms": 5000})
+                    wire.until(lambda m: m.get("request_id") == request and m.get("status") == "started")
+                    wire.send({"cmd": "cancel_job", "request_id": request} if mode == "cancel" else
+                              {"cmd": "view", "historical": True} if mode == "historical" else {"cmd": "panel", "open": False})
+                    canceled = wire.until(lambda m: m.get("request_id") == request and m.get("status") in ("canceled", "error", "complete"))
+                    assert canceled["status"] == "canceled", canceled
+                    wire.send({"cmd": "view", "historical": False})
+                    wire.send({"cmd": "panel", "open": True})
+                    wire.until(lambda m: m.get("type") == "snapshot" and m.get("provider", {}).get("panel_open") and not m["provider"].get("historical_mode"))
+                wire.send({"cmd":"process_window","request_id":"survey-wrong-creation","node":target,
+                           "expected_creation":node["creation"]+1,"duration_ms":1000})
+                wrong_survey = wire.until(lambda m: m.get("request_id")=="survey-wrong-creation" and m.get("status")=="error")
+                assert wrong_survey["error"] == "target_restarted_or_unavailable"
                 frame_id = snapshot["flight_recorder"]["newest_frame_id"]
                 frame = wire.job({"cmd": "recorder_frame", "request_id": "protocol-frame", "frame_id": frame_id})
                 assert frame["frame_id"] == frame_id and "history" not in frame

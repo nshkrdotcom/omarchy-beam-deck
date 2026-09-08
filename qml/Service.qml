@@ -74,6 +74,11 @@ Item {
   function nodeCreation(node) { return ((snapshot.nodes || []).filter(function(n){return n.name===node})[0] || {}).creation }
   function inspectProcess(node, pid) { return request("inspect_process", {node:node, pid:pid,expected_creation:nodeCreation(node)}) }
   function inspectEts(node, sort) { return request("inspect_ets", {node:node, sort:sort || "memory",expected_creation:nodeCreation(node)}) }
+  function diagnosticWindow(kind, node, pid) {
+    if (!panelOpen || !DeckState.canMutate(snapshot,historicalMode,daemonRunning,Date.now(),node) || !Number.isInteger(nodeCreation(node))) return ""
+    return request(kind,{node:node,pid:pid,expected_creation:nodeCreation(node),duration_ms:5000})
+  }
+  function cancelJob(id) { return send({cmd:"cancel_job",request_id:id}) }
   function recorderFrame(id) { return request("recorder_frame", {frame_id:id}) }
   function compareFrames(from, to) { return request("compare_frames", {from_frame_id:from, to_frame_id:to}) }
   function exportBundle(from, to) { return request("export_bundle", {from_frame_id:from || null, to_frame_id:to || null}) }

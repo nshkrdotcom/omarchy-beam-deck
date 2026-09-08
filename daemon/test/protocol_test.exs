@@ -44,4 +44,30 @@ defmodule BeamDeck.ProtocolTest do
                ~s({"cmd":"inspect_process","request_id":"p1","node":"fixture@host","pid":"<0.1.0>","expected_creation":"bad"})
              )
   end
+
+  test "interval commands require exact incarnation and an allowlisted duration" do
+    for cmd <- ["process_window", "ets_window", "sample_process"] do
+      args = %{
+        "cmd" => cmd,
+        "request_id" => "survey-1",
+        "node" => "fixture@host",
+        "pid" => "<0.1.0>",
+        "expected_creation" => 1,
+        "duration_ms" => 1000
+      }
+
+      assert {:ok, ^cmd, _} = Protocol.parse(BeamDeck.Json.encode(args))
+
+      for bad <- [
+            Map.delete(args, "expected_creation"),
+            Map.put(args, "duration_ms", 60_000),
+            Map.put(args, "node", "bad")
+          ] do
+        assert {:error, :invalid_arguments} = Protocol.parse(BeamDeck.Json.encode(bad))
+      end
+    end
+
+    assert {:error, :invalid_arguments} =
+             Protocol.parse(~s({"cmd":"cancel_job","request_id":"bad id"}))
+  end
 end

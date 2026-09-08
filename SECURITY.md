@@ -67,3 +67,9 @@ Both daemon execution and the independent scheduler owner reject stale view epoc
 Deep Events stop delivery is deliberately separate from confirmed teardown: a nonblocking stop request bypasses ordinary job admission, while exit/code unload still require confirmation. Standard agentless inspection does not install that probe. Enumeration APIs may allocate remotely before helper-side cardinality checks; admission caps and deadlines reduce exposure but cannot promise constant target allocation. Do not use production workloads for fault injection.
 
 Focused ancestry may read only the OTP `$ancestors` and `$initial_call` metadata keys. The latter identifies supervisors before supervisor API requests; no full dictionary fallback is permitted.
+
+## Interval measurements
+
+Process activity, ETS growth and exact-PID stack sampling are explicit metadata diagnostics. They do not trigger GC, tracing, scheduler changes, target flag changes or application code installation. Process surveys omit arbitrary Observer-rendered labels; stack projections remove argument values and file paths; ETS surveys read metadata only. Required target creation and endpoint identity checks prevent treating a replaced VM/table/PID as continuous evidence. These reads can still impose target work, especially full census or ETS metadata with decentralized counters; admission limits are not a hard remote allocation guarantee.
+
+Each request belongs to the existing diagnostics owner, queue and deadlines. Cancel applies only to the selected owner's interactive job; it cannot remove a recovery journal or cancel an export. Caller cancellation cannot guarantee that an already-dispatched remote read ceased immediately. UI reports use an explicit field projection and remain in session memory until normal job expiry; clipboard copying is deliberate and visible operational identities still require review.

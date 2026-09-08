@@ -24,11 +24,11 @@ defmodule BeamDeck.Daemon do
     Watchlist
   }
 
-  alias BeamDeck.Diagnostics.Bundle
+  alias BeamDeck.Diagnostics.{Bundle, StackSample, Window}
   alias BeamDeck.Diagnostics.Ets, as: EtsDiagnostics
   alias BeamDeck.Diagnostics.Process, as: ProcessDiagnostics
   @node_monitor_opts %{node_type: :all, nodedown_reason: true}
-  @async ~w(inspect_process inspect_ets recorder_frame compare_frames export_bundle budget_trial_begin)
+  @async ~w(process_window ets_window sample_process inspect_process inspect_ets recorder_frame compare_frames export_bundle budget_trial_begin)
 
   def start_link(_), do: GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   def command(command, args), do: GenServer.cast(__MODULE__, {:command, command, args})
@@ -41,7 +41,7 @@ defmodule BeamDeck.Daemon do
     {config, path, error} =
       case Config.load() do
         {:ok, c, p} -> {c, p, nil}
-        {:error, _reason, c, p} -> {c, p, "Invalid configuration; bounded defaults are active."}
+        {:error, _reason, c, p} -> {c, p, "Invalid configuration; validated defaults are active."}
       end
 
     Redaction.configure(config)
@@ -305,6 +305,11 @@ defmodule BeamDeck.Daemon do
     {:noreply, reschedule_now(if(open, do: next, else: stop_probes(next)))}
   end
 
+  def handle_cast({:command, "cancel_job", args}, state) do
+    Diagnostics.cancel_job(self(), args["request_id"])
+    {:noreply, state}
+  end
+
   def handle_cast({:command, command, args}, state) when command in @async do
     submit_job(command, args, state)
     {:noreply, state}
@@ -520,6 +525,21 @@ defmodule BeamDeck.Daemon do
     :ok
   end
 
+  defp submit_job(command, args, state)
+       when command in ~w(process_window ets_window sample_process) do
+    remote_job(
+      args["request_id"],
+      command,
+      args["node"],
+      state,
+      fn node ->
+        with :ok <- inspection_identity(node, args["expected_creation"]),
+             do: run_window(command, node, args, Window.options(state.config))
+      end,
+      args["duration_ms"] + 12_000
+    )
+  end
+
   defp submit_job("inspect_process" = command, args, state) do
     opts = state.config["diagnostics"]
 
@@ -618,6 +638,18 @@ defmodule BeamDeck.Daemon do
       end
     end)
   end
+
+  defp run_window("sample_process", node, args, _opts),
+    do: StackSample.run(node, args["pid"], args["duration_ms"], args["expected_creation"])
+
+  defp run_window(command, node, args, opts),
+    do:
+      Window.run(
+        command,
+        node,
+        args["duration_ms"],
+        Map.put(opts, "expected_creation", args["expected_creation"])
+      )
 
   defp remote_job(id, kind, name, state, fun, timeout) do
     with true <- state.panel_open and not state.historical_mode,

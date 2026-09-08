@@ -1,5 +1,7 @@
 # Validation evidence
 
+The later community-feature checkpoint adds process/ETS interval surveys and stack sampling. Its complete local gate and remaining native acceptance are recorded in [CONTINUATION.md](CONTINUATION.md) and [COMMUNITY-FEATURE-PLAN.md](COMMUNITY-FEATURE-PLAN.md). The native captures and endurance record below belong to the preceding mission-control implementation.
+
 ## Operator mission-control tranche
 
 Implementation branch: `feat/operator-mission-control`; untouched baseline `987ffb4`; tested implementation `a2578548629581d3745c69eb7d1ec3c204e97687`. This is feature-branch validation, not a release or a claim that every desktop configuration was exercised. The [execution plan](OPERATOR-PLAN.md) records research, individual red/green regressions, intermediate failures and commits. [Operator workflows](OPERATOR-WORKFLOWS.md) describes the resulting behavior.
