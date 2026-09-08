@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 * Integrate dated provider quality, filtered activity and exact recorder pivots into Triage.
 * Add one explicit retained-frame intervention baseline with replace/clear, directional comparison and report export.
-* Extend recorder graphs with node memory/queue/utilization/capacity views, measured spacing, honest missing segments, bounded markers, precise keyboard/pointer selection and font-responsive legends.
+* Extend recorder graphs with node memory/queue/utilization/capacity views, measured spacing, honest missing segments, capped markers, precise keyboard/pointer selection and font-responsive legends.
 * Preserve investigation context, exact missing targets, keyed rows, selected-control focus and actual scroll reveal. Add captured process/ETS filters and reversible inspection pivots.
 * Reject stale view epochs and VM identities at control execution; stop Deep Events independently of diagnostic admission, while confirming cleanup separately.
 * Keep missing measurements null, avoid false incident resolution on repeated/unavailable samples, retain dated failed-node/watch evidence, and project private ZIP contents through explicit nested allowlists.
@@ -25,10 +25,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 * Incident tracking with recorder context, notifications, and follow-up actions.
 * In-memory Flight Recorder with historical ranges, A/B comparison, presets, and private ZIP export.
 * Focused process inspection with ancestry, stack, binary metadata, and registered-process pinning.
-* Metadata-only ETS inspection with bounded sorting and owner information.
+* Metadata-only ETS inspection with capped sorting and owner information.
 * Persistent node and registered-process watchlists.
 * Leased scheduler budget trials with automatic rollback, Keep, and Restore.
-* Bounded local `erl_crash.dump` triage for disappeared runtimes.
+* Capped local `erl_crash.dump` triage for disappeared runtimes.
 * OTP 28+ opt-in Deep Events tracing.
 * Omarchy-native keyboard navigation and shortcut guide.
 * Real OTP integration and launcher protocol coverage.
@@ -51,7 +51,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 * Replaced unstable Flight Recorder timestamp selectors with retained frame ranges.
 * Preserved historical A/B selections while live collection continues.
 * Preserved recorder ordering across wall-clock changes.
-* Bounded desktop status IPC responses.
+* Capped desktop status IPC responses.
 * Restored dirty CPU scheduler state alongside normal scheduler rollback.
 
 ## [1.0.0] - 2026-09-05
@@ -63,13 +63,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Mise-first onboarding and stale-shell-PATH `mise exec` recovery.
 - Local `/proc` BEAM census with command-line cookie redaction and deep-node OS PID correlation.
 - EPMD, explicit-node, and learned-peer discovery with per-node cookie env references.
-- Deep VM limits/memory/scheduler/run-queue inspection and bounded hot-process sampling.
+- Deep VM limits/memory/scheduler/run-queue inspection and capped hot-process sampling.
 - Local-only scheduler density, demand-weighted recommendations, live reversible normal/dirty scheduler controls.
 - Per-scheduler wall-time utilization while the panel is open with restoration on close.
 - Mailbox/rate, run queue, VM-limit, required-node, expected-link, and registered-process churn alerts.
 - Node-up/down event capture and configured directional topology contracts.
 - OTP 28+ opt-in isolated-trace Deep Events through a transient namespaced Erlang probe.
-- Bounded in-memory history with full-window downsampling.
+- Capped in-memory history with full-window downsampling.
 - Real OTP peer integration tests and multi-version GitHub Actions matrix.
 
 [1.1.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/compare/v1.0.0...v1.1.0

@@ -1,5 +1,5 @@
 defmodule BeamDeck.CrashDump do
-  @moduledoc "Local disappearance evidence and bounded, matched crash-header triage."
+  @moduledoc "Local disappearance evidence and capped, matched crash-header triage."
   alias BeamDeck.Redaction
 
   def fingerprint(cwd) when is_binary(cwd) and cwd != "" do

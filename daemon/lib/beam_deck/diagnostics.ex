@@ -1,5 +1,5 @@
 defmodule BeamDeck.Diagnostics do
-  @moduledoc "Bounded isolated work queue. Workers return metadata, never write protocol output."
+  @moduledoc "Capped isolated work queue. Workers return metadata, never write protocol output."
   use GenServer
   def start_link(config), do: GenServer.start_link(__MODULE__, config, name: __MODULE__)
 

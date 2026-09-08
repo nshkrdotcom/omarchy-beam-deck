@@ -1,5 +1,5 @@
 defmodule BeamDeck.Incidents do
-  @moduledoc "Evidence-backed condition grouping, temporal association and bounded lifecycle."
+  @moduledoc "Evidence-backed condition grouping, temporal association and capped lifecycle."
   @rank %{"critical" => 0, "warning" => 1, "info" => 2}
   def update(previous, snapshot, config, recorder \\ nil) do
     now = snapshot.at_ms

@@ -153,6 +153,10 @@ defmodule BeamDeck.Diagnostics.Ets do
 
     %{
       id: if(is_atom(table), do: Atom.to_string(table), else: inspect(table, limit: 1)),
+      identity:
+        if(is_reference(data[:id]),
+          do: Base.encode16(:crypto.hash(:sha256, :erlang.term_to_binary(data[:id])))
+        ),
       name: Redaction.text(data[:name], 255),
       owner: Remote.pid_text(data[:owner]),
       size: number(data[:size]),

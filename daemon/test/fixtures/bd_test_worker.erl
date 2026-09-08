@@ -10,6 +10,9 @@ init([]) ->
     ets:insert(Table, {private_fixture_key, <<"BD_FIXTURE_ETS_MUST_NOT_LEAVE_TARGET">>}),
     Binary = binary:copy(<<"BD_FIXTURE_BINARY_MUST_NOT_LEAVE_TARGET">>, 32768),
     {ok, {Binary, Table}}.
+handle_call(grow_table, _From, {_Binary, Table} = State) ->
+    true = ets:insert(Table, {another, <<"ETS_WINDOW_CANARY">>}),
+    {reply, ok, State};
 handle_call(ping, _From, State) -> {reply, pong, State};
 handle_call(silent_ancestor, _From, State) ->
     Silent = spawn(fun() -> receive stop -> ok end end),

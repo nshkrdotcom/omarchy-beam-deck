@@ -2,7 +2,7 @@
 
 Read at helper startup from `$XDG_CONFIG_HOME/beam-deck/config.json` (default `~/.config/beam-deck/config.json`). A missing file uses defaults. Existing 1.0 settings deep-merge with these defaults; no migration script or project changes are needed. Reload by restarting the helper/shell, not by assuming Refresh reloads configuration.
 
-The file must be a regular non-symlink leaf of at most 262144 bytes. Invalid JSON/duplicate keys/wrong root/unsafe read produces a visible configuration warning and bounded defaults. Many wrong field types fall back locally; bounded integer values are clamped. Unknown keys are not application commands and have no defined behavior. The complete example is mechanically checked against `Config.defaults/0` by the static gate.
+The file must be a regular non-symlink leaf of at most 262144 bytes. Invalid JSON/duplicate keys/wrong root/unsafe read produces a visible configuration warning and capped defaults. Many wrong field types fall back locally; capped integer values are clamped. Unknown keys are not application commands and have no defined behavior. The complete example is mechanically checked against `Config.defaults/0` by the static gate.
 
 ## Exact default values
 
@@ -70,9 +70,9 @@ The file must be a regular non-symlink leaf of at most 262144 bytes. Invalid JSO
 
 **Incidents/notifications.** Resolved incident retention is 1000-3600000 ms; critical cooldown is 1000-86400000 ms. Incident output/retention is capped at 100, notification identity cache at 256. Two quiet completed polls resolve a symptom. Notification configuration does not automatically enable a process profiler, change schedulers or collect private payloads.
 
-**Watchlist.** Entry limit 1-256, registered processes per node 1-64. Existing normalized files are hard-bounded to 256 entries/64 process pins per node even if a lower new-entry limit is configured; reduce existing pins explicitly to enforce a newly lower preference. Defaults allow 64 entries/16 processes per node. Only exact node or observed registered-name pins are supported, no regex/module-wide subscription and no durable PID pin. The separate `watchlist.json` is owned by the UI and carries schema 1. Do not put secrets in labels. Cheap targeted resolution is budgeted/rotated; `deferred` is not missing.
+**Watchlist.** Entry limit 1-256, registered processes per node 1-64. Existing normalized files are hard-capped to 256 entries/64 process pins per node even if a lower new-entry limit is configured; reduce existing pins explicitly to enforce a newly lower preference. Defaults allow 64 entries/16 processes per node. Only exact node or observed registered-name pins are supported, no regex/module-wide subscription and no durable PID pin. The separate `watchlist.json` is owned by the UI and carries schema 1. Do not put secrets in labels. Cheap targeted resolution is budgeted/rotated; `deferred` is not missing.
 
-**Jobs.** Active workers 1-4, queued 1-28, remote-per-node exactly 1. This configuration controls the diagnostic queue, not the separate bounded overview collection. Process deadline 100-5000 ms, stack 1-64 frames, ancestry 1-16, binary summary 1-5000 references. ETS deadline 100-10000 ms, tables 1-1024, metadata workers 1-16, top rows 1-100. A smaller displayed set is not a hard allocation bound on the target's native enumeration. Partial states must remain visible.
+**Jobs.** Active workers 1-4, queued 1-28, remote-per-node exactly 1. This configuration controls the diagnostic queue, not the separate capped overview collection. Process deadline 100-5000 ms, stack 1-64 frames, ancestry 1-16, binary summary 1-5000 references. ETS deadline 100-10000 ms, tables 1-1024, metadata workers 1-16, top rows 1-100. A smaller displayed set is not a hard allocation bound on the target's native enumeration. Partial states must remain visible.
 
 **Crash triage.** Prefix 1024-262144 bytes; time match 1000-30000 ms; retry 100-5000 ms. Only the disappeared runtime's cached cwd plus `erl_crash.dump` is checked. These settings do not configure the target VM's dump generation/location. No full dump is exported.
 
@@ -82,13 +82,13 @@ The file must be a regular non-symlink leaf of at most 262144 bytes. Invalid JSO
 
 ## Node configuration
 
-Up to 64 unique valid names, 255 bytes/name. Cookie environment references are valid environment identifiers of at most 128 bytes; the value is read only from the helper's inherited environment and must fit the bounded cookie path. Expected peers are at most 64 distinct valid names per node. `required:true` raises an unavailable-node signal; directional expected links are explicit contracts, not a guessed cluster partition map.
+Up to 64 unique valid names, 255 bytes/name. Cookie environment references are valid environment identifiers of at most 128 bytes; the value is read only from the helper's inherited environment and must fit the capped cookie path. Expected peers are at most 64 distinct valid names per node. `required:true` raises an unavailable-node signal; directional expected links are explicit contracts, not a guessed cluster partition map.
 
 ```json
 {"nodes":[{"name":"worker@omen","cookie_env":"BEAM_DECK_OMEN_COOKIE","required":true,"expected_peers":["api@workstation"]}]}
 ```
 
-No LAN enumeration is done. Observed peer discovery is capped, and lifetime node-name admission is bounded to 1024 new names until helper restart. Large/churning fleets are outside the intended local-development scope.
+No LAN enumeration is done. Observed peer discovery is capped, and lifetime node-name admission is capped to 1024 new names until helper restart. Large/churning fleets are outside the intended local-development scope.
 
 ## Environment and paths
 
@@ -100,6 +100,6 @@ Use private directories; do not point XDG roots at shared or adversarial writabl
 
 ## Operator context and budgets
 
-This tranche adds no persistent global controls or workstation settings. The intervention baseline, activity filters, process/table filters and bounded inspection back stack are session context. Registered-name/node watches retain the existing normalized private atomic persistence. Closing the panel preserves the persistent service and its light/watch cadence; it does not imply helper exit.
+This tranche adds no persistent global controls or workstation settings. The intervention baseline, activity filters, process/table filters and capped inspection back stack are session context. Registered-name/node watches retain the existing normalized private atomic persistence. Closing the panel preserves the persistent service and its light/watch cadence; it does not imply helper exit.
 
 New derived limits are 200 activity rows, 64 changes/sample, 150 rendered timeline points, 16 node metric projections/point, 24 captured hot processes and a 64 KiB text report. Existing recorder retention and 16 MiB ZIP limits still apply; large configured ranges can truthfully fail export admission. No screen-share switch is added: all runtime names remain normal operational metadata and exports must be reviewed. Use disposable identities for acceptance captures; the installed bar-widget routing discards arbitrary summon payloads.

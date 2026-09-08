@@ -1,5 +1,5 @@
 defmodule BeamDeck.OperatorReport do
-  @moduledoc "Explicit bounded human handoff; never a dump of internal state."
+  @moduledoc "Explicit capped human handoff; never a dump of internal state."
   alias BeamDeck.Redaction
 
   def render(snapshot, frames, diff, historical?) do

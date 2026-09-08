@@ -1,5 +1,5 @@
 defmodule BeamDeck.Redaction do
-  @moduledoc "Bounded metadata sanitization. Never a substitute for collection allowlists."
+  @moduledoc "Capped metadata sanitization. Never a substitute for collection allowlists."
   @forbidden ~w(cookie setcookie password secret token authorization environment environ dictionary messages process_state table_values raw_dump raw_prefix)
   @export_only ~w(cwd argv command config config_path cookie_env)
 

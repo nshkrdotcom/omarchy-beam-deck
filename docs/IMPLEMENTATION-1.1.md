@@ -10,7 +10,7 @@ The original source included no binary `preview.png` content. The overlay leaves
 
 **Evidence-first, not another crowded dashboard.** Keep the original cockpit and add a separate investigation workspace. Triage progressively reveals evidence; stack/diff reports are selectable plaintext. Target selection, job state, capture age and an explicit live/history boundary are shared interaction concepts. A sticky safety strip makes a leased mutation visible regardless of selected tab. Color is supplementary to status/evidence labels; no continuous ornamental animation or expensive 3D effect is introduced.
 
-**Responsiveness is an ownership property.** The base performed polling inside the daemon mailbox. Collection and diagnostics now run under separate task supervisors with bounded concurrency/deadlines. Adding a process pin also resolves remotely outside the mailbox. Jobs are request-identified, panel/owner-aware and safe against late completion. Keep/Revert bypass ordinary work queues.
+**Responsiveness is an ownership property.** The base performed polling inside the daemon mailbox. Collection and diagnostics now run under separate task supervisors with capped concurrency/deadlines. Adding a process pin also resolves remotely outside the mailbox. Jobs are request-identified, panel/owner-aware and safe against late completion. Keep/Revert bypass ordinary work queues.
 
 **A timeout is not rollback.** The scheduler owner journals before each side effect, rechecks incarnation/current value, and preserves uncertain outcomes. It owns first-original values across manual changes and Keep. Failed restoration is visible and retryable, not erased because a worker ended. A raced first mutation corrects its original to the actual value returned by OTP without losing a prior session original.
 
@@ -52,7 +52,7 @@ Primary documentation informed these implementation refinements; code/desktop ac
 
 - Erlang `erlang` reference: https://www.erlang.org/doc/apps/erts/erlang.html (process metadata/single-key dictionary, VM identity, scheduler flags and native counters).
 - OTP `scheduler`: https://www.erlang.org/doc/apps/runtime_tools/scheduler.html (owned scheduler utilization sampling).
-- OTP `supervisor`: https://www.erlang.org/doc/apps/stdlib/supervisor.html (optional `which_child/2`, bounded older fallback).
+- OTP `supervisor`: https://www.erlang.org/doc/apps/stdlib/supervisor.html (optional `which_child/2`, capped older fallback).
 - OTP `trace`: https://www.erlang.org/doc/apps/kernel/trace.html (isolated sessions/system events).
 - OTP `ets`: https://www.erlang.org/doc/apps/stdlib/ets.html (metadata and word accounting).
 - OTP `json`: https://www.erlang.org/doc/apps/stdlib/json.html (OTP 27 encoder/decoder callbacks).

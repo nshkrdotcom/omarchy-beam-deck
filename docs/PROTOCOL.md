@@ -24,7 +24,7 @@ An incident is stable across repeated observations and has identity, title/summa
 
 `flight_recorder` gives metadata only: `frame_count`, oldest/newest frame IDs and at most 150 timeline entries (frame/time, alert/event counts, RSS). Frames are fetched explicitly. `watchlist.entries` combines normalized persistent identity (`id,kind,node,name,label`) with current status and optional targeted process metadata. Status can be present, missing, node_unavailable, unavailable or deferred. A persistent entry never stores a transient PID on disk.
 
-`budget_trial` is null or a public projection with `trial_id,status,rows,failures,reason,started_at_ms,expires_at_ms,remaining_ms,before_metrics`. Status is applying, active, kept, reverting, reverted or rollback_failed. Countdown display does not override the server's monotonic lease. `crash_triage` rows include disappearance identity/status and only matched bounded header metadata when available.
+`budget_trial` is null or a public projection with `trial_id,status,rows,failures,reason,started_at_ms,expires_at_ms,remaining_ms,before_metrics`. Status is applying, active, kept, reverting, reverted or rollback_failed. Countdown display does not override the server's monotonic lease. `crash_triage` rows include disappearance identity/status and only matched capped header metadata when available.
 
 ## Request identity and async lifecycle
 
@@ -66,7 +66,7 @@ Daemon authorization is independent of string-shape validation. It checks observ
 
 ## Result projections
 
-Process result: `node,creation,pid,at_ms,registered_name,status,current_function,initial_call,stack,ancestry,binaries,warnings`, plus mailbox/memory/reductions/heaps. Functions contain module/function/arity and optional source metadata, never actual arguments. Ancestry has bounded PID/name and child-relation metadata. Binaries report sampled/total entries, referenced bytes, partial/status and top byte/reference counts, not identities or contents.
+Process result: `node,creation,pid,at_ms,registered_name,status,current_function,initial_call,stack,ancestry,binaries,warnings`, plus mailbox/memory/reductions/heaps. Functions contain module/function/arity and optional source metadata, never actual arguments. Ancestry has capped PID/name and child-relation metadata. Binaries report sampled/total entries, referenced bytes, partial/status and top byte/reference counts, not identities or contents.
 
 ETS result: word size, attempted/scanned/total/omitted/unavailable counts and partial flag, plus `top` rows. Rows include id/name presentation, type/protection, owner/name, size, memory words/bytes and named-table status. Expired/unreadable tables are unavailable, not fabricated zero-valued healthy rows.
 
@@ -76,7 +76,7 @@ Export result: generated private `path,bytes,frame_count,privacy`. The exact sev
 
 ## Other helper messages
 
-`event` contains one bounded runtime/Deep Event. `action` contains a legacy/watchlist outcome. Scheduler/GC/recovery commands can also produce terminal `job` messages with helper-generated `action:*` IDs, even though the caller did not request async identity. `budget_trial` carries an immediate public trial update independently of polling. `error` contains a symbolic error and optional safe explanation. `notification` is an intent containing severity/urgency/title/body/incident identity; `Service.qml` executes only a fixed native notification argv.
+`event` contains one capped runtime/Deep Event. `action` contains a legacy/watchlist outcome. Scheduler/GC/recovery commands can also produce terminal `job` messages with helper-generated `action:*` IDs, even though the caller did not request async identity. `budget_trial` carries an immediate public trial update independently of polling. `error` contains a symbolic error and optional safe explanation. `notification` is an intent containing severity/urgency/title/body/incident identity; `Service.qml` executes only a fixed native notification argv.
 
 ## Failure behavior
 
@@ -88,7 +88,7 @@ Invalid/oversized JSON is drained through the next newline and rejected; subsequ
 
 Focused inspection and scheduler/probe/GC commands accept an optional nonnegative `expected_creation`; the UI supplies it for focused inspections and GC. Legacy callers still undergo daemon target/epoch checks. Request and frame IDs are exact; helper sessions never share frame identity.
 
-Snapshots include `sample_mono_ms`, `collection` (duration/cadence/deep/status) and `provider` (panel/historical epoch, bounded job counts/oldest wait, probe counts, prior successful capture and bounded lifecycle reasons). Collection metadata describes the last capture, not a promise that a pending RPC succeeded. Status IPC adds visible panel/workspace/tab, snapshot string length (`payload_bytes`, currently UTF-16 code units rather than a general UTF-8 byte count), UI-job/watch counts and these allowlisted health fields.
+Snapshots include `sample_mono_ms`, `collection` (duration/cadence/deep/status) and `provider` (panel/historical epoch, capped job counts/oldest wait, probe counts, prior successful capture and capped lifecycle reasons). Collection metadata describes the last capture, not a promise that a pending RPC succeeded. Status IPC adds visible panel/workspace/tab, snapshot string length (`payload_bytes`, currently UTF-16 code units rather than a general UTF-8 byte count), UI-job/watch counts and these allowlisted health fields.
 
 `flight_recorder.activity` retains 200 observed safe change explanations, at most 64 per sample, with cumulative `omitted_activity`. Each has exact frame/sequence/capture time, node/domain/kind, optional registered name/PID and allowlisted changed field names. Frames retain immutable activity/findings/watch context. The timeline carries at most 150 points and 16 node metric projections each, plus omitted frame/node counts. Missing metrics remain null; process scans report status, scanned/reported/returned counts and admission limit.
 

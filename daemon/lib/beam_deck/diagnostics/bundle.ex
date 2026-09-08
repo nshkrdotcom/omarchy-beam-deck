@@ -1,5 +1,5 @@
 defmodule BeamDeck.Diagnostics.Bundle do
-  @moduledoc "Explicit, bounded, private ZIP export using OTP's built-in ZIP implementation."
+  @moduledoc "Explicit, capped, private ZIP export using OTP's built-in ZIP implementation."
   alias BeamDeck.{FlightRecorder, Json, PrivateFile, Redaction}
   @limit 16_777_216
   def directory do

@@ -1,5 +1,5 @@
 defmodule BeamDeck.Json do
-  @moduledoc "OTP 27 JSON with bounded input, string keys and duplicate-key rejection."
+  @moduledoc "OTP 27 JSON with capped input, string keys and duplicate-key rejection."
 
   def encode(term), do: term |> :json.encode(&encode_value/2) |> IO.iodata_to_binary()
 

@@ -1,5 +1,5 @@
 defmodule BeamDeck.Activity do
-  @moduledoc "Bounded safe explanations of observed changes, owned by the flight recorder."
+  @moduledoc "Capped safe explanations of observed changes, owned by the flight recorder."
   alias BeamDeck.{Evidence, Redaction}
   @fields [:schedulers_online, :dirty_cpu_schedulers_online]
   @events ~w(nodeup nodedown long_gc long_schedule long_message_queue large_heap busy_port busy_dist_port events_dropped probe_overloaded)

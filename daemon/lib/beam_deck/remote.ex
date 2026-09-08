@@ -240,12 +240,12 @@ defmodule BeamDeck.Remote do
         &(is_number(&1[:mailbox]) and is_number(&1[:memory_bytes]) and is_number(&1[:reductions]))
       )
 
-    picks =
-      Enum.take(Enum.sort_by(rows, & &1.mailbox, :desc), n) ++
-        Enum.take(Enum.sort_by(rows, & &1.memory_bytes, :desc), n) ++
-        Enum.take(Enum.sort_by(rows, & &1.reductions, :desc), n)
-
-    picks |> Enum.uniq_by(& &1.pid) |> Enum.take(n * 2)
+    [:mailbox, :memory_bytes, :reductions]
+    |> Enum.map(fn key -> Enum.sort_by(rows, & &1[key], :desc) |> Enum.take(n) end)
+    |> Enum.zip()
+    |> Enum.flat_map(&Tuple.to_list/1)
+    |> Enum.uniq_by(& &1.pid)
+    |> Enum.take(n * 2)
   end
 
   def set_flag(node, flag, value)

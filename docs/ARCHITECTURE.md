@@ -9,13 +9,13 @@ Omarchy shell / Quickshell
   Service.qml -> beam-deckd -> dedicated JSONL fd + stdin commands
     BarWidget.qml             BeamDeck supervision tree
     Panel.qml                 |-- DiagnosticTasks / CollectionTasks
-      Investigation.qml       |-- Diagnostics (bounded job queue)
+      Investigation.qml       |-- Diagnostics (capped job queue)
       TrialBar.qml            |-- BudgetTrial (control + recovery owner)
       DeckState.js            |-- Daemon (snapshot/evidence/protocol owner)
-                              `-- Input (bounded command parser)
+                              `-- Input (capped command parser)
 
 read-only collection workers -> /proc + trusted OTP erpc
-explicit focused workers    -> process metadata / ETS metadata / bounded dump prefix
+explicit focused workers    -> process metadata / ETS metadata / capped dump prefix
 explicit Deep Events        -> temporary isolated target trace-session probe
 BudgetTrial                 -> conditional scheduler flag changes and restoration
 explicit local persistence  -> watchlist / diagnostic ZIP / existing helper log
@@ -27,13 +27,13 @@ explicit local persistence  -> watchlist / diagnostic ZIP / existing helper log
 
 The Bash launcher applies `umask 077`, selects the direct or Mise toolchain, compiles into XDG cache and starts a small hidden distribution node. Normal VM/Mix output goes to the private state log; protocol output uses inherited fd 3. A missing toolchain emits an additive protocol-v1 onboarding envelope without Erlang. The minimum helper baseline is OTP 27 / Elixir 1.18 because JSON is implemented by OTP's built-in `json` module.
 
-`Input` limits a command before parsing, accepts string keys, and never atomizes external commands, PIDs or fields. EOF requests normal application shutdown. `Daemon` emits sanitized structured messages. Quickshell owns one helper, keeps last successful state on errors and retries an exited helper with bounded backoff. A session identifier prevents old jobs/frame selections from being treated as results of a new helper.
+`Input` limits a command before parsing, accepts string keys, and never atomizes external commands, PIDs or fields. EOF requests normal application shutdown. `Daemon` emits sanitized structured messages. Quickshell owns one helper, keeps last successful state on errors and retries an exited helper with capped backoff. A session identifier prevents old jobs/frame selections from being treated as results of a new helper.
 
 ## Collection is not input handling
 
-`Daemon` dispatches a single collection task instead of calling remote APIs inside its poll callback. Collection has a 15-second owner deadline, a shared six-second remote candidate budget, four concurrent candidate workers and bounded remote calls. Candidate admission rotates so an unreachable prefix cannot permanently monopolize the budget. One completed collection feeds the new snapshot; timeout retains the last successful snapshot and produces an error instead of invented healthy zeros.
+`Daemon` dispatches a single collection task instead of calling remote APIs inside its poll callback. Collection has a 15-second owner deadline, a shared six-second remote candidate budget, four concurrent candidate workers and capped remote calls. Candidate admission rotates so an unreachable prefix cannot permanently monopolize the budget. One completed collection feeds the new snapshot; timeout retains the last successful snapshot and produces an error instead of invented healthy zeros.
 
-Discovery considers local EPMD, configured names and observed peers, not address ranges. Configuration/candidate sets are capped; newly admitted node-name atoms are lifetime-bounded. Command targets use existing atoms and must be observed attached/fresh where required. Local budget eligibility additionally requires corroborating the target's OS PID in the local census. Exact hostname aliases avoid treating a matching first DNS component as proof of locality. Tunnels and PID namespaces remain operator considerations.
+Discovery considers local EPMD, configured names and observed peers, not address ranges. Configuration/candidate sets are capped; newly admitted node-name atoms are lifetime-capped. Command targets use existing atoms and must be observed attached/fresh where required. Local budget eligibility additionally requires corroborating the target's OS PID in the local census. Exact hostname aliases avoid treating a matching first DNS component as proof of locality. Tunnels and PID namespaces remain operator considerations.
 
 Light collection captures VM capacity/memory/topology and local PID/start-time identities. Deep process scans occur at the open-panel cadence. Old process evidence is preserved between deep scans only within a matching VM incarnation/uptime sequence. Closing the panel never initiates a new full process/ETS/stack/binary scan solely for 1.1; pins use targeted lookups.
 
@@ -41,19 +41,19 @@ The old one-shot RPC wall-time toggle is not used for utilization. `scheduler:ut
 
 ## Pure evidence pipeline
 
-`History` stores bounded newest-first light samples. `Forecast` examines only the latest continuous per-node/per-metric segment, applies exponentially weighted linear regression and reports the exact sample/span/slope/fit/stability evidence. Hard-limit ETA exists only for process/atom/port limits; binary/ETS signals are growth-only. Confidence is a fit-quality summary, not calibrated probability.
+`History` stores capped newest-first light samples. `Forecast` examines only the latest continuous per-node/per-metric segment, applies exponentially weighted linear regression and reports the exact sample/span/slope/fit/stability evidence. Hard-limit ETA exists only for process/atom/port limits; binary/ETS signals are growth-only. Confidence is a fit-quality summary, not calibrated probability.
 
 `RestartChurn` tracks registered-name PID changes without guessing Supervisor intensity. `FlightRecorder` stores allowlisted compact frames, not the whole recursive snapshot. Frame sequence is independent of wall-clock ordering; selected export ranges follow sequence even after time adjustments. Frame IDs are session-local. Diffs suppress node counter comparisons across incarnation changes and mark missing comparable deep samples.
 
-`Incidents` combines raw alerts, forecasts, selected events, nearby recorder process/scheduler observations, pin problems, budget failures and local exit/dump evidence. Incident identity deduplicates the same symptom family/node/metric or subject. Observed/correlated/heuristic labels are preserved at evidence level. Two quiet completed polls resolve an incident; bounded resolved retention supports context without storing history forever. Notification intent derives from critical transitions, not every repeated critical sample.
+`Incidents` combines raw alerts, forecasts, selected events, nearby recorder process/scheduler observations, pin problems, budget failures and local exit/dump evidence. Incident identity deduplicates the same symptom family/node/metric or subject. Observed/correlated/heuristic labels are preserved at evidence level. Two quiet completed polls resolve an incident; capped resolved retention supports context without storing history forever. Notification intent derives from critical transitions, not every repeated critical sample.
 
 The recorder is pushed before incident correlation so a referenced nearest frame actually exists. A last-frame ID is captured for runtime disappearance before the next frame is written. Full recorder frames and job history are never embedded in routine snapshots.
 
 ## Focused diagnostics
 
-`Diagnostics` has bounded active/queued work, one remote diagnostic per node, caller ownership, per-job deadlines, duplicate-ID rejection and cancellation. Its tasks return data to the daemon; they never write protocol output directly. Panel close cancels interactive process/ETS/frame/diff work. Exports and safety-relevant work are not discarded merely because a panel hides. Runtime control owns its journal outside cancelable diagnostic workers.
+`Diagnostics` has capped active/queued work, one remote diagnostic per node, caller ownership, per-job deadlines, duplicate-ID rejection and cancellation. Its tasks return data to the daemon; they never write protocol output directly. Panel close cancels interactive process/ETS/frame/diff work. Exports and safety-relevant work are not discarded merely because a panel hides. Runtime control owns its journal outside cancelable diagnostic workers.
 
-`Diagnostics.Process` queries a field allowlist, a bounded argument-free stack and only the focused `$ancestors` and `$initial_call` dictionary keys. There is no `sys:get_state`, mailbox extraction or full-dictionary fallback. Supervisor enrichment uses `which_child/2` when available; older releases use a bounded `count_children`/`which_children` fallback only for a small child set. Binary summaries aggregate reference metadata; identifiers, addresses and contents are discarded before presentation.
+`Diagnostics.Process` queries a field allowlist, a capped argument-free stack and only the focused `$ancestors` and `$initial_call` dictionary keys. There is no `sys:get_state`, mailbox extraction or full-dictionary fallback. Supervisor enrichment uses `which_child/2` when available; older releases use a capped `count_children`/`which_children` fallback only for a small child set. Binary summaries aggregate reference metadata; identifiers, addresses and contents are discarded before presentation.
 
 `Diagnostics.Ets` enumerates table identifiers, then reads a capped/concurrent metadata set. It converts words with the target's word size and reports scan/cap/unavailable counts. No table contents operation is called. Native `ets:all`, process binary-reference lists and observer process enumeration may allocate/transfer their native list before a helper-side cap applies. A worker deadline/cap is not a hard target-memory allocation limit; sensitive or extremely large VMs need operator judgment.
 
@@ -61,7 +61,7 @@ The recorder is pushed before incident correlation so a referenced nearest frame
 
 ## Control state machine
 
-`BudgetTrial` is the single owner of scheduler changes, first-original values, trial timer and rollback failures. A trial must match the entire current local proposal, panel epoch and per-node incarnation/current value. Apply and rollback progress one node at a time, allowing the control mailbox to service close/Keep/Revert between bounded remote steps. The journal is written before requesting a mutation because timeout does not prove no side effect.
+`BudgetTrial` is the single owner of scheduler changes, first-original values, trial timer and rollback failures. A trial must match the entire current local proposal, panel epoch and per-node incarnation/current value. Apply and rollback progress one node at a time, allowing the control mailbox to service close/Keep/Revert between capped remote steps. The journal is written before requesting a mutation because timeout does not prove no side effect.
 
 States: `applying -> active -> kept`, or `applying/active -> reverting -> reverted|rollback_failed`. Explicit recovery retries a failed journal. Kept values are still in the first-original map. A conflicting external value is not overwritten; failed entries remain recoverable. Keep/Revert bypass the generic diagnostics queue. Normal shutdown, panel close for an unkept trial, lease expiry, partial apply and daemon-owner loss trigger the documented restoration behavior.
 
@@ -83,20 +83,20 @@ The source-level contracts assert that structure, but they are not visual proof.
 
 Only normalized watchlist state and explicit exports are new disk data. Export uses OTP ZIP, a fixed entry allowlist, per-frame redaction and a 16-MiB size ceiling. `PrivateFile` uses private directories, exclusive temporary files, file sync and atomic rename; an owner monitor removes temporaries on task death where the helper remains alive. Parent-directory races by a same-UID attacker are outside the trust model.
 
-`DeckState.js` contains tested pure UI state rules, formatting and fixed notification argv construction. `Investigation.qml` uses bounded rows, progressive evidence disclosure, selectable plaintext and explicit requests. A visible historical/live boundary, stale-data age, job-specific results, process identity checks and sticky trial controls matter more than decorative animation. All theme/geometry/import/render acceptance remains a real-desktop gate, not established by delimiter or embedded-JavaScript checks.
+`DeckState.js` contains tested pure UI state rules, formatting and fixed notification argv construction. `Investigation.qml` uses capped rows, progressive evidence disclosure, selectable plaintext and explicit requests. A visible historical/live boundary, stale-data age, job-specific results, process identity checks and sticky trial controls matter more than decorative animation. All theme/geometry/import/render acceptance remains a real-desktop gate, not established by delimiter or embedded-JavaScript checks.
 
 ## Upstream contracts used
 
 Official OTP documentation: `erlang:process_info/2`, `erlang:system_info/1`, `erpc`, `scheduler`, `supervisor`, `trace`, `ets`, `json`, `zip`. Sources consulted are catalogued in [the implementation review](IMPLEMENTATION-1.1.md). Their runtime behavior is covered by authored peer tests but was not executable in the implementation container.
 ## Operator context and evidence ownership
 
-`Service.qml` remains the one persistent shell-owned helper owner. Panel-close cancels interactive diagnostics and deep acquisition; bounded light discovery and durable registered-name watches continue. `Investigation.qml` is retained across Cockpit transitions, with its clock/Canvas inactive when hidden. Cockpit stays live; returning to Investigate restores its frozen range and daemon read-only mode. Helper-session changes invalidate jobs and ephemeral inspection history. One baseline stores only frame/session/time/node/quality metadata in the service, never a second snapshot engine or a new disk preference.
+`Service.qml` remains the one persistent shell-owned helper owner. Panel-close cancels interactive diagnostics and deep acquisition; capped light discovery and durable registered-name watches continue. `Investigation.qml` is retained across Cockpit transitions, with its clock/Canvas inactive when hidden. Cockpit stays live; returning to Investigate restores its frozen range and daemon read-only mode. Helper-session changes invalidate jobs and ephemeral inspection history. One baseline stores only frame/session/time/node/quality metadata in the service, never a second snapshot engine or a new disk preference.
 
 FlightRecorder owns sequence identity, activity derivation, immutable frame context and A/B comparison. Activity stores safe changed-field names instead of sensitive before/after values. Missing/expired endpoints never rebound. KeyedRows updates existing delegate objects; ActionButton uses installed native focus styling and reveals focus in the actual ancestor Flickable. The protected header continues to use installed host title tokens, native buttons and KeyboardPanel geometry.
 
 ControlAccess checks live panel, epoch, known incarnation and capture age immediately before execution; BudgetTrial independently checks scheduler-control epochs and target identity. Its memory journal still precedes mutation, and failed rollback remains evidence rather than success. Deep Events receives an immediate nonblocking stop request outside ordinary diagnostic admission; normal teardown separately confirms exit and unloads code. The existing `rest_for_one` supervision strategy is retained.
 
-Projection defines nested retained/exported field allowlists. Generic redaction remains a second defense. Provider diagnostics expose bounded counts and lifecycle reasons, not raw job payloads or credentials. Native acceptance records process start identities before cleanup and distinguishes panel loss from helper death; no cause is inferred from an empty log.
+Projection defines nested retained/exported field allowlists. Generic redaction remains a second defense. Provider diagnostics expose capped counts and lifecycle reasons, not raw job payloads or credentials. Native acceptance records process start identities before cleanup and distinguishes panel loss from helper death; no cause is inferred from an empty log.
 
 Focused process reports acquire binary metadata before optional ancestry. Each ancestor receives at most 200ms for supervisor-specific queries within the overall diagnostic deadline; an ancestor may be a live process with no supervisor API. Its unavailable child metadata must not starve the rest of the report.
 

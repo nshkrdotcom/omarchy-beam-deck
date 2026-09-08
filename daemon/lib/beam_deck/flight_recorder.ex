@@ -1,5 +1,5 @@
 defmodule BeamDeck.FlightRecorder do
-  @moduledoc "Compact bounded in-memory frames. No process state, arguments or recursive snapshots."
+  @moduledoc "Compact capped in-memory frames. No process state, arguments or recursive snapshots."
   @node_fields ~w(name attached local otp creation uptime_ms processes process_limit atoms atom_limit ports port_limit ets memory run_queue schedulers schedulers_online dirty_cpu_schedulers_online hot_processes_at_ms process_scan_error process_scan)a
   def new, do: %{sequence: 0, frames: [], seen_events: [], activity: [], omitted_activity: 0}
 

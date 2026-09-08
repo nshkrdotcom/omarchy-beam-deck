@@ -64,4 +64,19 @@ defmodule BeamDeck.RemoteTest do
     assert is_nil(Remote.measurement(nil))
     assert Remote.measurement(0) == 0
   end
+
+  test "hot set admission includes reduction leaders even when other rankings fill the cap" do
+    rows =
+      for i <- 1..9,
+          do: %{
+            pid: "<0.#{i}.0>",
+            memory_bytes: 10 - i,
+            mailbox: i,
+            reductions: if(i == 5, do: 100_000, else: i)
+          }
+
+    hot = Remote.hot_union(rows, 3)
+    assert Enum.any?(hot, &(&1.reductions == 100_000))
+    assert length(hot) <= 6
+  end
 end
