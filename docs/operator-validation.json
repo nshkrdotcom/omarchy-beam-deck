@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-09-07",
+  "scope": "Operator mission-control feature branch; revised acceptance scope after operator stopped further screen-occupying endurance work",
+  "branch": "feat/operator-mission-control",
+  "baseline_commit": "987ffb4",
+  "tested_implementation_commit": "a2578548629581d3745c69eb7d1ec3c204e97687",
+  "release_validated": false,
+  "local_versions": {
+    "otp": "29.0.6",
+    "erts": "17.0.6",
+    "elixir": "1.20.4-otp29",
+    "qt": "6.11.2",
+    "quickshell": "0.3.1-1",
+    "omarchy": "4.0.0.r2026.gf1b065c-1"
+  },
+  "local_gates": {
+    "make_check": "passed",
+    "default_exunit_passed": 100,
+    "default_exunit_integration_exclusions": 19,
+    "exunit_with_real_peers_passed": 119,
+    "javascript_passed": 27,
+    "python_native_tool_tests_passed": 5,
+    "qt_results_including_setup_cleanup": {
+      "scale_1": 24,
+      "scale_1_5": 24
+    },
+    "qt_scope": "Production component and native control coverage with isolated host inputs; not native fractional-Wayland rendering",
+    "launcher_protocol_jsonl_messages": 27,
+    "strict_credo": "passed",
+    "dialyzer_errors": 0,
+    "native_import_lint": "passed",
+    "manifest_validation": "passed",
+    "diff_check": "passed"
+  },
+  "ci": {
+    "url": "https://github.com/nshkrdotcom/omarchy-beam-deck/actions/runs/34174115653",
+    "commit": "a2578548629581d3745c69eb7d1ec3c204e97687",
+    "conclusion": "success",
+    "jobs": [
+      "static",
+      "lint",
+      "beam (27, 1.18)",
+      "beam (28, 1.19)",
+      "beam (29, 1.20)"
+    ]
+  },
+  "native": {
+    "host": "Virtual-1 1280x800 scale 1, horizontal top bar",
+    "protected_title_and_action_rail": "preserved; actual-size pointer/IPC captures and production Qt metrics",
+    "cycles": {
+      "status": "passed",
+      "count": 50,
+      "open_routes": {
+        "pointer": 17,
+        "ipc": 17,
+        "bar_shortcut": 16
+      },
+      "dismissals": {
+        "close_control": 13,
+        "escape": 13,
+        "outside": 12,
+        "bar_pointer": 12
+      }
+    },
+    "soak": {
+      "status": "interrupted_failed",
+      "requested_seconds": 600,
+      "observed_sample_span_seconds": 21.091,
+      "samples": 5,
+      "failure": "panel_closed_during_uninterrupted_soak",
+      "initiator": "not established by lifecycle evidence; operator separately reported dismissing test popups",
+      "rerun": "omitted under subsequent user direction",
+      "long_run_budget_pass_claimed": false
+    },
+    "final_closed_phase": {
+      "status": "not_run",
+      "requested_seconds": 60
+    },
+    "manual_runtime_workflows": [
+      "baseline capture/compare/clear and exact private export",
+      "recorder pointer/keyboard selection and Go live",
+      "process binary metadata and owned ETS pivot",
+      "fresh GC and stale action refusal on disposable peer",
+      "exact ended PID versus registered-name replacement watch",
+      "scheduler trial 12 to 5 to 12 restored on close",
+      "Deep Events stop on close and target module unload",
+      "remsh attach and normal local client exit",
+      "neighbor popout switching"
+    ],
+    "baseline_profile": {
+      "seconds_per_phase": 31,
+      "closed_open_mean_cpu_percent_one_core": {
+        "helper": [
+          1.74,
+          1.41
+        ],
+        "shell": [
+          0.64,
+          1.61
+        ],
+        "target": [
+          0.52,
+          0.23
+        ]
+      }
+    }
+  },
+  "cleanup": {
+    "main_peer_stopped": true,
+    "budget_peer_stopped": true,
+    "watch_count": 0,
+    "trial": null,
+    "probes": 0,
+    "scheduler_restoration_confirmed": true,
+    "clipboard_action_used": false,
+    "recorder_metric_restored": "rss",
+    "recorder_restoration_capture": "cleanup-recorder-restored.png",
+    "panel_open": false,
+    "historical_mode": false,
+    "active_jobs": 0,
+    "queued_jobs": 0,
+    "persistent_helper_preserved": true
+  },
+  "unverified_or_limited": [
+    "No completed ten-minute soak or final 60-second closed phase",
+    "Native missing-toolchain, dense cap-limit and very-long-name cases not comprehensively exercised",
+    "Native live theme changes, alternate monitor/bar orientations and fractional Wayland scale not exercised",
+    "Critical notification bursts not comprehensively exercised natively",
+    "No presentation-privacy toggle; visible operational identities require discretion",
+    "No rollback guarantee after untrappable helper or host loss",
+    "Status payload_bytes counts QML UTF-16 code units, not general UTF-8 wire bytes"
+  ],
+  "private_evidence_directory": "/tmp/beam-deck-operator-evidence",
+  "logs": [
+    "m6-action-check.log",
+    "m6-action-qt.log",
+    "m6-action-qt15.log",
+    "m6-action-lint.log",
+    "native-acceptance-1/acceptance-failed.json",
+    "final-cleanup-result.json"
+  ],
+  "historical_validation_record": "validation-results.json"
+}

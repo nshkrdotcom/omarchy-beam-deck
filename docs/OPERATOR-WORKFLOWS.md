@@ -22,7 +22,7 @@ In Flight recorder, choose host RSS or a node's memory, run queue, scheduler uti
 
 Click or drag to freeze a range. Left/Right steps B; Shift+Left/Right steps A; Home/End reaches first/last. View A/B loads exact retained evidence; Compare A → B compares it. Go live or G releases the frozen view. Switching through Cockpit preserves investigation context; focused editors retain normal modified-key behavior. Omarchy's native H/J/K/L and panel navigation remain in use.
 
-Process and ETS filters only search the bounded captured rows. Focused remote requests are deliberate buttons. Inspect exact PID does not follow registered-name replacement. Ancestor and owned-table pivots have Inspection back navigation. A watch of a registered name intentionally follows replacement; stale/deferred/unavailable watch rows cannot authorize current inspection or GC. No mailbox contents, dictionary, arbitrary application state, binary identifiers/content or ETS keys/values are collected.
+Process and ETS filters only search the bounded captured rows. Focused remote requests are deliberate buttons. Inspect exact PID does not follow registered-name replacement. Ancestor and owned-table pivots have Inspection back navigation. A watch of a registered name intentionally follows replacement; stale/deferred/unavailable watch rows cannot authorize current inspection or GC. No mailbox contents, full dictionary, arbitrary application state, binary identifiers/content or ETS keys/values are collected.
 
 ## Act and recover
 

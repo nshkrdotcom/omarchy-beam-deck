@@ -13,6 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 * Reject stale view epochs and VM identities at control execution; stop Deep Events independently of diagnostic admission, while confirming cleanup separately.
 * Keep missing measurements null, avoid false incident resolution on repeated/unavailable samples, retain dated failed-node/watch evidence, and project private ZIP contents through explicit nested allowlists.
 * Add production Qt tests, real-peer/protocol regressions, strict native import lint and native failure-evidence/soak tooling. Preserve the native main title and action rail.
+* Bound optional supervisor queries and preserve binary metadata; omit arbitrary OS command arguments and exclude internal remsh clients from runtime budgets.
+* Label dated action receipts separately from current control state, and clarify small recorder scale spans.
 
 ## [1.1.0] - 2026-09-06
 
@@ -72,5 +74,3 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 [1.1.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/releases/tag/v1.0.0
-
-Native acceptance refinements: precise small-range recorder scale labels and bounded optional ancestry queries that preserve binary metadata.

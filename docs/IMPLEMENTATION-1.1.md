@@ -18,7 +18,7 @@ The original source included no binary `preview.png` content. The overlay leaves
 
 **Forecast confidence must mean what was calculated.** Use explicit exponentially weighted regression, minimum sample/span gates, fit and monotonic-interval stability. Display ETA only for real process/atom/port hard limits. Binary/ETS use absolute plus fractional growth and never ETS exhaustion. Confidence is fit quality, not probability or proof of a leak.
 
-**Privacy needs collection boundaries, not regex alone.** Query one ancestry dictionary key; omit argument values, states, messages, ETS contents and binary identities. Project small data models before sanitization. Export only a fixed ZIP entry set to a private generated path, with exact-cookie filtering and explicit residual privacy warning. Crash triage is matched/capped and does not search disks.
+**Privacy needs collection boundaries, not regex alone.** Query only the focused OTP ancestry/initial-call metadata keys; omit argument values, states, messages, ETS contents and binary identities. Project small data models before sanitization. Export only a fixed ZIP entry set to a private generated path, with exact-cookie filtering and explicit residual privacy warning. Crash triage is matched/capped and does not search disks.
 
 **BEAM-specific correctness outranks superficial reuse.** The old transient RPC flag caller is not a lasting scheduler-wall-time owner; the measurement now occurs in one actual caller lifetime. Target process IDs are represented in node-local textual form, with a VM-creation guard on actions. Supervision APIs are capability-gated rather than forcing OTP 28 optimizations on OTP 27. Sampled churn is not declared restart intensity. Shared-binary references are not declared exclusive ownership.
 
@@ -63,3 +63,5 @@ Primary documentation informed these implementation refinements; code/desktop ac
 ## Acceptance boundary
 
 This code is not labeled production-ready by passing a syntax-adjacent check. It must compile, be formatted, pass all old/new ExUnit and real-peer cases, Credo, Dialyzer, actual-launcher protocol tests, supported-version CI and real Omarchy UI/lifecycle/performance checks. The exact validation status is maintained in [VALIDATION](VALIDATION.md); do not replace observed evidence with a generic "all features done" checklist.
+
+The operator mission-control extension and its recorded validation are documented in [OPERATOR-PLAN.md](OPERATOR-PLAN.md), [OPERATOR-WORKFLOWS.md](OPERATOR-WORKFLOWS.md) and [VALIDATION.md](VALIDATION.md). Earlier implementation/validation statements above are the original 1.1 design record.

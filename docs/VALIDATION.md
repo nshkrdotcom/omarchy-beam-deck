@@ -1,75 +1,77 @@
-# Validation and acceptance - 1.1 implementation candidate
+# Validation evidence
 
-## Meaning of this record
+## Operator mission-control tranche
 
-Static checks and JavaScript behavior tests were run in a Debian 13 container with Node 22, Python 3, Bash and jq. Erlang/Elixir/Mix, Mise, Omarchy, Quickshell/Qt QML tools, Credo, Dialyzer and ShellCheck were unavailable. Package repository access failed; no runtime was installed. **No BEAM compilation, ExUnit/real OTP integration or UI rendering is claimed.** Executed counts/results are recorded in this validation record and [the machine-readable check record](validation-results.json).
+Implementation branch: `feat/operator-mission-control`; untouched baseline `987ffb4`; tested implementation `a2578548629581d3745c69eb7d1ec3c204e97687`. This is feature-branch validation, not a release or a claim that every desktop configuration was exercised. The [execution plan](OPERATOR-PLAN.md) records research, individual red/green regressions, intermediate failures and commits. [Operator workflows](OPERATOR-WORKFLOWS.md) describes the resulting behavior.
 
-`make check` is intentionally fail-closed when Mix is missing. A static success must never be relabeled release acceptance. Source test declarations are not passed-test counts. Embedded JavaScript parsing does not validate QML imports, properties, layout, styling or runtime behavior.
+The original September 6 container record remains in [validation-results.json](validation-results.json) and `docs/validation/` as historical evidence. Its missing-toolchain and unexecuted-BEAM statements do not describe this later installed-host run. Current structured results are in [operator-validation.json](operator-validation.json).
 
-## Reproducible gates
+## Executed gates
 
-```bash
+Local environment: Omarchy `4.0.0.r2026.gf1b065c-1`, Quickshell `0.3.1-1`, Qt `6.11.2`, OTP `29.0.6` / ERTS `17.0.6`, Elixir `1.20.4` built for OTP 29. Existing resolved toolchains were used; no runtime/package upgrade was performed. Mix build/dependency caches stayed outside the plugin tree.
+
+| Check | Actual result |
+|---|---|
+| `make check` | Passed: dependency resolution, strict formatting, warnings-as-errors compilation, 100 default ExUnit tests with 19 integration exclusions, then all 119 with disposable peers; strict Credo, Dialyzer zero errors, actual-launcher protocol |
+| `make static` within that gate | 27 JavaScript tests, 5 Python native-tool tests, shell/manifest/source/privacy contracts passed |
+| Actual-launcher protocol | Passed, 27 JSONL messages; real peer, process/ETS jobs, pins, exact frames/diff, historical/incarnation rejection, Deep Events teardown, private ZIP and normal EOF |
+| `make qt` | 24 passing results including setup/cleanup, at scale 1 and `QT_SCALE_FACTOR=1.5` |
+| `make native-lint` | Passed with the actual installed `qs` import root; a real missing-import negative test also passes |
+| `omarchy plugin validate .` / `git diff --check` | Passed |
+| CI on `a257854` | All jobs passed: static, lint, OTP27/Elixir1.18, OTP28/Elixir1.19 and OTP29/Elixir1.20 |
+
+[CI run 34174115653](https://github.com/nshkrdotcom/omarchy-beam-deck/actions/runs/34174115653) includes default and real-peer ExUnit plus launcher protocol on every matrix row. Only OTP29/Elixir1.20 ran locally. Deep Events remains unavailable below OTP28.
+
+Qt tests instantiate production components and installed native controls, isolating only host inputs/window/style dependencies. They test header metrics and alignment at 900/1270/1900 logical widths, larger font tokens, native editor/modifier ownership, selected-control focus, real Flickable reveal, stable delegates, exact historical continuity, recorder pointer/keyboard selection, expiry, caption reflow and inactive rendering. These are component tests; they do not establish native fractional-Wayland or multi-monitor rendering.
+
+Latest full logs are private external artifacts under `/tmp/beam-deck-operator-evidence`: `m6-action-check.log`, `m6-action-qt.log`, `m6-action-qt15.log`, `m6-action-lint.log`. Earlier failing logs were retained separately; formatting/source-contract/test-adapter errors were corrected without relaxing the gates.
+
+## Native evidence and interruption
+
+Native host: one Virtual-1 output, 1280×800, scale 1, horizontal top bar. The actual clicked panel is the visual reference. Title comparison against the untouched baseline has zero differing pixels in the measured title region. Pointer and IPC use the same native panel, title, rail and eight-unit content padding. Rail captures have incidental cursor/hover/antialias differences; geometry was checked separately. No workstation fonts, themes, bar, keybindings, monitor configuration or sibling source was changed.
+
+| Native workflow | Observed outcome |
+|---|---|
+| Pointer / shell IPC / configured physical bar shortcut | Passed; all open the shared native panel |
+| 50 meaningful cycles on `a257854` | Passed: 17 pointer, 17 IPC, 16 physical-shortcut opens; each enters Investigate → Recorder. Dismissals: 13 Close, 13 Escape, 12 outside clicks, 12 bar clicks. Same shell/helper/target start identities |
+| Neighbor popout switching | Actual pointer switched to the neighboring popout and back |
+| Baseline / recorder | Capture, exact comparison, clear, private range export, memory traces, pointer/keyboard range selection, historical View A and G Go live observed |
+| Process / ETS / watch | Corrected binary-reference report, 22/22 table metadata with target word size, owned-table pivot, native keyboard scroll and editor Ctrl+A, fresh GC and stale-action refusal observed |
+| Exact identity / name following | Old PID explicitly reported process exited after a test-owned supervised replacement; registered-name watch followed the new PID |
+| Scheduler trial | Disposable Elixir peer changed 12→5 online schedulers; visible countdown/Keep/Revert; panel close restored 12. Recovery saturation/conflict/owner-loss cases are real-peer automated coverage, not all native UI cases |
+| Deep Events | Explicit start, panel-close stop, zero active/pending probes, and a separate target check confirming module unload |
+| Remsh | Actual launcher connected to disposable Elixir node in a PTY; client exited normally |
+| Export privacy | Native seven-entry ZIP mode 0600; fixture dictionary/binary/ETS canaries absent. Nested projection and arbitrary argv canaries also pass automated regressions |
+
+Actual-size captures include `accepted-worker-inspection.png`, `accepted-owned-ets-result.png`, `accepted-gc-fresh.png`, `accepted-ended-exact-pid.png`, `accepted-watch-replacement.png`, `final-trial-active.png`, `accepted-probe-active.png`, `accepted-pointer-final.png`, `accepted-ipc-final.png` and `soak-scene-start.png`. Intermediate captures identify the revision under test in the execution plan; the final revision adds dated action receipts without changing layout or these workflows.
+
+**The uninterrupted ten-minute soak did not pass.** After the 50 cycles and warmup, five live samples spanned 21.09 seconds before the panel closed. The runner failed correctly with `panel_closed_during_uninterrupted_soak`. Pre-cleanup evidence retained the same live shell/helper/target identities, fresh samples, no active/queued jobs, no probe and the close timestamp. These observations do not establish a crash or a close initiator. The operator reported closing the popup during testing and subsequently directed that further screen-occupying endurance work be skipped. The rerun and final 60-second closed phase were therefore removed from this tranche's acceptance scope; no long-run resource or leak-free claim is made.
+
+Failure evidence remains in `native-acceptance-1/acceptance-failed.json` and `native-acceptance-1.log`. Earlier `native-smoke-1` through `native-smoke-4` failures remain separate from the passing `native-smoke-5` four-cycle/10-second smoke run. A return code or a mock is never counted as proof that a native click landed.
+
+## Resource evidence and limits
+
+Before implementation, matched 31-second closed/open profiles measured helper CPU 1.74%/1.41% of one core, ending RSS 95.27/95.55 MiB; shell CPU 0.64%/1.61%, ending RSS 671.07/715.91 MiB; target CPU 0.52%/0.23%, ending RSS 56.56/56.68 MiB. Full details and absolute FD/task/child counts are in `baseline-profile.json` and the plan.
+
+The proposed warmed-run ceilings remain helper/shell/target RSS growth 32/128/16 MiB, mean one-core CPU 10/15/5%, and FD/task/child growth 2/4/0. They were not increased after failure and are not claimed passed for a ten-minute run. Passing a short growth ceiling would not prove zero growth or absence of leaks. Status `payload_bytes` currently measures QML string length (UTF-16 code units); it is not a general UTF-8 wire-byte counter. Collection duration is measured acquisition time, separately from IPC response latency.
+
+Native missing-toolchain, dense cap-limit/very-long-name layouts, critical-notification bursts, live theme changes, alternate monitor/bar orientations and fractional-Wayland scales were not comprehensively run. Deterministic/Qt/real-peer tests cover their stated algorithm/control boundaries. No partial presentation-privacy toggle was added: operational identities remain visible; explicit exports use allowlisted projections and need review. No guaranteed rollback is claimed after SIGKILL, partition or host loss.
+
+## Reproduction and cleanup
+
+Use the installed resolved toolchain, or an explicitly selected supported Mise environment when needed:
+
+```sh
 make static
-mise exec -- make check
+make check
+make qt
+QT_SCALE_FACTOR=1.5 make qt
+make native-lint
 git diff --check
 omarchy plugin validate .
 ```
 
-`make static` runs manifest/service contracts, Bash syntax, a forced no-toolchain onboarding envelope in temporary HOME/XDG/PATH, QML delimiter balance, embedded QML JavaScript body parsing, the production `DeckState.js` test suite, configuration/default/version/command/privacy/documentation structural checks and existing shell-helper tests.
-
-The complete release gate fetches dev dependencies, checks formatting, compiles tests with warnings as errors, runs default ExUnit, then all real-peer tests with `BEAM_DECK_INTEGRATION=1`, Credo strict, Dialyzer and the actual-launcher protocol harness. Formatting and static analysis have not been executed in this container; expect to fix issues, not to waive them. Preserve the real generated `mix.lock` after successful resolution; none was invented offline.
-
-Target matrix: OTP 27 / Elixir 1.18; OTP 28 / Elixir 1.19; OTP 29 / Elixir 1.20. Deep Events is unavailable below OTP 28. Every line must exercise optional API loss gracefully, not skip all relevant integration coverage because one feature is absent. CI is configured for the matrix; no CI run result is included in this delivery.
-
-## Real test environments, not production substitutes
-
-`daemon/test/support/real_peer.ex` starts controlled disposable actual OTP peers. Two small test-owned Erlang modules produce a registered supervised worker, private dictionary/binary/table canaries and optional wall-time ownership. They are test fixtures only, never a production backend or a dependency to add to monitored apps. All runtime integrations remain direct OTP calls.
-
-The original shell test records IEx argv with a tiny executable stub to verify quoting/forwarding; that is a shell-unit boundary, not remote-integration evidence. Pure projection/config/history/incident/forecast tests use deterministic data because those algorithms have no external side effect.
-
-`python3 test/live-protocol.py` is a standard-library-only end-to-end harness. It creates a private EPMD port/HOME/XDG tree, starts a real Erlang peer and the actual launcher, checks JSON-only protocol and fake-cookie absence, open-panel process/ETS jobs, pin persistence/current resolution, frame/diff, exact/private ZIP contents, malformed-command recovery and normal stdin EOF. It does not mutate a user's node and fails rather than silently skipping absent runtimes. It has only been Python-syntax checked here.
-
-## Mandatory real-desktop acceptance
-
-**Onboarding and lifecycle:** check missing toolchain, no workload, OS-only workload, attached node, wrong cookie and unreachable required node. Repeatedly open/close/restart the shell; confirm exactly one helper, no protocol noise, no stuck job/probe/trial and clear capture ages. Confirm the shell, not an unrelated terminal, inherits the intended configuration/cookie environment.
-
-**Forecast and evidence:** use disposable workloads plus deterministic tests for stable growth, noisy/flat/reversed samples, changed limits and VM restart. Confirm no premature ETA, no ETS hard-limit countdown, correct units/sample count/span, fit-quality wording, observed/correlated/heuristic labels and no deadlock/causality claim. Verify mailbox/churn/run-queue evidence links to an actual retained frame when nearby evidence exists.
-
-**Historical investigation:** create a resource change and exercise the Flight Recorder range navigator rather than timestamp dropdowns. In Live mode confirm the graph may advance with new frames without an active historical selection. Drag a range and verify the UI immediately enters paused/read-only historical mode, freezes the displayed timeline and exact A/B frame IDs while live collection continues, supports independent handle refinement plus Last 1m/All retained presets, and clears the selection only through Go Live/helper reset. Exercise result-mode transitions in both directions: View A -> Compare A -> B, View B -> Compare A -> B, and Compare A -> B -> View A/B. Each action must replace the previous frame/diff result rather than stacking it below another result card; A/B selection itself must remain unchanged. Then copy the report, export the exact selected range and expire a selection. Confirm mutations are disabled in historical mode, old results cannot overwrite a new target and helper restart clears old jobs/frame context. Check sequence-ordered A/B selection after wall-clock regressions through the regression tests, not only ordinary monotonic wall time.
-
-**Process and ETS:** inspect real worker/supervisor ancestry under OTP 27 fallback and OTP 28 optimized API. Confirm private dictionary canary, message/state contents, binary IDs and table values never appear. Trigger process exit during inspection and registered-name restart; pins must follow the new PID. Verify partial/capped binary/ETS reports, target word conversion, owner navigation, explicit refresh and creation/freshness-gated GC confirmation.
-
-**Scheduler controls:** on disposable local nodes verify whole-proposal matching, actual flag values, partial second-node failure, panel-close rollback, lease expiry, Keep, first-original Restore, normal helper shutdown, owner death and conflicting external change. The last must remain rollback_failed, not clobber the external value or lose recovery. Test retries and a restarted node; no cross-incarnation restore. Kill/partition tests must describe observed recovery limits, not assume guaranteed rollback.
-
-**Deep Events:** validate isolated system events without replacing another system monitor, rate/queue overload, parent death, repeated enable/disable and normal code unload. Verify there is no wall-time measurement reference left behind. Test bytecode compatibility with the actual helper/target OTP pair. A resident inert module after abrupt loss needs ownership-aware cleanup, not blind overwrite.
-
-**Crash triage/export/notification:** use only the disposable fixture crash, not a production dump. Confirm fresh prefix matching, unchanged/stale/unmatched/symlink refusal, delayed retry, last-frame context and no raw dump persistence/export. Inspect seven ZIP entries and permissions; search for fake cookies and private canaries. Trigger a real critical notification, repeat polls and resolve/retrigger inside cooldown; verify one transition notification and nonfatal missing-helper behavior.
-
-**Visual and accessibility:** test the actual theme imports and native controls at 1366x768, 1920x1080, a smaller usable panel and 125%/150% scale. Exercise long node/module names, empty states, error states, 100 incidents, capped ETS rows and 150 timeline metadata points. Check scroll reachability, no overlap/clipping, readable contrast, keyboard focus/selection, copy actions, toolbar wrapping, historical badge, sticky trial countdown and fixed-width horizontal/vertical bar slot. Capture screenshots and correct the QML; do not infer a rendered result from syntax checks.
-
-**Native bar-panel geometry regression:** on a 1280x800 scale-1 output with a 26px top bar, `gaps_in = 5`, `gaps_out = 10` and a 2px Hyprland border, keep the same two tiled windows and test BEAM Deck in both scrolling (`column_width = 0.49`) and dwindle. Open BEAM Deck from its actual bar button. Its card geometry must be identical across those workspace layouts because `KeyboardPanel`, not client rectangles, owns monitor/bar/gap/clamping geometry. With the current stock shell values, record an approximately x=10..1270, y=36..790 card as a diagnostic baseline, but treat the shell's reported geometry as authoritative if style tokens change. Confirm the card remains below/away from every bar edge, clamps on smaller outputs, dismisses on outside click/Escape, switches cleanly between bar popouts, and does not reintroduce a `Style.space(48)` full-output centering fallback. Also exercise text fields, combo boxes and spin boxes to ensure the keyboard wrapper does not steal editing/navigation keys.
-
-## Performance and privacy gates
-
-Compare closed/open helper CPU/RSS, target overhead and snapshot size against the baseline under the same disposable workloads. Closed panel must not cause full process/ETS/stack/binary scans; only light collection and bounded pinned observations continue. Measure pathological node count, long names, unreachable peers, process/table population and job-queue saturation. Native enumeration costs are documented limits, not assumed fixed by a displayed top-N cap.
-
-Record typical and capped snapshot/export size, deadline responsiveness and recovery latency. Verify collections do not accumulate, requests stay bounded and Keep/Revert remain serviceable while ordinary jobs are saturated. Original validation did not claim a numeric performance pass. The operator tranche below records its measured baseline separately from acceptance.
-
-## Full-environment evidence to retain
-
-Record exact OTP/Elixir/Quickshell/Omarchy versions, each command and exit status, ExUnit counts including exclusions, matrix results, real harness output, strict-analysis logs, rendered screenshots with dimensions/theme, before/after target scheduler values and privacy-canary search results. Update this file and HANDOFF with observed evidence and remaining issues; do not convert unrun checks into passes by editing a checkbox.
-
-## Operator mission-control tranche — 2026-09-07
-
-Branch: `feat/operator-mission-control`, baseline `987ffb4`. Local toolchain: OTP 29.0.6 / Elixir 1.20.4; installed Quickshell 0.3.1, Qt 6.11.2 and Omarchy 4.0.0.r2026.gf1b065c. Earlier feature milestone CI (through `0c62930`) passes OTP27/Elixir1.18, OTP28/Elixir1.19, OTP29/Elixir1.20; the final revision's CI status must be checked separately.
-
-Current full local gate: 99 default ExUnit + 18 opt-in exclusions, 117 with real-peer integration; 25 JS tests; 3 native-tool unit tests; strict Credo/Dialyzer; 27-message real launcher protocol including historical control rejection, exact incarnation rejection, repeated Deep Events admission/confirmed teardown and private ZIP canaries. `make qt` has 24 results including setup/cleanup, at scale 1 and Qt scale factor 1.5. These execute production components with isolated host input adapters and actual installed controls; they are component coverage, not native or fractional-Wayland proof.
-
-`make native-lint` maps `qs` to the actual installed shell and treats unresolved imports as errors. A real negative import test confirms failure; this is not suppression of all lint errors. `omarchy plugin validate .` and whitespace checks pass. Mix format caching initially left a newly edited call unformatted; `mix format --force` followed by the unchanged strict check resolved that validation failure. Earlier red/failed logs remain separate from green runs.
-
-Native baseline and interim actual-click captures are in the private external evidence directory `/tmp/beam-deck-operator-evidence`; baseline title metrics and same-size pointer/IPC appearance were inspected at actual size. The main title, action rail and host padding/container remain protected. Final native matrix, cycles and soak are still pending at this documentation revision; see [the synchronized plan](OPERATOR-PLAN.md) for the execution record.
-
-Run opt-in native acceptance only with a verified test-owned peer and external artifacts:
+Native endurance is opt-in and requires an uninterrupted desktop interval, a test-owned target and supported verified input clients:
 
 ```sh
 python3 -B scripts/native-acceptance.py \
@@ -79,6 +81,6 @@ python3 -B scripts/native-acceptance.py \
   --target-pid TEST_OWNED_PID --cycles 50 --soak 600 --closed 60
 ```
 
-The runner records observed opens/closes through pointer, actual bar shortcut and IPC, then an uninterrupted live soak with one persistent helper and unchanged process start identities. It checks predeclared RSS/CPU/FD/task/child budgets, fresh samples, recorder progress and bounded jobs. It preserves bounded identity-safe status before failure cleanup and never reopens a lost soak instance. Shorter runs are explicitly labeled smoke. All output and temporary state stay outside the watched tree; do not edit, commit or build inside it during a soak. Only scale-1 single-output native hardware is currently available; other orientations/monitors/native fractional scaling remain unverified without workstation changes.
+The physical bar binding uses Super+Ctrl+code:10. Named-key `wtype` input assigns temporary keycodes and does not establish that physical binding; the tested client uses a standard XKB map through the supported virtual-keyboard protocol. Ordinary native panel key tests use `wtype`. The runner waits for dismissal to unmap/settle, refuses panel keys without the target surface, preserves failure evidence before cleanup, and never silently reopens a lost soak. No watched-tree writes/builds/commits belong inside such a run.
 
-The native runner uses a standard-XKB virtual keyboard client for the configured Super+Ctrl+physical-code-10 bar shortcut. `wtype` assigns temporary keycodes, so its named `1` does not test this physical binding. Ordinary panel key tests still use `wtype`. Wait for the host surface to unmap and settle before the next cycle, and let plugin file watching settle after source changes.
+Both test-owned peers were stopped after restoration checks. The test watch was removed; no trial, probe or pending interactive job remains. The persistent shell helper remains as designed. No clipboard copy action or saved presentation preference was changed. Private test exports and failure/capture evidence were retained; user watches, exports and recovery journals were not deleted. Session-only recorder selection cleanup is recorded in the plan. The sibling Tactical Display checkout remains unchanged.
