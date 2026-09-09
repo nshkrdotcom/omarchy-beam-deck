@@ -6,26 +6,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [1.2.0] - 2026-09-08
 
-* Confirm both normal and coupled dirty CPU scheduler counts after mutation before acknowledging success or recording restoration evidence. Transient OTP counts no longer masquerade as an external change during rollback.
+### Added
 
-* Resolve the helper from the installed QML component location. Current Omarchy sanitizes private manifest paths; relying on them previously left the panel without telemetry.
+* Process activity and ETS growth surveys with signed interval deltas, paging, filtering, and inspection pivots.
+* Exact-PID stack sampling with frequency bars, expandable stacks, and report copying.
+* Fair reduction-leader admission into the captured hot-process set.
+* Dated provider quality, filtered activity, and recorder pivots in Triage.
+* Retained-frame intervention baselines with comparison and report export.
+* Additional recorder graphs for memory, queues, utilization, and capacity.
+* Production Qt coverage, real-peer regressions, native import lint, and soak tooling.
 
-* Rename the plugin identifier from `nshkr.beam-deck` to `com.nshkr.beam-deck` across the manifest, service registration, IPC, tests and documentation. Existing installations must update their existing bar entry to the new ID.
+### Changed
 
-* Add explicit process activity and ETS growth surveys with signed interval deltas, exact identity, five-row paging, local filtering and direct inspection pivots.
-* Add exact-PID stack sampling with frequency bars, expandable argument-free stacks and explicit report copying.
-* Add owner-scoped request cancellation and require target incarnation/duration on interval commands. Respect the configured process admission limit.
-* Admit reduction leaders fairly into the existing captured hot set, even when mailbox and memory rankings differ.
+* Renamed the plugin ID from `nshkr.beam-deck` to `com.nshkr.beam-deck`.
+* Resolved the telemetry helper from the installed QML component location.
+* Added target incarnation and duration requirements to interval commands.
+* Preserved investigation context, keyed rows, filters, focus, and scroll position.
+* Kept unavailable measurements null and retained dated failed-node and watch evidence.
+* Applied explicit nested allowlists to private ZIP export contents.
+* Labeled historical action receipts separately from current control state.
 
-* Integrate dated provider quality, filtered activity and exact recorder pivots into Triage.
-* Add one explicit retained-frame intervention baseline with replace/clear, directional comparison and report export.
-* Extend recorder graphs with node memory/queue/utilization/capacity views, measured spacing, honest missing segments, capped markers, precise keyboard/pointer selection and font-responsive legends.
-* Preserve investigation context, exact missing targets, keyed rows, selected-control focus and actual scroll reveal. Add captured process/ETS filters and reversible inspection pivots.
-* Reject stale view epochs and VM identities at control execution; stop Deep Events independently of diagnostic admission, while confirming cleanup separately.
-* Keep missing measurements null, avoid false incident resolution on repeated/unavailable samples, retain dated failed-node/watch evidence, and project private ZIP contents through explicit nested allowlists.
-* Add production Qt tests, real-peer/protocol regressions, strict native import lint and native failure-evidence/soak tooling. Preserve the native main title and action rail.
-* Bound optional supervisor queries and preserve binary metadata; omit arbitrary OS command arguments and exclude internal remsh clients from runtime budgets.
-* Label dated action receipts separately from current control state, and clarify small recorder scale spans.
+### Fixed
+
+* Confirmed normal and dirty CPU scheduler counts after mutation and during rollback.
+* Prevented transient scheduler counts from appearing as external rollback changes.
+* Rejected stale view epochs and VM identities before runtime control execution.
+* Stopped Deep Events independently from diagnostic admission and verified cleanup separately.
+* Prevented repeated or unavailable samples from falsely resolving incidents.
+* Limited optional supervisor queries and preserved binary metadata.
+* Excluded internal remsh clients from runtime resource budgets.
+* Removed arbitrary OS command arguments from diagnostic output.
+* Improved recorder selection, marker limits, missing segments, legends, and scale labels.
 
 ## [1.1.0] - 2026-09-06
 
@@ -83,7 +94,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Capped in-memory history with full-window downsampling.
 - Real OTP peer integration tests and multi-version GitHub Actions matrix.
 
+[1.2.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/releases/tag/v1.0.0
-
-[1.2.0]: https://github.com/nshkrdotcom/omarchy-beam-deck/compare/v1.1.0...v1.2.0
